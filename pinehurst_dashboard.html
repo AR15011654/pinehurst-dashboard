@@ -70,7 +70,7 @@ tr:hover td{background:#f7fafc;}
 .costura-section{padding:0 2rem 1.5rem;}
 .alert-plan{background:#e3f0fb;border:1px solid #b3d4f0;border-radius:8px;padding:.7rem 1rem;margin-bottom:1rem;font-size:.78rem;color:#0056a0;line-height:1.7;}
 .alert-plan strong{color:#002B49;}
-.costura-r2{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.4rem;}
+.costura-r2{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.4rem;align-items:start;}
 .cs-card{background:#fff;border:1px solid #dce6f0;border-radius:10px;padding:1.2rem;box-shadow:0 1px 4px rgba(0,43,73,.07);}
 .cs-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;color:#6a8099;margin-bottom:.8rem;}
 .kpi-row-4{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.4rem;}
@@ -165,22 +165,18 @@ footer strong{color:#0067B8;}
     </div>
     <div class="alert-plan" id="costura-alert"></div>
     <div class="costura-r2">
-      <div class="cs-card">
+      <div class="cs-card" style="display:flex;flex-direction:column;">
   <div class="cs-title">Avance semanal — Meta (30) vs Real</div>
-  <div style="overflow-x:auto;overflow-y:hidden;cursor:grab;border-radius:6px;padding-bottom:4px;scrollbar-width:thin;scrollbar-color:#0067B8 #eef2f6;" id="costura-weekly-scroll"
-    onmousedown="this.isDown=true;this.startX=event.pageX-this.offsetLeft;this.scrollLeftStart=this.scrollLeft;"
-    onmouseleave="this.isDown=false;"
-    onmouseup="this.isDown=false;"
-    onmousemove="if(!this.isDown)return;event.preventDefault();const x=event.pageX-this.offsetLeft;this.scrollLeft=this.scrollLeftStart-(x-this.startX);">
-    <div style="position:relative;height:220px;min-width:1200px;">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+    <button onclick="document.getElementById('cws').scrollLeft-=150" style="flex-shrink:0;width:32px;height:32px;background:#0067B8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;">◀</button>
+    <input type="range" min="0" max="100" value="0" style="flex:1;accent-color:#0067B8;cursor:pointer;height:6px;"
+      oninput="const s=document.getElementById('cws');s.scrollLeft=(s.scrollWidth-s.clientWidth)*this.value/100;">
+    <button onclick="document.getElementById('cws').scrollLeft+=150" style="flex-shrink:0;width:32px;height:32px;background:#0067B8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;">▶</button>
+  </div>
+  <div id="cws" style="overflow-x:auto;overflow-y:hidden;flex:1;scrollbar-width:thin;scrollbar-color:#0067B8 #eef2f6;">
+    <div style="position:relative;height:200px;min-width:1100px;">
       <canvas id="chart-costura-weekly"></canvas>
     </div>
-  </div>
-  <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
-    <button onclick="document.getElementById('costura-weekly-scroll').scrollLeft-=200" style="padding:4px 12px;background:#0067B8;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">◀</button>
-    <input type="range" min="0" max="100" value="0" style="flex:1;accent-color:#0067B8;cursor:pointer;"
-      oninput="const s=document.getElementById('costura-weekly-scroll');s.scrollLeft=(s.scrollWidth-s.clientWidth)*this.value/100;">
-    <button onclick="document.getElementById('costura-weekly-scroll').scrollLeft+=200" style="padding:4px 12px;background:#0067B8;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">▶</button>
   </div>
 </div>
       <div class="cs-card"><div class="cs-title">Avance mensual — Real vs Meta (Feb→Dic)</div><div style="position:relative;height:200px;"><canvas id="chart-costura-monthly"></canvas></div></div>
@@ -216,22 +212,18 @@ footer strong{color:#0067B8;}
     </div>
     <div class="alert-plan" id="pd-alert"></div>
     <div class="costura-r2">
-      <div class="cs-card">
+      <div class="cs-card" style="display:flex;flex-direction:column;">
         <div class="cs-title">Avance semanal — Meta vs Real</div>
-        <div style="overflow-x:auto;overflow-y:hidden;cursor:grab;border-radius:6px;padding-bottom:4px;scrollbar-width:thin;scrollbar-color:#0067B8 #eef2f6;" id="pd-weekly-scroll"
-          onmousedown="this.isDown=true;this.startX=event.pageX-this.offsetLeft;this.scrollLeftStart=this.scrollLeft;"
-          onmouseleave="this.isDown=false;"
-          onmouseup="this.isDown=false;"
-          onmousemove="if(!this.isDown)return;event.preventDefault();const x=event.pageX-this.offsetLeft;this.scrollLeft=this.scrollLeftStart-(x-this.startX);">
-          <div style="position:relative;height:220px;min-width:1200px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+          <button onclick="document.getElementById('pws').scrollLeft-=150" style="flex-shrink:0;width:32px;height:32px;background:#0067B8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;">◀</button>
+          <input type="range" min="0" max="100" value="0" style="flex:1;accent-color:#0067B8;cursor:pointer;height:6px;"
+            oninput="const s=document.getElementById('pws');s.scrollLeft=(s.scrollWidth-s.clientWidth)*this.value/100;">
+          <button onclick="document.getElementById('pws').scrollLeft+=150" style="flex-shrink:0;width:32px;height:32px;background:#0067B8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;">▶</button>
+        </div>
+        <div id="pws" style="overflow-x:auto;overflow-y:hidden;flex:1;scrollbar-width:thin;scrollbar-color:#0067B8 #eef2f6;">
+          <div style="position:relative;height:200px;min-width:1100px;">
             <canvas id="chart-pd-weekly"></canvas>
           </div>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
-          <button onclick="document.getElementById('pd-weekly-scroll').scrollLeft-=200" style="padding:4px 12px;background:#0067B8;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">◀</button>
-          <input type="range" min="0" max="100" value="0" style="flex:1;accent-color:#0067B8;cursor:pointer;"
-            oninput="const s=document.getElementById('pd-weekly-scroll');s.scrollLeft=(s.scrollWidth-s.clientWidth)*this.value/100;">
-          <button onclick="document.getElementById('pd-weekly-scroll').scrollLeft+=200" style="padding:4px 12px;background:#0067B8;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">▶</button>
         </div>
       </div>
       <div class="cs-card">
