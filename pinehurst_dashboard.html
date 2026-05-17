@@ -374,14 +374,24 @@ function filterArea(area,btn){
   currentArea=area;
   document.querySelectorAll('.area-tab').forEach(t=>t.classList.remove('active'));
   if(btn)btn.classList.add('active');
-  const d=area==='TODAS'?allData:allData.filter(r=>getArea(r)===area);
-  renderKPIs(d);renderChartMeses(d);renderChartTipos(d);
-  renderBars('bar-areas',cnt(d,'AREA DUEÑA'));
-  renderBars('bar-mecanicos',cnt(d,'MECANICO'),'green');
-  renderTable(d);
-  const cd=allData.filter(r=>getArea(r).toUpperCase().includes('COSTURA'));
-  if(cd.length>0&&(area==='TODAS'||area.toUpperCase().includes('COSTURA'))){renderCosturaSection(cd);}
-  else{document.getElementById('costura-section').style.display='none';}
+  const isCostura=area.toUpperCase().includes('COSTURA');
+  const mainSection=document.querySelector('.main');
+  const costuraSection=document.getElementById('costura-section');
+  if(isCostura){
+    // Hide general, show only costura
+    mainSection.style.display='none';
+    const cd=allData.filter(r=>getArea(r).toUpperCase().includes('COSTURA'));
+    if(cd.length>0){renderCosturaSection(cd);costuraSection.style.display='block';}
+  } else {
+    // Show general, hide costura
+    mainSection.style.display='block';
+    costuraSection.style.display='none';
+    const d=area==='TODAS'?allData:allData.filter(r=>getArea(r)===area);
+    renderKPIs(d);renderChartMeses(d);renderChartTipos(d);
+    renderBars('bar-areas',cnt(d,'AREA DUEÑA'));
+    renderBars('bar-mecanicos',cnt(d,'MECANICO'),'green');
+    renderTable(d);
+  }
 }
 
 async function loadData(){
