@@ -182,9 +182,24 @@ footer strong{color:#0067B8;}
 <script>
 const CSV='https://docs.google.com/spreadsheets/d/e/2PACX-1vQvyJg610AkUuW2nmyhUKthxKwTcdmISAptd-oliRib55e5TXNndz7VyiTyK81O4V0OFF5d_RxrISKT/pub?gid=1513570346&single=true&output=csv';
 let allData=[],chartM=null,chartT=null,chartCW=null,chartCM=null,chartGauge=null,currentArea='TODAS';
-const PLAN_START=new Date(2026,4,19);
-const META_MENSUAL={ENE:0,FEB:0,MAR:0,ABR:0,MAY:76,JUN:152,JUL:152,AGO:152,SEP:152,OCT:152,NOV:209,DIC:0};
-const MESES_PLAN=['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV'];
+const PLAN_START=new Date(2026,1,2);   // Feb 2 2026
+const PLAN_END=new Date(2026,11,5);     // Dec 5 2026
+const META_SEMANAL_COSTURA=30;
+const META_MENSUAL={
+  ENE:0,
+  FEB:120,  // 4 sem x 30
+  MAR:120,  // 4 sem x 30
+  ABR:120,  // 4 sem x 30
+  MAY:120,  // 4 sem x 30
+  JUN:120,  // 4 sem x 30
+  JUL:150,  // 5 sem x 30
+  AGO:120,  // 4 sem x 30
+  SEP:120,  // 4 sem x 30
+  OCT:150,  // 5 sem x 30
+  NOV:120,  // 4 sem x 30
+  DIC:37    // 1 sem restante para llegar a 1277
+};
+const MESES_PLAN=['FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
 
 function getArea(r){return(r['AREA DUEÑA']||r['AREA']||'').trim()||'Sin área';}
 function cnt(arr,k){const m={};arr.forEach(r=>{const v=(r[k]||'Sin dato').trim()||'Sin dato';m[v]=(m[v]||0)+1;});return Object.entries(m).sort((a,b)=>b[1]-a[1]);}
@@ -323,31 +338,51 @@ function renderCosturaSection(cd){
     </div>`;
 
   // Alert
-  document.getElementById('costura-alert').innerHTML=`📋 Plan de cierre 2026 · Pendientes: <strong>${pendientes.toLocaleString()} máq.</strong> · Semanas L-V: <strong>28 sem.</strong> · Meta semanal: <strong>38 máq/sem</strong> · Meta diaria: <strong>8 máq/día</strong> · Límite: <strong>Nov 28, 2026</strong>`;
+  document.getElementById('costura-alert').innerHTML=`📋 Plan 2026 · Total: <strong>1,277 máq.</strong> · Período: <strong>Feb 2 → Dic 5</strong> · Semanas: <strong>43 sem.</strong> · Meta semanal: <strong>30 máq/sem</strong> · Meta diaria: <strong>6 máq/día</strong> · Ejecutadas: <strong>${ejecutados} (${pct}%)</strong> · Pendientes: <strong>${pendientes}</strong>`;
 
-  // Weekly chart
-  const wc=groupByWeek(cd);
+  // Weekly chart — weeks from Feb 2 (plan start)
+  const wc={};
+  cd.forEach(r=>{
+    const d=parseFinalDate(r['Final Actividad']);
+    if(!d||d.getFullYear()!==2026)return;
+    const diff=d-PLAN_START;
+    if(diff<0)return; // skip before Feb 2
+    const w=Math.floor(diff/(7*24*3600*1000))+1;
+    if(w>=1&&w<=43)wc[w]=(wc[w]||0)+1;
+  });
   const today=new Date();
-  const curW=Math.max(1,Math.floor((today-PLAN_START)/(7*24*3600*1000))+1);
+  const curW=Math.max(1,Math.min(43,Math.floor((today-PLAN_START)/(7*24*3600*1000))+1));
   const wLabels=[],wMeta=[],wReal=[];
-  for(let w=1;w<=Math.min(curW+10,28);w++){wLabels.push('S'+w);wMeta.push(38);wReal.push(wc[w]||0);}
+  for(let w=1;w<=Math.min(curW+4,43);w++){
+    wLabels.push('S'+w);
+    wMeta.push(META_SEMANAL_COSTURA);
+    wReal.push(wc[w]||0);
+  }
   const ctxW=document.getElementById('chart-costura-weekly').getContext('2d');
   if(chartCW)chartCW.destroy();
   chartCW=new Chart(ctxW,{type:'bar',data:{labels:wLabels,datasets:[
-    {label:'Meta (38)',data:wMeta,backgroundColor:'#0067B822',borderColor:'#0067B8',borderWidth:1.5,borderRadius:3},
-    {label:'Real',data:wReal,backgroundColor:wReal.map((v,i)=>i<curW?(v>=38?'#43AF2A':'#e53935'):'#43AF2A44'),borderRadius:3}
-  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#6a8099',font:{size:9},boxWidth:10}}},scales:{x:{grid:{color:'#eef2f6'},ticks:{color:'#6a8099',font:{size:8}}},y:{grid:{color:'#eef2f6'},ticks:{color:'#6a8099',font:{size:8}}}}}});
+    {label:'Meta (30/sem)',data:wMeta,backgroundColor:'#0067B822',borderColor:'#0067B8',borderWidth:1.5,borderRadius:3},
+    {label:'Real',data:wReal,backgroundColor:wReal.map((v,i)=>{
+      if(i>=curW)return '#43AF2A44';
+      return v>=META_SEMANAL_COSTURA?'#43AF2A':'#e53935';
+    }),borderRadius:3}
+  ]},options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{labels:{color:'#6a8099',font:{size:9},boxWidth:10}},
+      tooltip:{callbacks:{afterBody:items=>{const w=items[0].dataIndex+1;const real=wReal[items[0].dataIndex];const diff=real-META_SEMANAL_COSTURA;return diff>=0?`+${diff} sobre meta`:`${diff} bajo meta`;}}}},
+    scales:{x:{grid:{color:'#eef2f6'},ticks:{color:'#6a8099',font:{size:8}}},
+            y:{grid:{color:'#eef2f6'},ticks:{color:'#6a8099',font:{size:8}},
+              suggestedMax:50}}
+  }});
 
-  // Monthly chart
+  // Monthly chart — show real months from Final Actividad
   const mc=groupByMes(cd);
   const ctxM=document.getElementById('chart-costura-monthly').getContext('2d');
   if(chartCM)chartCM.destroy();
-  // Only show months with real data OR plan months
   const allMonths=['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV'];
   const visibleMonths=allMonths.filter(m=>mc[m]>0||META_MENSUAL[m]>0);
   chartCM=new Chart(ctxM,{type:'bar',data:{labels:visibleMonths,datasets:[
     {label:'Meta',data:visibleMonths.map(m=>META_MENSUAL[m]||0),backgroundColor:'#0067B833',borderColor:'#0067B8',borderWidth:1.5,borderRadius:3},
-    {label:'Real',data:visibleMonths.map(m=>mc[m]||0),backgroundColor:visibleMonths.map(m=>META_MENSUAL[m]>0?'#43AF2A':'#0067B888'),borderRadius:3}
+    {label:'Real',data:visibleMonths.map(m=>mc[m]||0),backgroundColor:visibleMonths.map(m=>mc[m]>0?(META_MENSUAL[m]>0?'#43AF2A':'#0067B888'):'transparent'),borderRadius:3}
   ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#6a8099',font:{size:9},boxWidth:10}}},scales:{x:{grid:{color:'#eef2f6'},ticks:{color:'#6a8099',font:{size:8}}},y:{grid:{color:'#eef2f6'},ticks:{color:'#6a8099',font:{size:8}}}}}});
 
   // Avance por tipo de maquina
