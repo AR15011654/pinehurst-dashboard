@@ -9,95 +9,95 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:'Barlow',sans-serif;background:#c4c8cc;color:#1a2a3a;min-height:100vh;overflow-x:hidden;}
-#loading{position:fixed;inset:0;z-index:999;background:#002B49;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;}
+body{font-family:'Barlow',sans-serif;background:#0d1117;color:#e6edf3;min-height:100vh;overflow-x:hidden;}
+#loading{position:fixed;inset:0;z-index:999;background:#0d1117;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;}
 .spinner{width:44px;height:44px;border:4px solid rgba(255,255,255,.2);border-top-color:#0067B8;border-radius:50%;animation:spin .8s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg)}}
 #loading p{color:rgba(255,255,255,.5);font-size:.9rem;}
 #app{display:none;}
 /* TOPBAR */
-.topbar{display:flex;align-items:center;justify-content:space-between;padding:0 2rem;height:66px;background:#002B49;border-bottom:3px solid #0067B8;position:sticky;top:0;z-index:100;box-shadow:0 4px 24px rgba(0,43,73,.3);}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:0 2rem;height:66px;background:#161b22;border-bottom:1px solid #30363d;border-left:none;position:sticky;top:0;z-index:100;box-shadow:0 4px 24px rgba(0,43,73,.3);}
 .topbar-brand{display:flex;align-items:center;gap:14px;}
 .topbar-divider{width:1px;height:30px;background:rgba(255,255,255,.2);}
 .topbar-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:1.1rem;letter-spacing:.08em;color:rgba(255,255,255,.5);text-transform:uppercase;}
 .topbar-right{display:flex;align-items:center;gap:14px;}
-.status-chip{display:flex;align-items:center;gap:7px;padding:5px 14px;background:rgba(67,175,42,.1);border:1px solid rgba(67,175,42,.3);border-radius:20px;font-size:.78rem;color:#43AF2A;}
+.status-chip{display:flex;align-items:center;gap:7px;padding:5px 14px;background:rgba(67,175,42,.1);border:1px solid rgba(67,175,42,.3);border-radius:20px;font-size:.78rem;color:#3fb950;}
 .status-dot{width:7px;height:7px;border-radius:50%;background:#43AF2A;animation:blink 2s ease-in-out infinite;}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
 .btn-refresh{padding:7px 18px;background:#0067B8;color:#fff;border:none;border-radius:6px;font-family:'Barlow',sans-serif;font-weight:600;font-size:.82rem;cursor:pointer;}
 /* TABS */
-.area-tabs{display:flex;gap:.3rem;padding:.6rem 2rem;background:#fff;border-bottom:1px solid #dce6f0;overflow-x:auto;}
-.area-tab{padding:6px 18px;background:transparent;border:1px solid #dce6f0;border-radius:20px;font-family:'Barlow',sans-serif;font-weight:500;font-size:.8rem;color:#6a8099;cursor:pointer;white-space:nowrap;transition:all .2s;}
+.area-tabs{display:flex;gap:.3rem;padding:.6rem 2rem;background:#161b22;border-bottom:1px solid #21262d;overflow-x:auto;}
+.area-tab{padding:6px 18px;background:transparent;border:1px solid #30363d;border-radius:20px;font-family:'Barlow',sans-serif;font-weight:500;font-size:.8rem;color:#7d8590;cursor:pointer;white-space:nowrap;transition:all .2s;}
 .area-tab:hover{border-color:#0067B8;color:#0067B8;}
 .area-tab.active{background:#0067B8;border-color:#0067B8;color:#fff;}
 /* MAIN */
 .main{padding:1.6rem 2rem;}
-.section-lbl{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;text-transform:uppercase;letter-spacing:.1em;color:#6a8099;margin-bottom:1rem;display:flex;align-items:center;gap:8px;}
+.section-lbl{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;text-transform:uppercase;letter-spacing:.1em;color:#7d8590;margin-bottom:1rem;display:flex;align-items:center;gap:8px;}
 .section-lbl::after{content:'';flex:1;height:1px;background:#dce6f0;}
 /* KPI */
 .kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:1rem;margin-bottom:1.4rem;}
-.kpi{background:#fff;border:1px solid #dce6f0;border-radius:10px;padding:1rem 1.2rem;position:relative;overflow:hidden;box-shadow:0 1px 4px rgba(0,43,73,.07);}
+.kpi{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:1rem 1.2rem;position:relative;overflow:hidden;box-shadow:0 1px 4px rgba(0,43,73,.07);}
 .kpi::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:#0067B8;}
 .kpi.green::after{background:#43AF2A;}.kpi.red::after{background:#e53935;}.kpi.orange::after{background:#fb8c00;}.kpi.grey::after{background:#aab8c4;}
-.kpi-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;color:#6a8099;margin-bottom:.4rem;font-weight:600;}
-.kpi-val{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:2.4rem;line-height:1;color:#002B49;}
-.kpi-sub{font-size:.72rem;color:#8aa0b0;margin-top:.3rem;}
+.kpi-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;color:#7d8590;margin-bottom:.4rem;font-weight:600;}
+.kpi-val{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:2.4rem;line-height:1;color:#e6edf3;}
+.kpi-sub{font-size:.72rem;color:#484f58;margin-top:.3rem;}
 /* CHARTS */
 .charts-row{display:grid;grid-template-columns:2fr 1fr;gap:1rem;margin-bottom:1.4rem;}
-.chart-card{background:#fff;border:1px solid #dce6f0;border-radius:10px;padding:1.2rem;box-shadow:0 1px 4px rgba(0,43,73,.07);}
-.chart-card-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;text-transform:uppercase;letter-spacing:.08em;color:#6a8099;margin-bottom:1rem;}
+.chart-card{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:1.2rem;box-shadow:0 1px 4px rgba(0,43,73,.07);}
+.chart-card-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;text-transform:uppercase;letter-spacing:.08em;color:#7d8590;margin-bottom:1rem;}
 .chart-wrap{position:relative;height:180px;}
 .bottom-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.4rem;}
 .bar-list{display:flex;flex-direction:column;gap:.6rem;}
 .bar-item{display:flex;align-items:center;gap:.6rem;font-size:.78rem;}
-.bar-item-label{width:130px;color:#5a7080;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;}
-.bar-track{flex:1;height:7px;background:#eef2f6;border-radius:4px;overflow:hidden;}
+.bar-item-label{width:130px;color:#8b949e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;}
+.bar-track{flex:1;height:7px;background:#21262d;border-radius:4px;overflow:hidden;}
 .bar-fill{height:100%;border-radius:4px;background:#0067B8;}.bar-fill.green{background:#43AF2A;}
-.bar-item-val{width:32px;text-align:right;color:#1a2a3a;font-weight:600;}
+.bar-item-val{width:32px;text-align:right;color:#e6edf3;font-weight:600;}
 /* TABLE */
-.table-card{background:#fff;border:1px solid #dce6f0;border-radius:10px;overflow:hidden;margin-bottom:1.4rem;box-shadow:0 1px 4px rgba(0,43,73,.07);}
-.table-head{display:flex;align-items:center;justify-content:space-between;padding:.8rem 1.2rem;border-bottom:1px solid #eef2f6;background:#f5f5f5;}
-.table-head-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;text-transform:uppercase;letter-spacing:.08em;color:#6a8099;}
+.table-card{background:#161b22;border:1px solid #30363d;border-radius:10px;overflow:hidden;margin-bottom:1.4rem;box-shadow:0 1px 4px rgba(0,43,73,.07);}
+.table-head{display:flex;align-items:center;justify-content:space-between;padding:.8rem 1.2rem;border-bottom:1px solid #21262d;background:#0d1117;}
+.table-head-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;text-transform:uppercase;letter-spacing:.08em;color:#7d8590;}
 .table-count{font-size:.78rem;color:#0067B8;font-weight:600;}
 .tbl-wrap{overflow-x:auto;max-height:280px;overflow-y:auto;}
 table{width:100%;border-collapse:collapse;}
-th{position:sticky;top:0;padding:.5rem 1rem;background:#f5f5f5;font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:#6a8099;text-align:left;font-weight:700;border-bottom:1px solid #eef2f6;white-space:nowrap;}
-td{padding:.6rem 1rem;font-size:.78rem;border-top:1px solid #f0f4f8;color:#2a3d4e;white-space:nowrap;}
-tr:hover td{background:#f5f5f5;}
+th{position:sticky;top:0;padding:.5rem 1rem;background:#0d1117;font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:#7d8590;text-align:left;font-weight:700;border-bottom:1px solid #21262d;white-space:nowrap;}
+td{padding:.6rem 1rem;font-size:.78rem;border-top:1px solid #21262d;color:#c9d1d9;white-space:nowrap;}
+tr:hover td{background:#0d1117;}
 .badge{display:inline-block;padding:2px 9px;border-radius:12px;font-size:.68rem;font-weight:700;}
-.badge-prev{background:#e8f5e0;color:#2d7a1a;}.badge-corr{background:#fdecea;color:#b71c1c;}.badge-pred{background:#e3f0fb;color:#0056a0;}.badge-def{background:#f0f4f8;color:#6a8099;}
+.badge-prev{background:#e8f5e0;color:#2d7a1a;}.badge-corr{background:#fdecea;color:#b71c1c;}.badge-pred{background:#e3f0fb;color:#0056a0;}.badge-def{background:#f0f4f8;color:#7d8590;}
 /* COSTURA SECTION */
 .costura-section{padding:0 2rem 1.5rem;}
 .alert-plan{background:#e3f0fb;border:1px solid #b3d4f0;border-radius:8px;padding:.7rem 1rem;margin-bottom:1rem;font-size:.78rem;color:#0056a0;line-height:1.7;}
-.alert-plan strong{color:#002B49;}
+.alert-plan strong{color:#e6edf3;}
 .costura-r2{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.4rem;align-items:start;}
-.cs-card{background:#fff;border:1px solid #dce6f0;border-radius:10px;padding:1.2rem;box-shadow:0 1px 4px rgba(0,43,73,.07);}
-.cs-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;color:#6a8099;margin-bottom:.8rem;}
+.cs-card{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:1.2rem;box-shadow:0 1px 4px rgba(0,43,73,.07);}
+.cs-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;color:#7d8590;margin-bottom:.8rem;}
 .kpi-row-4{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.4rem;}
 /* AVANCE TABLE */
-.avance-card{background:#fff;border:1px solid #dce6f0;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,43,73,.07);margin-bottom:1.4rem;}
-.avance-head{background:#002B49;padding:.8rem 1.2rem;}
+.avance-card{background:#161b22;border:1px solid #30363d;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,43,73,.07);margin-bottom:1.4rem;}
+.avance-head{background:#0d1117;padding:.8rem 1.2rem;border-bottom:1px solid #30363d;}
 .avance-head h3{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:1rem;letter-spacing:.08em;color:#fff;text-transform:uppercase;}
 .avance-head p{font-size:.65rem;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.1em;margin-top:2px;}
 .avance-scroll{max-height:400px;overflow-y:auto;}
 .avance-table{width:100%;border-collapse:collapse;}
-.avance-table th{padding:.5rem 1rem;background:#f5f5f5;font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;color:#6a8099;text-align:left;font-weight:700;border-bottom:2px solid #dce6f0;white-space:nowrap;position:sticky;top:0;}
+.avance-table th{padding:.5rem 1rem;background:#0d1117;font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;color:#7d8590;text-align:left;font-weight:700;border-bottom:2px solid #dce6f0;white-space:nowrap;position:sticky;top:0;}
 .avance-table th.r{text-align:right;}
-.avance-table td{padding:.6rem 1rem;font-size:.78rem;border-top:1px solid #f0f4f8;color:#2a3d4e;vertical-align:middle;}
+.avance-table td{padding:.6rem 1rem;font-size:.78rem;border-top:1px solid #21262d;color:#c9d1d9;vertical-align:middle;}
 .avance-table td.r{text-align:right;}
-.avance-table tr:hover td{background:#f5f5f5;}
-.avance-table tr.total-row td{background:#f0f4f8;border-top:2px solid #dce6f0;font-weight:700;}
-.maq-nm{font-weight:700;font-size:.82rem;color:#002B49;text-transform:uppercase;}
-.v-real{font-size:.9rem;font-weight:800;color:#43AF2A;}
-.v-total{font-size:.8rem;color:#6a8099;}
+.avance-table tr:hover td{background:#0d1117;}
+.avance-table tr.total-row td{background:#1c2128;border-top:2px solid #30363d;font-weight:700;}
+.maq-nm{font-weight:700;font-size:.82rem;color:#e6edf3;text-transform:uppercase;}
+.v-real{font-size:.9rem;font-weight:800;color:#3fb950;}
+.v-total{font-size:.8rem;color:#7d8590;}
 .v-pend{font-size:.9rem;font-weight:700;}
 .v-pct{font-size:.85rem;font-weight:800;}
 .prog-w{display:flex;align-items:center;gap:8px;min-width:120px;}
-.prog-b{flex:1;height:8px;background:#eef2f6;border-radius:4px;overflow:hidden;}
+.prog-b{flex:1;height:8px;background:#21262d;border-radius:4px;overflow:hidden;}
 .prog-f{height:100%;border-radius:4px;}
 /* Tipo items */
 .tipo-item{display:flex;align-items:center;justify-content:space-between;padding:.6rem .9rem;border-radius:8px;border-left:4px solid;margin-bottom:.5rem;}
-footer{text-align:center;padding:1rem 2rem;font-size:.72rem;color:#8aa0b0;border-top:1px solid #dce6f0;background:#f5f5f5;}
+footer{text-align:center;padding:1rem 2rem;font-size:.72rem;color:#484f58;border-top:1px solid #dce6f0;background:#0d1117;}
 footer strong{color:#0067B8;}
 @media(max-width:900px){.kpi-row,.kpi-row-4{grid-template-columns:repeat(2,1fr)}.charts-row,.bottom-row,.costura-r2{grid-template-columns:1fr}.main,.costura-section{padding:1rem}}
 </style>
@@ -182,17 +182,11 @@ footer strong{color:#0067B8;}
 </div>
       <div class="cs-card"><div class="cs-title">Avance mensual — Real vs Meta (Feb→Dic)</div><div style="position:relative;height:200px;"><canvas id="chart-costura-monthly"></canvas></div></div>
     </div>
-    <div class="avance-card">
-      <div class="avance-head"><h3>% Avance por Tipo de Máquina</h3><p>Área Dueña: COSTURA · Calculado desde columna Final Actividad</p></div>
-      <div class="avance-scroll"><table class="avance-table">
-        <thead><tr><th>Tipo de Máquina</th><th class="r">Realizados</th><th class="r">Parque Total</th><th class="r">Pendientes</th><th class="r">% Avance</th><th>Progreso</th></tr></thead>
-        <tbody id="costura-avance-body"></tbody>
-      </table></div>
     </div>
 
     <!-- GANTT -->
     <div class="section-lbl" style="margin-bottom:.8rem;">📅 Gantt de cumplimiento mensual — Feb a Dic 2026</div>
-    <div style="background:#fff;border:1px solid #dce6f0;border-radius:10px;overflow:hidden;margin-bottom:1.4rem;box-shadow:0 1px 4px rgba(0,43,73,.07);">
+    <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;overflow:hidden;margin-bottom:1.4rem;box-shadow:0 1px 4px rgba(0,43,73,.07);">
       <div style="background:#002B49;padding:10px 16px;">
         <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:1rem;letter-spacing:.08em;color:#fff;text-transform:uppercase;">Cumplimiento mensual por grupo de máquina — COSTURA</div>
         <div style="font-size:.65rem;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.1em;margin-top:2px;">Real ejecutado vs meta mensual · Plan Feb 2 → Dic 5, 2026 · datos desde Final Actividad</div>
@@ -203,12 +197,12 @@ footer strong{color:#0067B8;}
           <tbody id="costura-gantt-body"></tbody>
         </table>
       </div>
-      <div style="display:flex;gap:14px;padding:8px 16px;border-top:1px solid #eef2f6;background:#f7fafc;flex-wrap:wrap;">
-        <div style="display:flex;align-items:center;gap:6px;font-size:.7rem;color:#6a8099;"><div style="width:12px;height:12px;background:#dcfce7;border:1px solid #86efac;border-radius:3px;"></div>Cumplió meta (≥100%)</div>
-        <div style="display:flex;align-items:center;gap:6px;font-size:.7rem;color:#6a8099;"><div style="width:12px;height:12px;background:#fef3c7;border:1px solid #fcd34d;border-radius:3px;"></div>Parcial (50–99%)</div>
-        <div style="display:flex;align-items:center;gap:6px;font-size:.7rem;color:#6a8099;"><div style="width:12px;height:12px;background:#fee2e2;border:1px solid #fca5a5;border-radius:3px;"></div>Bajo meta (&lt;50%)</div>
-        <div style="display:flex;align-items:center;gap:6px;font-size:.7rem;color:#6a8099;"><div style="width:12px;height:12px;background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:3px;"></div>Meta proyectada</div>
-        <div style="display:flex;align-items:center;gap:6px;font-size:.7rem;color:#6a8099;"><div style="width:12px;height:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:3px;"></div>Sin datos</div>
+      <div style="display:flex;gap:14px;padding:8px 16px;border-top:1px solid #eef2f6;background:#0d1117;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:6px;font-size:.7rem;color:#7d8590;"><div style="width:12px;height:12px;background:#dcfce7;border:1px solid #86efac;border-radius:3px;"></div>Cumplió meta (≥100%)</div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:.7rem;color:#7d8590;"><div style="width:12px;height:12px;background:#fef3c7;border:1px solid #fcd34d;border-radius:3px;"></div>Parcial (50–99%)</div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:.7rem;color:#7d8590;"><div style="width:12px;height:12px;background:#fee2e2;border:1px solid #fca5a5;border-radius:3px;"></div>Bajo meta (&lt;50%)</div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:.7rem;color:#7d8590;"><div style="width:12px;height:12px;background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:3px;"></div>Meta proyectada</div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:.7rem;color:#7d8590;"><div style="width:12px;height:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:3px;"></div>Sin datos</div>
       </div>
     </div>
 
@@ -233,6 +227,20 @@ footer strong{color:#0067B8;}
           </tr></thead><tbody id="costura-heat-tipos"></tbody></table>
         </div>
       </div>
+    </div>
+
+    <!-- AVANCE POR TIPO DE MÁQUINA — lo último -->
+    <div class="avance-card" style="margin-bottom:1.4rem;">
+      <div class="avance-head" style="background:#0d1117;border-bottom:1px solid #30363d;">
+        <h3 style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:1rem;letter-spacing:.08em;color:#e6edf3;text-transform:uppercase;">% Avance por Tipo de Máquina</h3>
+        <p style="font-size:.65rem;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.1em;margin-top:2px;">Área Dueña: COSTURA · Calculado desde columna Final Actividad</p>
+      </div>
+      <div class="avance-scroll"><table class="avance-table">
+        <thead><tr>
+          <th>Tipo de Máquina</th><th class="r">Realizados</th><th class="r">Parque Total</th><th class="r">Pendientes</th><th class="r">% Avance</th><th>Progreso</th>
+        </tr></thead>
+        <tbody id="costura-avance-body"></tbody>
+      </table></div>
     </div>
   </div>
   
@@ -364,14 +372,14 @@ function renderChartMeses(d){
   if(!labels.length)mc.slice(0,12).forEach(([k,v])=>{labels.push(k);vals.push(v);});
   const ctx=document.getElementById('chart-meses').getContext('2d');
   if(chartM)chartM.destroy();
-  chartM=new Chart(ctx,{type:'bar',data:{labels,datasets:[{data:vals,backgroundColor:'#0067B899',borderColor:'#0067B8',borderWidth:2,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'#eef2f6'},ticks:{color:'#6a8099',font:{size:9}}},y:{grid:{color:'#eef2f6'},ticks:{color:'#6a8099',font:{size:9}}}}}});
+  chartM=new Chart(ctx,{type:'bar',data:{labels,datasets:[{data:vals,backgroundColor:'#0067B899',borderColor:'#0067B8',borderWidth:2,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'#21262d'},ticks:{color:'#7d8590',font:{size:9}}},y:{grid:{color:'#21262d'},ticks:{color:'#7d8590',font:{size:9}}}}}});
 }
 
 function renderChartTipos(d){
   const tc=cnt(d,'Tipo de Mantenimiento').slice(0,6);
   const ctx=document.getElementById('chart-tipos').getContext('2d');
   if(chartT)chartT.destroy();
-  chartT=new Chart(ctx,{type:'doughnut',data:{labels:tc.map(([k])=>k),datasets:[{data:tc.map(([,v])=>v),backgroundColor:['#0067B8','#43AF2A','#e53935','#fb8c00','#9c27b0','#00bcd4'],borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#5a7080',font:{size:9},boxWidth:12}}}}});
+  chartT=new Chart(ctx,{type:'doughnut',data:{labels:tc.map(([k])=>k),datasets:[{data:tc.map(([,v])=>v),backgroundColor:['#0067B8','#43AF2A','#e53935','#fb8c00','#9c27b0','#00bcd4'],borderWidth:2,borderColor:'#0d1117'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#8b949e',font:{size:9},boxWidth:12}}}}});
 }
 
 function renderBars(id,entries,cls=''){
@@ -422,28 +430,28 @@ function renderCosturaSection(cd){
   // Gauge
   const ctx=document.getElementById('costura-gauge').getContext('2d');
   if(chartGauge)chartGauge.destroy();
-  chartGauge=new Chart(ctx,{type:'doughnut',data:{datasets:[{data:[ejecutados,pendientes],backgroundColor:['#43AF2A','#fb8c00'],borderWidth:2,borderColor:'#fff',circumference:180,rotation:270}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}}}});
+  chartGauge=new Chart(ctx,{type:'doughnut',data:{datasets:[{data:[ejecutados,pendientes],backgroundColor:['#43AF2A','#fb8c00'],borderWidth:2,borderColor:'#0d1117',circumference:180,rotation:270}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}}}});
   document.getElementById('costura-gauge-stats').innerHTML=`
-    <div style="background:#f5f5f5;border:1px solid #eef2f6;border-top:3px solid #43AF2A;border-radius:6px;padding:.5rem;text-align:center;">
+    <div style="background:#0d1117;border:1px solid #eef2f6;border-top:3px solid #43AF2A;border-radius:6px;padding:.5rem;text-align:center;">
       <div style="font-size:1.2rem;font-weight:800;color:#43AF2A;">${ejecutados.toLocaleString()}</div>
-      <div style="font-size:.65rem;text-transform:uppercase;color:#6a8099;">Ejecutados</div>
+      <div style="font-size:.65rem;text-transform:uppercase;color:#7d8590;">Ejecutados</div>
     </div>
-    <div style="background:#f5f5f5;border:1px solid #eef2f6;border-top:3px solid #fb8c00;border-radius:6px;padding:.5rem;text-align:center;">
+    <div style="background:#0d1117;border:1px solid #eef2f6;border-top:3px solid #fb8c00;border-radius:6px;padding:.5rem;text-align:center;">
       <div style="font-size:1.2rem;font-weight:800;color:#fb8c00;">${pendientes.toLocaleString()}</div>
-      <div style="font-size:.65rem;text-transform:uppercase;color:#6a8099;">Pendientes</div>
+      <div style="font-size:.65rem;text-transform:uppercase;color:#7d8590;">Pendientes</div>
     </div>`;
 
   // Tipos
   document.getElementById('costura-tipos').innerHTML=`
-    <div class="tipo-item" style="background:#e8f5e0;border-color:#43AF2A;">
-      <div><div style="font-size:.85rem;color:#5a7080;font-weight:500;">Mantenimiento Preventivo</div><div style="font-size:.7rem;color:#8aa0b0;">de ${ejecutados} ejecutados en COSTURA</div></div>
+    <div class="tipo-item" style="background:rgba(63,185,80,.1);border-color:#3fb950;">
+      <div><div style="font-size:.85rem;color:#8b949e;font-weight:500;">Mantenimiento Preventivo</div><div style="font-size:.7rem;color:#484f58;">de ${ejecutados} ejecutados en COSTURA</div></div>
       <div style="text-align:right;"><span style="font-size:1.4rem;font-weight:800;color:#43AF2A;">${prev}</span><span style="font-size:.75rem;font-weight:700;color:#43AF2A;margin-left:4px;">${prevPct}%</span></div>
     </div>
-    <div class="tipo-item" style="background:#fdecea;border-color:#e53935;">
-      <div><div style="font-size:.85rem;color:#5a7080;font-weight:500;">Mantenimiento Correctivo</div><div style="font-size:.7rem;color:#8aa0b0;">de ${ejecutados} ejecutados en COSTURA</div></div>
+    <div class="tipo-item" style="background:rgba(218,54,51,.1);border-color:#da3633;">
+      <div><div style="font-size:.85rem;color:#8b949e;font-weight:500;">Mantenimiento Correctivo</div><div style="font-size:.7rem;color:#484f58;">de ${ejecutados} ejecutados en COSTURA</div></div>
       <div style="text-align:right;"><span style="font-size:1.4rem;font-weight:800;color:#e53935;">${corr}</span><span style="font-size:.75rem;font-weight:700;color:#e53935;margin-left:4px;">${corrPct}%</span></div>
     </div>
-    <div style="height:6px;background:#eef2f6;border-radius:3px;overflow:hidden;margin-top:.5rem;">
+    <div style="height:6px;background:#21262d;border-radius:3px;overflow:hidden;margin-top:.5rem;">
       <div style="height:100%;width:${prevPct}%;background:#43AF2A;border-radius:3px;"></div>
     </div>
     <div style="display:flex;justify-content:space-between;font-size:.7rem;margin-top:.3rem;">
@@ -481,10 +489,10 @@ function renderCosturaSection(cd){
       return v>=META_SEMANAL_COSTURA?'#43AF2A':'#e53935';
     }),borderRadius:3}
   ]},options:{responsive:true,maintainAspectRatio:false,
-    plugins:{legend:{labels:{color:'#6a8099',font:{size:9},boxWidth:10}},
+    plugins:{legend:{labels:{color:'#7d8590',font:{size:9},boxWidth:10}},
       tooltip:{callbacks:{afterBody:items=>{const w=items[0].dataIndex+1;const real=wReal[items[0].dataIndex];const diff=real-META_SEMANAL_COSTURA;return diff>=0?`+${diff} sobre meta`:`${diff} bajo meta`;}}}},
-    scales:{x:{grid:{color:'#eef2f6'},ticks:{color:'#6a8099',font:{size:8}}},
-            y:{grid:{color:'#eef2f6'},ticks:{color:'#6a8099',font:{size:8}},
+    scales:{x:{grid:{color:'#21262d'},ticks:{color:'#7d8590',font:{size:8}}},
+            y:{grid:{color:'#21262d'},ticks:{color:'#7d8590',font:{size:8}},
               suggestedMax:50}}
   }});
 
@@ -497,7 +505,7 @@ function renderCosturaSection(cd){
   chartCM=new Chart(ctxM,{type:'bar',data:{labels:visibleMonths,datasets:[
     {label:'Meta',data:visibleMonths.map(m=>META_MENSUAL[m]||0),backgroundColor:'#0067B833',borderColor:'#0067B8',borderWidth:1.5,borderRadius:3},
     {label:'Real',data:visibleMonths.map(m=>mc[m]||0),backgroundColor:visibleMonths.map(m=>mc[m]>0?(META_MENSUAL[m]>0?'#43AF2A':'#0067B888'):'transparent'),borderRadius:3}
-  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#6a8099',font:{size:9},boxWidth:10}}},scales:{x:{grid:{color:'#eef2f6'},ticks:{color:'#6a8099',font:{size:8}}},y:{grid:{color:'#eef2f6'},ticks:{color:'#6a8099',font:{size:8}}}}}});
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#7d8590',font:{size:9},boxWidth:10}}},scales:{x:{grid:{color:'#21262d'},ticks:{color:'#7d8590',font:{size:8}}},y:{grid:{color:'#21262d'},ticks:{color:'#7d8590',font:{size:8}}}}}});
 
   // Avance por tipo de maquina
   const tipoMap={};
@@ -520,7 +528,7 @@ function renderCosturaSection(cd){
     <tr class="total-row">
       <td><div class="maq-nm" style="color:#0067B8;">TOTAL COSTURA</div></td>
       <td class="r" style="color:#43AF2A;font-size:.9rem;">${ejecutados.toLocaleString()}</td>
-      <td class="r" style="color:#002B49;font-size:.9rem;">${total.toLocaleString()}</td>
+      <td class="r" style="color:#e6edf3;font-size:.9rem;">${total.toLocaleString()}</td>
       <td class="r" style="color:#fb8c00;font-size:.9rem;">${pendientes.toLocaleString()}</td>
       <td class="r" style="color:#e53935;font-size:.9rem;">${pct}%</td>
       <td><div class="prog-w"><div class="prog-b" style="height:10px;"><div class="prog-f" style="width:${pct}%;background:#0067B8;"></div></div></div></td>
@@ -548,7 +556,7 @@ function renderGroupTable(data, groupFilter, kpiId, tiposId){
 
   if(total===0){
     document.getElementById(kpiId).innerHTML=`<div class="kpi"><div class="kpi-label">Sin datos</div><div class="kpi-val">0</div><div class="kpi-sub">No hay registros de ${groupFilter} en COSTURA</div></div>`;
-    document.getElementById(tiposId).innerHTML='<tr><td colspan="6" style="text-align:center;color:#8aa0b0;padding:1rem;">Sin datos</td></tr>';
+    document.getElementById(tiposId).innerHTML='<tr><td colspan="6" style="text-align:center;color:#484f58;padding:1rem;">Sin datos</td></tr>';
     return;
   }
 
@@ -578,7 +586,7 @@ function renderGroupTable(data, groupFilter, kpiId, tiposId){
     <tr class="total-row">
       <td><div class="maq-nm" style="color:${color};font-size:.75rem;">TOTAL ${groupFilter}</div></td>
       <td class="r" style="color:#43AF2A;">${ejecutados}</td>
-      <td class="r" style="color:#002B49;">${total}</td>
+      <td class="r" style="color:#e6edf3;">${total}</td>
       <td class="r" style="color:#fb8c00;">${pendientes}</td>
       <td class="r" style="color:${color};">${pct}%</td>
       <td><div class="prog-w"><div class="prog-b" style="height:8px;"><div class="prog-f" style="width:${pct}%;background:${color};"></div></div></div></td>
@@ -606,15 +614,15 @@ function renderGroupSection(data, groupFilter, kpiId, gaugeId, statsId, tiposId)
 
   const ctx=document.getElementById(gaugeId).getContext('2d');
   if(window['chart_'+gaugeId])window['chart_'+gaugeId].destroy();
-  window['chart_'+gaugeId]=new Chart(ctx,{type:'doughnut',data:{datasets:[{data:[ejecutados,pendientes],backgroundColor:['#43AF2A','#fb8c00'],borderWidth:2,borderColor:'#fff',circumference:180,rotation:270}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}}}});
+  window['chart_'+gaugeId]=new Chart(ctx,{type:'doughnut',data:{datasets:[{data:[ejecutados,pendientes],backgroundColor:['#43AF2A','#fb8c00'],borderWidth:2,borderColor:'#0d1117',circumference:180,rotation:270}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}}}});
   document.getElementById(statsId).innerHTML=`
-    <div style="background:#f5f5f5;border:1px solid #eef2f6;border-top:3px solid #43AF2A;border-radius:6px;padding:.5rem;text-align:center;">
+    <div style="background:#0d1117;border:1px solid #eef2f6;border-top:3px solid #43AF2A;border-radius:6px;padding:.5rem;text-align:center;">
       <div style="font-size:1.2rem;font-weight:800;color:#43AF2A;">${ejecutados.toLocaleString()}</div>
-      <div style="font-size:.65rem;text-transform:uppercase;color:#6a8099;">Ejecutados</div>
+      <div style="font-size:.65rem;text-transform:uppercase;color:#7d8590;">Ejecutados</div>
     </div>
-    <div style="background:#f5f5f5;border:1px solid #eef2f6;border-top:3px solid #fb8c00;border-radius:6px;padding:.5rem;text-align:center;">
+    <div style="background:#0d1117;border:1px solid #eef2f6;border-top:3px solid #fb8c00;border-radius:6px;padding:.5rem;text-align:center;">
       <div style="font-size:1.2rem;font-weight:800;color:#fb8c00;">${pendientes.toLocaleString()}</div>
-      <div style="font-size:.65rem;text-transform:uppercase;color:#6a8099;">Pendientes</div>
+      <div style="font-size:.65rem;text-transform:uppercase;color:#7d8590;">Pendientes</div>
     </div>`;
 
   // Avance por tipo de maquina
@@ -638,7 +646,7 @@ function renderGroupSection(data, groupFilter, kpiId, gaugeId, statsId, tiposId)
     <tr class="total-row">
       <td><div class="maq-nm" style="color:#0067B8;font-size:.75rem;">TOTAL ${groupFilter.toUpperCase()}</div></td>
       <td class="r" style="color:#43AF2A;">${ejecutados}</td>
-      <td class="r" style="color:#002B49;">${total}</td>
+      <td class="r" style="color:#e6edf3;">${total}</td>
       <td class="r" style="color:#fb8c00;">${pendientes}</td>
       <td class="r" style="color:#e53935;">${pct}%</td>
       <td><div class="prog-w"><div class="prog-b" style="height:8px;"><div class="prog-f" style="width:${pct}%;background:#0067B8;"></div></div></div></td>
@@ -665,28 +673,28 @@ function renderPDSection(pd){
   // Gauge
   const ctx=document.getElementById('pd-gauge').getContext('2d');
   if(window.chartPDGauge)window.chartPDGauge.destroy();
-  window.chartPDGauge=new Chart(ctx,{type:'doughnut',data:{datasets:[{data:[ejecutados,pendientes],backgroundColor:['#43AF2A','#fb8c00'],borderWidth:2,borderColor:'#fff',circumference:180,rotation:270}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}}}});
+  window.chartPDGauge=new Chart(ctx,{type:'doughnut',data:{datasets:[{data:[ejecutados,pendientes],backgroundColor:['#43AF2A','#fb8c00'],borderWidth:2,borderColor:'#0d1117',circumference:180,rotation:270}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}}}});
   document.getElementById('pd-gauge-stats').innerHTML=`
-    <div style="background:#f5f5f5;border:1px solid #eef2f6;border-top:3px solid #43AF2A;border-radius:6px;padding:.5rem;text-align:center;">
+    <div style="background:#0d1117;border:1px solid #eef2f6;border-top:3px solid #43AF2A;border-radius:6px;padding:.5rem;text-align:center;">
       <div style="font-size:1.2rem;font-weight:800;color:#43AF2A;">${ejecutados.toLocaleString()}</div>
-      <div style="font-size:.65rem;text-transform:uppercase;color:#6a8099;">Ejecutados</div>
+      <div style="font-size:.65rem;text-transform:uppercase;color:#7d8590;">Ejecutados</div>
     </div>
-    <div style="background:#f5f5f5;border:1px solid #eef2f6;border-top:3px solid #fb8c00;border-radius:6px;padding:.5rem;text-align:center;">
+    <div style="background:#0d1117;border:1px solid #eef2f6;border-top:3px solid #fb8c00;border-radius:6px;padding:.5rem;text-align:center;">
       <div style="font-size:1.2rem;font-weight:800;color:#fb8c00;">${pendientes.toLocaleString()}</div>
-      <div style="font-size:.65rem;text-transform:uppercase;color:#6a8099;">Pendientes</div>
+      <div style="font-size:.65rem;text-transform:uppercase;color:#7d8590;">Pendientes</div>
     </div>`;
 
   // Tipos
   document.getElementById('pd-tipos').innerHTML=`
-    <div class="tipo-item" style="background:#e8f5e0;border-color:#43AF2A;">
-      <div><div style="font-size:.85rem;color:#5a7080;font-weight:500;">Mantenimiento Preventivo</div><div style="font-size:.7rem;color:#8aa0b0;">de ${ejecutados} ejecutados en PD</div></div>
+    <div class="tipo-item" style="background:rgba(63,185,80,.1);border-color:#3fb950;">
+      <div><div style="font-size:.85rem;color:#8b949e;font-weight:500;">Mantenimiento Preventivo</div><div style="font-size:.7rem;color:#484f58;">de ${ejecutados} ejecutados en PD</div></div>
       <div style="text-align:right;"><span style="font-size:1.4rem;font-weight:800;color:#43AF2A;">${prev}</span><span style="font-size:.75rem;font-weight:700;color:#43AF2A;margin-left:4px;">${prevPct}%</span></div>
     </div>
-    <div class="tipo-item" style="background:#fdecea;border-color:#e53935;">
-      <div><div style="font-size:.85rem;color:#5a7080;font-weight:500;">Mantenimiento Correctivo</div><div style="font-size:.7rem;color:#8aa0b0;">de ${ejecutados} ejecutados en PD</div></div>
+    <div class="tipo-item" style="background:rgba(218,54,51,.1);border-color:#da3633;">
+      <div><div style="font-size:.85rem;color:#8b949e;font-weight:500;">Mantenimiento Correctivo</div><div style="font-size:.7rem;color:#484f58;">de ${ejecutados} ejecutados en PD</div></div>
       <div style="text-align:right;"><span style="font-size:1.4rem;font-weight:800;color:#e53935;">${corr}</span><span style="font-size:.75rem;font-weight:700;color:#e53935;margin-left:4px;">${corrPct}%</span></div>
     </div>
-    <div style="height:6px;background:#eef2f6;border-radius:3px;overflow:hidden;margin-top:.5rem;">
+    <div style="height:6px;background:#21262d;border-radius:3px;overflow:hidden;margin-top:.5rem;">
       <div style="height:100%;width:${prevPct}%;background:#43AF2A;border-radius:3px;"></div>
     </div>
     <div style="display:flex;justify-content:space-between;font-size:.7rem;margin-top:.3rem;">
@@ -717,7 +725,7 @@ function renderPDSection(pd){
   window.chartPDW=new Chart(ctxW,{type:'bar',data:{labels:wLabels,datasets:[
     {label:`Meta (${metaSem}/sem)`,data:wMeta,backgroundColor:'#0067B822',borderColor:'#0067B8',borderWidth:1.5,borderRadius:3},
     {label:'Real',data:wReal,backgroundColor:wReal.map((v,i)=>i>=curW?'#43AF2A44':v>=metaSem?'#43AF2A':'#e53935'),borderRadius:3}
-  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#6a8099',font:{size:9},boxWidth:10}}},scales:{x:{grid:{color:'#eef2f6'},ticks:{color:'#6a8099',font:{size:8}}},y:{grid:{color:'#eef2f6'},ticks:{color:'#6a8099',font:{size:8}},suggestedMax:metaSem+10}}}});
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#7d8590',font:{size:9},boxWidth:10}}},scales:{x:{grid:{color:'#21262d'},ticks:{color:'#7d8590',font:{size:8}}},y:{grid:{color:'#21262d'},ticks:{color:'#7d8590',font:{size:8}},suggestedMax:metaSem+10}}}});
 
   // Monthly chart
   const mc=groupByMes(pd);
@@ -728,7 +736,7 @@ function renderPDSection(pd){
   window.chartPDM=new Chart(ctxM,{type:'bar',data:{labels:visM,datasets:[
     {label:'Meta',data:visM.map(m=>pdMetaMensual[m]||0),backgroundColor:'#0067B833',borderColor:'#0067B8',borderWidth:1.5,borderRadius:3},
     {label:'Real',data:visM.map(m=>mc[m]||0),backgroundColor:visM.map(m=>mc[m]>0?'#43AF2A':'transparent'),borderRadius:3}
-  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#6a8099',font:{size:9},boxWidth:10}}},scales:{x:{grid:{color:'#eef2f6'},ticks:{color:'#6a8099',font:{size:8}}},y:{grid:{color:'#eef2f6'},ticks:{color:'#6a8099',font:{size:8}}}}}});
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#7d8590',font:{size:9},boxWidth:10}}},scales:{x:{grid:{color:'#21262d'},ticks:{color:'#7d8590',font:{size:8}}},y:{grid:{color:'#21262d'},ticks:{color:'#7d8590',font:{size:8}}}}}});
 
   // Avance por tipo de maquina
   const tipoMap={};
@@ -751,7 +759,7 @@ function renderPDSection(pd){
     <tr class="total-row">
       <td><div class="maq-nm" style="color:#0067B8;">TOTAL PD</div></td>
       <td class="r" style="color:#43AF2A;font-size:.9rem;">${ejecutados.toLocaleString()}</td>
-      <td class="r" style="color:#002B49;font-size:.9rem;">${total.toLocaleString()}</td>
+      <td class="r" style="color:#e6edf3;font-size:.9rem;">${total.toLocaleString()}</td>
       <td class="r" style="color:#fb8c00;font-size:.9rem;">${pendientes.toLocaleString()}</td>
       <td class="r" style="color:#e53935;font-size:.9rem;">${pct}%</td>
       <td><div class="prog-w"><div class="prog-b" style="height:10px;"><div class="prog-f" style="width:${pct}%;background:#0067B8;"></div></div></div></td>
@@ -787,8 +795,8 @@ function renderCosturaGantt(cd){
 
   // Render header
   document.getElementById('costura-gantt-head').innerHTML=`<tr>
-    <th style="padding:8px 12px;background:#f7fafc;font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;color:#6a8099;text-align:left;border-bottom:2px solid #dce6f0;width:130px;">Grupo</th>
-    ${MESES_PLAN_GANTT.map(m=>`<th style="padding:8px 6px;background:#f7fafc;font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;color:#6a8099;text-align:center;border-bottom:2px solid #dce6f0;">${m}</th>`).join('')}
+    <th style="padding:8px 12px;background:#0d1117;font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;color:#7d8590;text-align:left;border-bottom:2px solid #dce6f0;width:130px;">Grupo</th>
+    ${MESES_PLAN_GANTT.map(m=>`<th style="padding:8px 6px;background:#0d1117;font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;color:#7d8590;text-align:center;border-bottom:2px solid #dce6f0;">${m}</th>`).join('')}
   </tr>`;
 
   // Render body
@@ -806,7 +814,7 @@ function renderCosturaGantt(cd){
       else if(pct>=100){bg='#dcfce7';color='#15803d';txt=`${real}<br><span style="font-size:.6rem;">${pct}%</span>`;}
       else if(pct>=50){bg='#fef3c7';color='#b45309';txt=`${real}<br><span style="font-size:.6rem;">${pct}%</span>`;}
       else{bg='#fee2e2';color='#b91c1c';txt=`${real}<br><span style="font-size:.6rem;">${pct}%</span>`;}
-      return `<td style="padding:6px;border-top:1px solid #f0f4f8;text-align:center;">
+      return `<td style="padding:6px;border-top:1px solid #21262d;text-align:center;">
         <div style="height:34px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;background:${bg};color:${color};line-height:1.2;">${txt}</div>
       </td>`;
     }).join('');
@@ -814,8 +822,8 @@ function renderCosturaGantt(cd){
     const tot=cd.filter(r=>(r['GRUPO DE MAQUINA']||'').toUpperCase().includes(g.split(' ')[0])).length;
     const metaSem=Math.max(1,Math.ceil(tot/43));
     return `<tr>
-      <td style="padding:8px 12px;border-top:1px solid #f0f4f8;">
-        <div style="font-weight:700;font-size:.78rem;color:#002B49;">${gLabel}</div>
+      <td style="padding:8px 12px;border-top:1px solid #21262d;">
+        <div style="font-weight:700;font-size:.78rem;color:#e6edf3;">${gLabel}</div>
         <div style="font-size:.65rem;color:#94a3b8;margin-top:1px;">total: ${tot} · meta: ${metaSem}/sem</div>
       </td>${cells}</tr>`;
   }).join('');
