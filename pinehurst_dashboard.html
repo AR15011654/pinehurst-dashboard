@@ -174,7 +174,7 @@ footer strong{color:#0067B8;}
     <button onclick="document.getElementById('cws').scrollLeft+=150" style="flex-shrink:0;width:32px;height:32px;background:#0067B8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;">▶</button>
   </div>
   <div id="cws" style="overflow-x:auto;overflow-y:hidden;flex:1;scrollbar-width:thin;scrollbar-color:#0067B8 #eef2f6;">
-    <div style="position:relative;height:200px;min-width:1100px;">
+    <div style="position:relative;height:200px;min-width:800px;">
       <canvas id="chart-costura-weekly"></canvas>
     </div>
   </div>
@@ -211,7 +211,7 @@ footer strong{color:#0067B8;}
       </div>
     </div>
     <div class="alert-plan" id="pd-alert"></div>
-    <div class="costura-r2">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.4rem;align-items:start;">
       <div class="cs-card" style="display:flex;flex-direction:column;">
         <div class="cs-title">Avance semanal — Meta vs Real</div>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
@@ -221,14 +221,14 @@ footer strong{color:#0067B8;}
           <button onclick="document.getElementById('pws').scrollLeft+=150" style="flex-shrink:0;width:32px;height:32px;background:#0067B8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;">▶</button>
         </div>
         <div id="pws" style="overflow-x:auto;overflow-y:hidden;flex:1;scrollbar-width:thin;scrollbar-color:#0067B8 #eef2f6;">
-          <div style="position:relative;height:200px;min-width:1100px;">
+          <div style="position:relative;height:200px;min-width:800px;">
             <canvas id="chart-pd-weekly"></canvas>
           </div>
         </div>
       </div>
       <div class="cs-card">
         <div class="cs-title">Avance mensual — Real vs Meta (Feb→Dic)</div>
-        <div style="position:relative;height:220px;"><canvas id="chart-pd-monthly"></canvas></div>
+        <div style="position:relative;height:270px;"><canvas id="chart-pd-monthly"></canvas></div>
       </div>
     </div>
     <div class="avance-card">
