@@ -402,6 +402,13 @@ function renderTabs(d){
   const tabs=document.getElementById('area-tabs');
   tabs.innerHTML='<button class="area-tab active" onclick="filterArea(\'TODAS\',this)">TODAS LAS ÁREAS</button>';
   areas.slice(0,14).forEach(a=>{const b=document.createElement('button');b.className='area-tab';b.textContent=a;b.onclick=function(){filterArea(a,this);};tabs.appendChild(b);});
+  // Always add Steam & Heat tab
+  const sh=document.createElement('button');
+  sh.className='area-tab';
+  sh.innerHTML='🔥 STEAM & HEAT';
+  sh.style.cssText='background:#fff3e0;border-color:#fb8c00;color:#e65100;font-weight:700;';
+  sh.onclick=function(){filterArea('__STEAM_HEAT__',this);};
+  tabs.appendChild(sh);
 }
 
 function renderCosturaSection(cd){
