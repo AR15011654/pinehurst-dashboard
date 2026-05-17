@@ -1,1 +1,1 @@
-# pinehurst-dashboard
+pinehurst_dashboard.html
