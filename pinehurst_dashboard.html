@@ -165,7 +165,24 @@ footer strong{color:#0067B8;}
     </div>
     <div class="alert-plan" id="costura-alert"></div>
     <div class="costura-r2">
-      <div class="cs-card"><div class="cs-title">Avance semanal — Meta (30) vs Real</div><div style="overflow-x:auto;"><div style="position:relative;height:220px;min-width:900px;"><canvas id="chart-costura-weekly"></canvas></div></div></div>
+      <div class="cs-card">
+  <div class="cs-title">Avance semanal — Meta (30) vs Real</div>
+  <div style="overflow-x:auto;overflow-y:hidden;cursor:grab;border-radius:6px;padding-bottom:4px;scrollbar-width:thin;scrollbar-color:#0067B8 #eef2f6;" id="costura-weekly-scroll"
+    onmousedown="this.isDown=true;this.startX=event.pageX-this.offsetLeft;this.scrollLeftStart=this.scrollLeft;"
+    onmouseleave="this.isDown=false;"
+    onmouseup="this.isDown=false;"
+    onmousemove="if(!this.isDown)return;event.preventDefault();const x=event.pageX-this.offsetLeft;this.scrollLeft=this.scrollLeftStart-(x-this.startX);">
+    <div style="position:relative;height:220px;min-width:1200px;">
+      <canvas id="chart-costura-weekly"></canvas>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+    <button onclick="document.getElementById('costura-weekly-scroll').scrollLeft-=200" style="padding:4px 12px;background:#0067B8;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">◀</button>
+    <input type="range" min="0" max="100" value="0" style="flex:1;accent-color:#0067B8;cursor:pointer;"
+      oninput="const s=document.getElementById('costura-weekly-scroll');s.scrollLeft=(s.scrollWidth-s.clientWidth)*this.value/100;">
+    <button onclick="document.getElementById('costura-weekly-scroll').scrollLeft+=200" style="padding:4px 12px;background:#0067B8;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">▶</button>
+  </div>
+</div>
       <div class="cs-card"><div class="cs-title">Avance mensual — Real vs Meta (Feb→Dic)</div><div style="position:relative;height:200px;"><canvas id="chart-costura-monthly"></canvas></div></div>
     </div>
     <div class="avance-card">
@@ -200,8 +217,22 @@ footer strong{color:#0067B8;}
     <div class="alert-plan" id="pd-alert"></div>
     <div class="costura-r2">
       <div class="cs-card">
-        <div class="cs-title">Avance semanal — Meta (30) vs Real</div>
-        <div style="overflow-x:auto;"><div style="position:relative;height:220px;min-width:900px;"><canvas id="chart-pd-weekly"></canvas></div></div>
+        <div class="cs-title">Avance semanal — Meta vs Real</div>
+        <div style="overflow-x:auto;overflow-y:hidden;cursor:grab;border-radius:6px;padding-bottom:4px;scrollbar-width:thin;scrollbar-color:#0067B8 #eef2f6;" id="pd-weekly-scroll"
+          onmousedown="this.isDown=true;this.startX=event.pageX-this.offsetLeft;this.scrollLeftStart=this.scrollLeft;"
+          onmouseleave="this.isDown=false;"
+          onmouseup="this.isDown=false;"
+          onmousemove="if(!this.isDown)return;event.preventDefault();const x=event.pageX-this.offsetLeft;this.scrollLeft=this.scrollLeftStart-(x-this.startX);">
+          <div style="position:relative;height:220px;min-width:1200px;">
+            <canvas id="chart-pd-weekly"></canvas>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+          <button onclick="document.getElementById('pd-weekly-scroll').scrollLeft-=200" style="padding:4px 12px;background:#0067B8;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">◀</button>
+          <input type="range" min="0" max="100" value="0" style="flex:1;accent-color:#0067B8;cursor:pointer;"
+            oninput="const s=document.getElementById('pd-weekly-scroll');s.scrollLeft=(s.scrollWidth-s.clientWidth)*this.value/100;">
+          <button onclick="document.getElementById('pd-weekly-scroll').scrollLeft+=200" style="padding:4px 12px;background:#0067B8;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">▶</button>
+        </div>
       </div>
       <div class="cs-card">
         <div class="cs-title">Avance mensual — Real vs Meta (Feb→Dic)</div>
