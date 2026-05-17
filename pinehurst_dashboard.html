@@ -122,6 +122,7 @@ footer strong{color:#0067B8;}
   </div>
   <div class="area-tabs" id="area-tabs">
     <button class="area-tab active" onclick="filterArea('TODAS',this)">TODAS LAS ÁREAS</button>
+    <button class="area-tab" onclick="filterArea('__STEAM_HEAT__',this)">🔥 STEAM & HEAT</button>
   </div>
   <div class="main">
     <div class="section-lbl">Resumen General</div>
@@ -237,6 +238,57 @@ footer strong{color:#0067B8;}
         <thead><tr><th>Tipo de Máquina</th><th class="r">Realizados</th><th class="r">Parque Total</th><th class="r">Pendientes</th><th class="r">% Avance</th><th>Progreso</th></tr></thead>
         <tbody id="pd-avance-body"></tbody>
       </table></div>
+    </div>
+  </div>
+
+
+  <!-- STEAM & HEAT SECTION -->
+  <div class="costura-section" id="steam-section" style="display:none;">
+    <div class="section-lbl" style="margin-bottom:1rem;">
+      🔥 Steam Boilers & Heat Transfers — Medición 2026
+      <span style="font-size:.72rem;background:#fff3e0;color:#e65100;padding:3px 10px;border-radius:12px;font-weight:700;margin-left:8px;">Plan Feb 2 → Dic 5</span>
+    </div>
+
+    <!-- STEAM BOILERS -->
+    <div class="section-lbl" style="margin-bottom:.8rem;color:#e53935;">🔴 Steam Boilers</div>
+    <div class="kpi-row-4" id="steam-kpis"></div>
+    <div class="costura-r2" style="margin-bottom:1rem;">
+      <div class="cs-card">
+        <div class="cs-title">Progreso — Steam Boilers</div>
+        <div style="display:flex;flex-direction:column;align-items:center;">
+          <canvas id="steam-gauge" style="max-height:160px;"></canvas>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;width:100%;margin-top:.6rem;" id="steam-gauge-stats"></div>
+        </div>
+      </div>
+      <div class="cs-card">
+        <div class="cs-title">% Avance por Tipo — Steam Boilers</div>
+        <div style="overflow-x:auto;max-height:220px;overflow-y:auto;">
+          <table class="avance-table"><thead><tr>
+            <th>Tipo Máquina</th><th class="r">Real</th><th class="r">Total</th><th class="r">Pend.</th><th class="r">%</th><th>Progreso</th>
+          </tr></thead><tbody id="steam-tipos"></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- HEAT TRANSFER -->
+    <div class="section-lbl" style="margin-bottom:.8rem;color:#fb8c00;">🟠 Heat Transfer</div>
+    <div class="kpi-row-4" id="heat-kpis"></div>
+    <div class="costura-r2" style="margin-bottom:1rem;">
+      <div class="cs-card">
+        <div class="cs-title">Progreso — Heat Transfer</div>
+        <div style="display:flex;flex-direction:column;align-items:center;">
+          <canvas id="heat-gauge" style="max-height:160px;"></canvas>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;width:100%;margin-top:.6rem;" id="heat-gauge-stats"></div>
+        </div>
+      </div>
+      <div class="cs-card">
+        <div class="cs-title">% Avance por Tipo — Heat Transfer</div>
+        <div style="overflow-x:auto;max-height:220px;overflow-y:auto;">
+          <table class="avance-table"><thead><tr>
+            <th>Tipo Máquina</th><th class="r">Real</th><th class="r">Total</th><th class="r">Pend.</th><th class="r">%</th><th>Progreso</th>
+          </tr></thead><tbody id="heat-tipos"></tbody></table>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -478,6 +530,66 @@ function renderCosturaSection(cd){
   document.getElementById('costura-section').style.display='block';
 }
 
+function renderGroupSection(data, groupFilter, kpiId, gaugeId, statsId, tiposId){
+  const group=data.filter(r=>(r['GRUPO DE MAQUINA']||'').toUpperCase().includes(groupFilter.toUpperCase()));
+  const total=group.length;
+  if(total===0){
+    document.getElementById(kpiId).innerHTML=`<div class="kpi"><div class="kpi-label">Sin datos</div><div class="kpi-val">0</div><div class="kpi-sub">No se encontraron registros para ${groupFilter}</div></div>`;
+    return;
+  }
+  const ejecutados=group.filter(r=>(r['Final Actividad']||'').trim()!=='').length;
+  const pendientes=total-ejecutados;
+  const pct=total>0?Math.round(ejecutados/total*1000)/10:0;
+  const metaSem=Math.max(1,Math.ceil(total/43));
+  const metaDia=Math.ceil(metaSem/5);
+
+  document.getElementById(kpiId).innerHTML=`
+    <div class="kpi"><div class="kpi-label">Total Máquinas</div><div class="kpi-val">${total.toLocaleString()}</div><div class="kpi-sub">${groupFilter}</div></div>
+    <div class="kpi green"><div class="kpi-label">Ejecutados</div><div class="kpi-val">${ejecutados.toLocaleString()}</div><div class="kpi-sub">${pct}% con fecha final</div></div>
+    <div class="kpi orange"><div class="kpi-label">Pendientes</div><div class="kpi-val">${pendientes.toLocaleString()}</div><div class="kpi-sub">${(100-pct).toFixed(1)}% sin fecha final</div></div>
+    <div class="kpi red"><div class="kpi-label">% Cumplimiento</div><div class="kpi-val">${pct}%</div><div class="kpi-sub">Meta: ${metaSem}/sem · ${metaDia}/día</div></div>`;
+
+  const ctx=document.getElementById(gaugeId).getContext('2d');
+  if(window['chart_'+gaugeId])window['chart_'+gaugeId].destroy();
+  window['chart_'+gaugeId]=new Chart(ctx,{type:'doughnut',data:{datasets:[{data:[ejecutados,pendientes],backgroundColor:['#43AF2A','#fb8c00'],borderWidth:2,borderColor:'#fff',circumference:180,rotation:270}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}}}});
+  document.getElementById(statsId).innerHTML=`
+    <div style="background:#f7fafc;border:1px solid #eef2f6;border-top:3px solid #43AF2A;border-radius:6px;padding:.5rem;text-align:center;">
+      <div style="font-size:1.2rem;font-weight:800;color:#43AF2A;">${ejecutados.toLocaleString()}</div>
+      <div style="font-size:.65rem;text-transform:uppercase;color:#6a8099;">Ejecutados</div>
+    </div>
+    <div style="background:#f7fafc;border:1px solid #eef2f6;border-top:3px solid #fb8c00;border-radius:6px;padding:.5rem;text-align:center;">
+      <div style="font-size:1.2rem;font-weight:800;color:#fb8c00;">${pendientes.toLocaleString()}</div>
+      <div style="font-size:.65rem;text-transform:uppercase;color:#6a8099;">Pendientes</div>
+    </div>`;
+
+  // Avance por tipo de maquina
+  const tipoMap={};
+  group.forEach(r=>{
+    const tipo=(r['TIPO DE MAQUINA']||'Sin tipo').trim().toUpperCase();
+    if(!tipoMap[tipo])tipoMap[tipo]={total:0,realizados:0};
+    tipoMap[tipo].total++;
+    if((r['Final Actividad']||'').trim()!=='')tipoMap[tipo].realizados++;
+  });
+  const tipoArr=Object.entries(tipoMap).map(([k,v])=>({tipo:k,...v,pendientes:v.total-v.realizados,pct:Math.round(v.realizados/v.total*1000)/10})).sort((a,b)=>b.realizados-a.realizados);
+  document.getElementById(tiposId).innerHTML=tipoArr.map(t=>`
+    <tr>
+      <td><div class="maq-nm" style="font-size:.75rem;">${t.tipo}</div></td>
+      <td class="r"><span class="v-real">${t.realizados}</span></td>
+      <td class="r"><span class="v-total">${t.total}</span></td>
+      <td class="r"><span class="v-pend" style="color:${t.pendientes>0?'#fb8c00':'#43AF2A'}">${t.pendientes}</span></td>
+      <td class="r"><span class="v-pct" style="color:${pctColor(t.pct)}">${t.pct}%</span></td>
+      <td><div class="prog-w"><div class="prog-b"><div class="prog-f" style="width:${t.pct}%;background:${pctColor(t.pct)};"></div></div></div></td>
+    </tr>`).join('')+`
+    <tr class="total-row">
+      <td><div class="maq-nm" style="color:#0067B8;font-size:.75rem;">TOTAL ${groupFilter.toUpperCase()}</div></td>
+      <td class="r" style="color:#43AF2A;">${ejecutados}</td>
+      <td class="r" style="color:#002B49;">${total}</td>
+      <td class="r" style="color:#fb8c00;">${pendientes}</td>
+      <td class="r" style="color:#e53935;">${pct}%</td>
+      <td><div class="prog-w"><div class="prog-b" style="height:8px;"><div class="prog-f" style="width:${pct}%;background:#0067B8;"></div></div></div></td>
+    </tr>`;
+}
+
 function renderPDSection(pd){
   const total=pd.length;
   const ejecutados=pd.filter(r=>(r['Final Actividad']||'').trim()!=='').length;
@@ -598,19 +710,26 @@ function filterArea(area,btn){
   if(btn)btn.classList.add('active');
   const isCostura=area.toUpperCase().includes('COSTURA');
   const isPD=area.toUpperCase()==='PD';
+  const isSteamHeat=area==='__STEAM_HEAT__';
   const mainSection=document.querySelector('.main');
   const costuraSection=document.getElementById('costura-section');
   const pdSection=document.getElementById('pd-section');
+  const steamSection=document.getElementById('steam-section');
   // Hide all first
   mainSection.style.display='none';
   costuraSection.style.display='none';
   pdSection.style.display='none';
+  steamSection.style.display='none';
   if(isCostura){
     const cd=allData.filter(r=>getArea(r).toUpperCase().includes('COSTURA'));
     if(cd.length>0)renderCosturaSection(cd);
   } else if(isPD){
     const pd=allData.filter(r=>getArea(r).toUpperCase()==='PD');
     if(pd.length>0)renderPDSection(pd);
+  } else if(isSteamHeat){
+    steamSection.style.display='block';
+    renderGroupSection(allData,'STEAM BOILER','steam-kpis','steam-gauge','steam-gauge-stats','steam-tipos');
+    renderGroupSection(allData,'HEAT TRANSFER','heat-kpis','heat-gauge','heat-gauge-stats','heat-tipos');
   } else {
     mainSection.style.display='block';
     const d=area==='TODAS'?allData:allData.filter(r=>getArea(r)===area);
