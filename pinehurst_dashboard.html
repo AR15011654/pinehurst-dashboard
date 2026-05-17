@@ -534,8 +534,13 @@ function renderCosturaSection(cd){
 }
 
 function renderGroupTable(data, groupFilter, kpiId, tiposId){
-  const group=data.filter(r=>(r['GRUPO DE MAQUINA']||'').toUpperCase().includes(groupFilter.toUpperCase()));
+  // Debug: log all unique GRUPO DE MAQUINA values
+  const allGrupos=[...new Set(data.map(r=>(r['GRUPO DE MAQUINA']||'').trim()))].filter(Boolean);
+  console.log('All GRUPOS in data:', allGrupos);
+  console.log('Searching for:', groupFilter, 'in', data.length, 'records');
+  const group=data.filter(r=>(r['GRUPO DE MAQUINA']||'').toUpperCase().trim().includes(groupFilter.toUpperCase().trim()));
   const total=group.length;
+  console.log('Found:', total, 'records for', groupFilter);
   const ejecutados=group.filter(r=>(r['Final Actividad']||'').trim()!=='').length;
   const pendientes=total-ejecutados;
   const pct=total>0?Math.round(ejecutados/total*1000)/10:0;
