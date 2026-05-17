@@ -9,7 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:'Barlow',sans-serif;background:#f0f4f8;color:#1a2a3a;min-height:100vh;overflow-x:hidden;}
+body{font-family:'Barlow',sans-serif;background:#E0E0E0;color:#1a2a3a;min-height:100vh;overflow-x:hidden;}
 #loading{position:fixed;inset:0;z-index:999;background:#002B49;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;}
 .spinner{width:44px;height:44px;border:4px solid rgba(255,255,255,.2);border-top-color:#0067B8;border-radius:50%;animation:spin .8s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -56,14 +56,14 @@ body{font-family:'Barlow',sans-serif;background:#f0f4f8;color:#1a2a3a;min-height
 .bar-item-val{width:32px;text-align:right;color:#1a2a3a;font-weight:600;}
 /* TABLE */
 .table-card{background:#fff;border:1px solid #dce6f0;border-radius:10px;overflow:hidden;margin-bottom:1.4rem;box-shadow:0 1px 4px rgba(0,43,73,.07);}
-.table-head{display:flex;align-items:center;justify-content:space-between;padding:.8rem 1.2rem;border-bottom:1px solid #eef2f6;background:#f7fafc;}
+.table-head{display:flex;align-items:center;justify-content:space-between;padding:.8rem 1.2rem;border-bottom:1px solid #eef2f6;background:#f5f5f5;}
 .table-head-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;text-transform:uppercase;letter-spacing:.08em;color:#6a8099;}
 .table-count{font-size:.78rem;color:#0067B8;font-weight:600;}
 .tbl-wrap{overflow-x:auto;max-height:280px;overflow-y:auto;}
 table{width:100%;border-collapse:collapse;}
-th{position:sticky;top:0;padding:.5rem 1rem;background:#f7fafc;font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:#6a8099;text-align:left;font-weight:700;border-bottom:1px solid #eef2f6;white-space:nowrap;}
+th{position:sticky;top:0;padding:.5rem 1rem;background:#f5f5f5;font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:#6a8099;text-align:left;font-weight:700;border-bottom:1px solid #eef2f6;white-space:nowrap;}
 td{padding:.6rem 1rem;font-size:.78rem;border-top:1px solid #f0f4f8;color:#2a3d4e;white-space:nowrap;}
-tr:hover td{background:#f7fafc;}
+tr:hover td{background:#f5f5f5;}
 .badge{display:inline-block;padding:2px 9px;border-radius:12px;font-size:.68rem;font-weight:700;}
 .badge-prev{background:#e8f5e0;color:#2d7a1a;}.badge-corr{background:#fdecea;color:#b71c1c;}.badge-pred{background:#e3f0fb;color:#0056a0;}.badge-def{background:#f0f4f8;color:#6a8099;}
 /* COSTURA SECTION */
@@ -81,11 +81,11 @@ tr:hover td{background:#f7fafc;}
 .avance-head p{font-size:.65rem;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.1em;margin-top:2px;}
 .avance-scroll{max-height:400px;overflow-y:auto;}
 .avance-table{width:100%;border-collapse:collapse;}
-.avance-table th{padding:.5rem 1rem;background:#f7fafc;font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;color:#6a8099;text-align:left;font-weight:700;border-bottom:2px solid #dce6f0;white-space:nowrap;position:sticky;top:0;}
+.avance-table th{padding:.5rem 1rem;background:#f5f5f5;font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;color:#6a8099;text-align:left;font-weight:700;border-bottom:2px solid #dce6f0;white-space:nowrap;position:sticky;top:0;}
 .avance-table th.r{text-align:right;}
 .avance-table td{padding:.6rem 1rem;font-size:.78rem;border-top:1px solid #f0f4f8;color:#2a3d4e;vertical-align:middle;}
 .avance-table td.r{text-align:right;}
-.avance-table tr:hover td{background:#f7fafc;}
+.avance-table tr:hover td{background:#f5f5f5;}
 .avance-table tr.total-row td{background:#f0f4f8;border-top:2px solid #dce6f0;font-weight:700;}
 .maq-nm{font-weight:700;font-size:.82rem;color:#002B49;text-transform:uppercase;}
 .v-real{font-size:.9rem;font-weight:800;color:#43AF2A;}
@@ -97,7 +97,7 @@ tr:hover td{background:#f7fafc;}
 .prog-f{height:100%;border-radius:4px;}
 /* Tipo items */
 .tipo-item{display:flex;align-items:center;justify-content:space-between;padding:.6rem .9rem;border-radius:8px;border-left:4px solid;margin-bottom:.5rem;}
-footer{text-align:center;padding:1rem 2rem;font-size:.72rem;color:#8aa0b0;border-top:1px solid #dce6f0;background:#f7fafc;}
+footer{text-align:center;padding:1rem 2rem;font-size:.72rem;color:#8aa0b0;border-top:1px solid #dce6f0;background:#f5f5f5;}
 footer strong{color:#0067B8;}
 @media(max-width:900px){.kpi-row,.kpi-row-4{grid-template-columns:repeat(2,1fr)}.charts-row,.bottom-row,.costura-r2{grid-template-columns:1fr}.main,.costura-section{padding:1rem}}
 </style>
@@ -188,6 +188,29 @@ footer strong{color:#0067B8;}
         <thead><tr><th>Tipo de Máquina</th><th class="r">Realizados</th><th class="r">Parque Total</th><th class="r">Pendientes</th><th class="r">% Avance</th><th>Progreso</th></tr></thead>
         <tbody id="costura-avance-body"></tbody>
       </table></div>
+    </div>
+
+    <!-- STEAM & HEAT dentro de COSTURA -->
+    <div class="section-lbl" style="margin-bottom:.8rem;">🔥 Steam Boilers & Heat Transfer — COSTURA</div>
+    <div class="costura-r2" style="margin-bottom:1rem;">
+      <div class="cs-card">
+        <div class="cs-title" style="color:#e53935;">🔴 Steam Boilers</div>
+        <div class="kpi-row-4" id="costura-steam-kpis" style="margin-bottom:.8rem;"></div>
+        <div style="overflow-x:auto;max-height:180px;overflow-y:auto;">
+          <table class="avance-table"><thead><tr>
+            <th>Tipo Máquina</th><th class="r">Real</th><th class="r">Total</th><th class="r">Pend.</th><th class="r">%</th><th>Progreso</th>
+          </tr></thead><tbody id="costura-steam-tipos"></tbody></table>
+        </div>
+      </div>
+      <div class="cs-card">
+        <div class="cs-title" style="color:#fb8c00;">🟠 Heat Transfer</div>
+        <div class="kpi-row-4" id="costura-heat-kpis" style="margin-bottom:.8rem;"></div>
+        <div style="overflow-x:auto;max-height:180px;overflow-y:auto;">
+          <table class="avance-table"><thead><tr>
+            <th>Tipo Máquina</th><th class="r">Real</th><th class="r">Total</th><th class="r">Pend.</th><th class="r">%</th><th>Progreso</th>
+          </tr></thead><tbody id="costura-heat-tipos"></tbody></table>
+        </div>
+      </div>
     </div>
   </div>
   
@@ -433,11 +456,11 @@ function renderCosturaSection(cd){
   if(chartGauge)chartGauge.destroy();
   chartGauge=new Chart(ctx,{type:'doughnut',data:{datasets:[{data:[ejecutados,pendientes],backgroundColor:['#43AF2A','#fb8c00'],borderWidth:2,borderColor:'#fff',circumference:180,rotation:270}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}}}});
   document.getElementById('costura-gauge-stats').innerHTML=`
-    <div style="background:#f7fafc;border:1px solid #eef2f6;border-top:3px solid #43AF2A;border-radius:6px;padding:.5rem;text-align:center;">
+    <div style="background:#f5f5f5;border:1px solid #eef2f6;border-top:3px solid #43AF2A;border-radius:6px;padding:.5rem;text-align:center;">
       <div style="font-size:1.2rem;font-weight:800;color:#43AF2A;">${ejecutados.toLocaleString()}</div>
       <div style="font-size:.65rem;text-transform:uppercase;color:#6a8099;">Ejecutados</div>
     </div>
-    <div style="background:#f7fafc;border:1px solid #eef2f6;border-top:3px solid #fb8c00;border-radius:6px;padding:.5rem;text-align:center;">
+    <div style="background:#f5f5f5;border:1px solid #eef2f6;border-top:3px solid #fb8c00;border-radius:6px;padding:.5rem;text-align:center;">
       <div style="font-size:1.2rem;font-weight:800;color:#fb8c00;">${pendientes.toLocaleString()}</div>
       <div style="font-size:.65rem;text-transform:uppercase;color:#6a8099;">Pendientes</div>
     </div>`;
@@ -535,6 +558,56 @@ function renderCosturaSection(cd){
       <td><div class="prog-w"><div class="prog-b" style="height:10px;"><div class="prog-f" style="width:${pct}%;background:#0067B8;"></div></div></div></td>
     </tr>`;
   document.getElementById('costura-section').style.display='block';
+  // Render Steam & Heat within COSTURA
+  renderGroupTable(costuraData,'STEAM BOILER','costura-steam-kpis','costura-steam-tipos');
+  renderGroupTable(costuraData,'HEAT TRANSFER','costura-heat-kpis','costura-heat-tipos');
+}
+
+function renderGroupTable(data, groupFilter, kpiId, tiposId){
+  const group=data.filter(r=>(r['GRUPO DE MAQUINA']||'').toUpperCase().includes(groupFilter.toUpperCase()));
+  const total=group.length;
+  const ejecutados=group.filter(r=>(r['Final Actividad']||'').trim()!=='').length;
+  const pendientes=total-ejecutados;
+  const pct=total>0?Math.round(ejecutados/total*1000)/10:0;
+  const color=groupFilter.includes('STEAM')?'#e53935':'#fb8c00';
+
+  if(total===0){
+    document.getElementById(kpiId).innerHTML=`<div class="kpi"><div class="kpi-label">Sin datos</div><div class="kpi-val">0</div><div class="kpi-sub">No hay registros de ${groupFilter} en COSTURA</div></div>`;
+    document.getElementById(tiposId).innerHTML='<tr><td colspan="6" style="text-align:center;color:#8aa0b0;padding:1rem;">Sin datos</td></tr>';
+    return;
+  }
+
+  document.getElementById(kpiId).innerHTML=`
+    <div class="kpi"><div class="kpi-label">Total</div><div class="kpi-val" style="font-size:1.8rem;">${total}</div><div class="kpi-sub">máquinas</div></div>
+    <div class="kpi green"><div class="kpi-label">Ejecutados</div><div class="kpi-val" style="font-size:1.8rem;">${ejecutados}</div><div class="kpi-sub">${pct}%</div></div>
+    <div class="kpi orange"><div class="kpi-label">Pendientes</div><div class="kpi-val" style="font-size:1.8rem;">${pendientes}</div><div class="kpi-sub">${(100-pct).toFixed(1)}%</div></div>
+    <div class="kpi" style="border-top:3px solid ${color};"><div class="kpi-label">Cumplimiento</div><div class="kpi-val" style="font-size:1.8rem;color:${color};">${pct}%</div><div class="kpi-sub">meta: 100%</div></div>`;
+
+  const tipoMap={};
+  group.forEach(r=>{
+    const tipo=(r['TIPO DE MAQUINA']||'Sin tipo').trim().toUpperCase();
+    if(!tipoMap[tipo])tipoMap[tipo]={total:0,realizados:0};
+    tipoMap[tipo].total++;
+    if((r['Final Actividad']||'').trim()!=='')tipoMap[tipo].realizados++;
+  });
+  const tipoArr=Object.entries(tipoMap).map(([k,v])=>({tipo:k,...v,pendientes:v.total-v.realizados,pct:Math.round(v.realizados/v.total*1000)/10})).sort((a,b)=>b.realizados-a.realizados);
+  document.getElementById(tiposId).innerHTML=tipoArr.map(t=>`
+    <tr>
+      <td><div class="maq-nm" style="font-size:.75rem;">${t.tipo}</div></td>
+      <td class="r"><span class="v-real">${t.realizados}</span></td>
+      <td class="r"><span class="v-total">${t.total}</span></td>
+      <td class="r"><span class="v-pend" style="color:${t.pendientes>0?'#fb8c00':'#43AF2A'}">${t.pendientes}</span></td>
+      <td class="r"><span class="v-pct" style="color:${pctColor(t.pct)}">${t.pct}%</span></td>
+      <td><div class="prog-w"><div class="prog-b"><div class="prog-f" style="width:${t.pct}%;background:${pctColor(t.pct)};"></div></div></div></td>
+    </tr>`).join('')+`
+    <tr class="total-row">
+      <td><div class="maq-nm" style="color:${color};font-size:.75rem;">TOTAL ${groupFilter}</div></td>
+      <td class="r" style="color:#43AF2A;">${ejecutados}</td>
+      <td class="r" style="color:#002B49;">${total}</td>
+      <td class="r" style="color:#fb8c00;">${pendientes}</td>
+      <td class="r" style="color:${color};">${pct}%</td>
+      <td><div class="prog-w"><div class="prog-b" style="height:8px;"><div class="prog-f" style="width:${pct}%;background:${color};"></div></div></div></td>
+    </tr>`;
 }
 
 function renderGroupSection(data, groupFilter, kpiId, gaugeId, statsId, tiposId){
@@ -560,11 +633,11 @@ function renderGroupSection(data, groupFilter, kpiId, gaugeId, statsId, tiposId)
   if(window['chart_'+gaugeId])window['chart_'+gaugeId].destroy();
   window['chart_'+gaugeId]=new Chart(ctx,{type:'doughnut',data:{datasets:[{data:[ejecutados,pendientes],backgroundColor:['#43AF2A','#fb8c00'],borderWidth:2,borderColor:'#fff',circumference:180,rotation:270}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}}}});
   document.getElementById(statsId).innerHTML=`
-    <div style="background:#f7fafc;border:1px solid #eef2f6;border-top:3px solid #43AF2A;border-radius:6px;padding:.5rem;text-align:center;">
+    <div style="background:#f5f5f5;border:1px solid #eef2f6;border-top:3px solid #43AF2A;border-radius:6px;padding:.5rem;text-align:center;">
       <div style="font-size:1.2rem;font-weight:800;color:#43AF2A;">${ejecutados.toLocaleString()}</div>
       <div style="font-size:.65rem;text-transform:uppercase;color:#6a8099;">Ejecutados</div>
     </div>
-    <div style="background:#f7fafc;border:1px solid #eef2f6;border-top:3px solid #fb8c00;border-radius:6px;padding:.5rem;text-align:center;">
+    <div style="background:#f5f5f5;border:1px solid #eef2f6;border-top:3px solid #fb8c00;border-radius:6px;padding:.5rem;text-align:center;">
       <div style="font-size:1.2rem;font-weight:800;color:#fb8c00;">${pendientes.toLocaleString()}</div>
       <div style="font-size:.65rem;text-transform:uppercase;color:#6a8099;">Pendientes</div>
     </div>`;
@@ -619,11 +692,11 @@ function renderPDSection(pd){
   if(window.chartPDGauge)window.chartPDGauge.destroy();
   window.chartPDGauge=new Chart(ctx,{type:'doughnut',data:{datasets:[{data:[ejecutados,pendientes],backgroundColor:['#43AF2A','#fb8c00'],borderWidth:2,borderColor:'#fff',circumference:180,rotation:270}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}}}});
   document.getElementById('pd-gauge-stats').innerHTML=`
-    <div style="background:#f7fafc;border:1px solid #eef2f6;border-top:3px solid #43AF2A;border-radius:6px;padding:.5rem;text-align:center;">
+    <div style="background:#f5f5f5;border:1px solid #eef2f6;border-top:3px solid #43AF2A;border-radius:6px;padding:.5rem;text-align:center;">
       <div style="font-size:1.2rem;font-weight:800;color:#43AF2A;">${ejecutados.toLocaleString()}</div>
       <div style="font-size:.65rem;text-transform:uppercase;color:#6a8099;">Ejecutados</div>
     </div>
-    <div style="background:#f7fafc;border:1px solid #eef2f6;border-top:3px solid #fb8c00;border-radius:6px;padding:.5rem;text-align:center;">
+    <div style="background:#f5f5f5;border:1px solid #eef2f6;border-top:3px solid #fb8c00;border-radius:6px;padding:.5rem;text-align:center;">
       <div style="font-size:1.2rem;font-weight:800;color:#fb8c00;">${pendientes.toLocaleString()}</div>
       <div style="font-size:.65rem;text-transform:uppercase;color:#6a8099;">Pendientes</div>
     </div>`;
