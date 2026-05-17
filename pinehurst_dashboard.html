@@ -176,7 +176,48 @@ footer strong{color:#0067B8;}
       </table></div>
     </div>
   </div>
-  <footer><strong>PINEHURST MFG</strong> · Dashboard Mantenimiento · Datos en tiempo real desde Google Sheets · <span id="footer-ts">—</span></footer>
+  
+  <!-- PD SECTION -->
+  <div class="costura-section" id="pd-section" style="display:none;">
+    <div class="section-lbl" style="margin-bottom:1rem;">
+      ⚙ Dashboard PD — Plan 2026
+      <span style="font-size:.72rem;background:#e3f0fb;color:#0056a0;padding:3px 10px;border-radius:12px;font-weight:700;margin-left:8px;">30 máq/sem · 6 máq/día · Cierre Dic 5</span>
+    </div>
+    <div class="kpi-row-4" id="pd-kpis"></div>
+    <div class="costura-r2">
+      <div class="cs-card">
+        <div class="cs-title">Progreso de ejecución — PD</div>
+        <div style="display:flex;flex-direction:column;align-items:center;">
+          <canvas id="pd-gauge" style="max-height:160px;"></canvas>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;width:100%;margin-top:.6rem;" id="pd-gauge-stats"></div>
+        </div>
+      </div>
+      <div class="cs-card">
+        <div class="cs-title">Tipo de mantenimiento — PD</div>
+        <div id="pd-tipos"></div>
+      </div>
+    </div>
+    <div class="alert-plan" id="pd-alert"></div>
+    <div class="costura-r2">
+      <div class="cs-card">
+        <div class="cs-title">Avance semanal — Meta (30) vs Real</div>
+        <div style="overflow-x:auto;"><div style="position:relative;height:220px;min-width:900px;"><canvas id="chart-pd-weekly"></canvas></div></div>
+      </div>
+      <div class="cs-card">
+        <div class="cs-title">Avance mensual — Real vs Meta (Feb→Dic)</div>
+        <div style="position:relative;height:220px;"><canvas id="chart-pd-monthly"></canvas></div>
+      </div>
+    </div>
+    <div class="avance-card">
+      <div class="avance-head"><h3>% Avance por Tipo de Máquina</h3><p>Área Dueña: PD · Calculado desde columna Final Actividad</p></div>
+      <div class="avance-scroll"><table class="avance-table">
+        <thead><tr><th>Tipo de Máquina</th><th class="r">Realizados</th><th class="r">Parque Total</th><th class="r">Pendientes</th><th class="r">% Avance</th><th>Progreso</th></tr></thead>
+        <tbody id="pd-avance-body"></tbody>
+      </table></div>
+    </div>
+  </div>
+
+<footer><strong>PINEHURST MFG</strong> · Dashboard Mantenimiento · Datos en tiempo real desde Google Sheets · <span id="footer-ts">—</span></footer>
 </div>
 
 <script>
@@ -414,22 +455,141 @@ function renderCosturaSection(cd){
   document.getElementById('costura-section').style.display='block';
 }
 
+function renderPDSection(pd){
+  const total=pd.length;
+  const ejecutados=pd.filter(r=>(r['Final Actividad']||'').trim()!=='').length;
+  const pendientes=total-ejecutados;
+  const pct=total>0?Math.round(ejecutados/total*1000)/10:0;
+  const prev=pd.filter(r=>(r['Tipo de Mantenimiento']||'').toLowerCase().includes('prev')&&(r['Final Actividad']||'').trim()!=='').length;
+  const corr=pd.filter(r=>(r['Tipo de Mantenimiento']||'').toLowerCase().includes('corr')&&(r['Final Actividad']||'').trim()!=='').length;
+  const prevPct=ejecutados>0?Math.round(prev/ejecutados*1000)/10:0;
+  const corrPct=ejecutados>0?Math.round(corr/ejecutados*1000)/10:0;
+
+  // KPIs
+  document.getElementById('pd-kpis').innerHTML=`
+    <div class="kpi"><div class="kpi-label">Total Máquinas</div><div class="kpi-val">${total.toLocaleString()}</div><div class="kpi-sub">asignadas a PD</div></div>
+    <div class="kpi green"><div class="kpi-label">Ejecutados</div><div class="kpi-val">${ejecutados.toLocaleString()}</div><div class="kpi-sub">${pct}% con fecha final</div></div>
+    <div class="kpi orange"><div class="kpi-label">Pendientes</div><div class="kpi-val">${pendientes.toLocaleString()}</div><div class="kpi-sub">${(100-pct).toFixed(1)}% sin fecha final</div></div>
+    <div class="kpi red"><div class="kpi-label">% Cumplimiento</div><div class="kpi-val">${pct}%</div><div class="kpi-sub">meta: 100%</div></div>`;
+
+  // Gauge
+  const ctx=document.getElementById('pd-gauge').getContext('2d');
+  if(window.chartPDGauge)window.chartPDGauge.destroy();
+  window.chartPDGauge=new Chart(ctx,{type:'doughnut',data:{datasets:[{data:[ejecutados,pendientes],backgroundColor:['#43AF2A','#fb8c00'],borderWidth:2,borderColor:'#fff',circumference:180,rotation:270}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}}}});
+  document.getElementById('pd-gauge-stats').innerHTML=`
+    <div style="background:#f7fafc;border:1px solid #eef2f6;border-top:3px solid #43AF2A;border-radius:6px;padding:.5rem;text-align:center;">
+      <div style="font-size:1.2rem;font-weight:800;color:#43AF2A;">${ejecutados.toLocaleString()}</div>
+      <div style="font-size:.65rem;text-transform:uppercase;color:#6a8099;">Ejecutados</div>
+    </div>
+    <div style="background:#f7fafc;border:1px solid #eef2f6;border-top:3px solid #fb8c00;border-radius:6px;padding:.5rem;text-align:center;">
+      <div style="font-size:1.2rem;font-weight:800;color:#fb8c00;">${pendientes.toLocaleString()}</div>
+      <div style="font-size:.65rem;text-transform:uppercase;color:#6a8099;">Pendientes</div>
+    </div>`;
+
+  // Tipos
+  document.getElementById('pd-tipos').innerHTML=`
+    <div class="tipo-item" style="background:#e8f5e0;border-color:#43AF2A;">
+      <div><div style="font-size:.85rem;color:#5a7080;font-weight:500;">Mantenimiento Preventivo</div><div style="font-size:.7rem;color:#8aa0b0;">de ${ejecutados} ejecutados en PD</div></div>
+      <div style="text-align:right;"><span style="font-size:1.4rem;font-weight:800;color:#43AF2A;">${prev}</span><span style="font-size:.75rem;font-weight:700;color:#43AF2A;margin-left:4px;">${prevPct}%</span></div>
+    </div>
+    <div class="tipo-item" style="background:#fdecea;border-color:#e53935;">
+      <div><div style="font-size:.85rem;color:#5a7080;font-weight:500;">Mantenimiento Correctivo</div><div style="font-size:.7rem;color:#8aa0b0;">de ${ejecutados} ejecutados en PD</div></div>
+      <div style="text-align:right;"><span style="font-size:1.4rem;font-weight:800;color:#e53935;">${corr}</span><span style="font-size:.75rem;font-weight:700;color:#e53935;margin-left:4px;">${corrPct}%</span></div>
+    </div>
+    <div style="height:6px;background:#eef2f6;border-radius:3px;overflow:hidden;margin-top:.5rem;">
+      <div style="height:100%;width:${prevPct}%;background:#43AF2A;border-radius:3px;"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:.7rem;margin-top:.3rem;">
+      <span style="color:#43AF2A;font-weight:700;">▌ Preventivo ${prevPct}%</span>
+      <span style="color:#e53935;font-weight:700;">Correctivo ${corrPct}% ▐</span>
+    </div>`;
+
+  // Alert
+  const metaSem=Math.ceil(total/43);
+  const metaDia=Math.ceil(metaSem/5);
+  document.getElementById('pd-alert').innerHTML=`📋 Plan 2026 · Total: <strong>${total.toLocaleString()} máq.</strong> · Período: <strong>Feb 2 → Dic 5</strong> · Semanas: <strong>43 sem.</strong> · Meta semanal: <strong>${metaSem} máq/sem</strong> · Meta diaria: <strong>${metaDia} máq/día</strong> · Ejecutadas: <strong>${ejecutados} (${pct}%)</strong> · Pendientes: <strong>${pendientes}</strong>`;
+
+  // Weekly chart
+  const wc={};
+  pd.forEach(r=>{
+    const d=parseFinalDate(r['Final Actividad']);
+    if(!d||d.getFullYear()!==2026)return;
+    const diff=d-PLAN_START;if(diff<0)return;
+    const w=Math.floor(diff/(7*24*3600*1000))+1;
+    if(w>=1&&w<=43)wc[w]=(wc[w]||0)+1;
+  });
+  const today=new Date();
+  const curW=Math.max(1,Math.min(43,Math.floor((today-PLAN_START)/(7*24*3600*1000))+1));
+  const wLabels=[],wMeta=[],wReal=[];
+  for(let w=1;w<=Math.min(curW+4,43);w++){wLabels.push('S'+w);wMeta.push(metaSem);wReal.push(wc[w]||0);}
+  const ctxW=document.getElementById('chart-pd-weekly').getContext('2d');
+  if(window.chartPDW)window.chartPDW.destroy();
+  window.chartPDW=new Chart(ctxW,{type:'bar',data:{labels:wLabels,datasets:[
+    {label:`Meta (${metaSem}/sem)`,data:wMeta,backgroundColor:'#0067B822',borderColor:'#0067B8',borderWidth:1.5,borderRadius:3},
+    {label:'Real',data:wReal,backgroundColor:wReal.map((v,i)=>i>=curW?'#43AF2A44':v>=metaSem?'#43AF2A':'#e53935'),borderRadius:3}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#6a8099',font:{size:9},boxWidth:10}}},scales:{x:{grid:{color:'#eef2f6'},ticks:{color:'#6a8099',font:{size:8}}},y:{grid:{color:'#eef2f6'},ticks:{color:'#6a8099',font:{size:8}},suggestedMax:metaSem+10}}}});
+
+  // Monthly chart
+  const mc=groupByMes(pd);
+  const ctxM=document.getElementById('chart-pd-monthly').getContext('2d');
+  if(window.chartPDM)window.chartPDM.destroy();
+  const pdMetaMensual={FEB:metaSem*4,MAR:metaSem*4,ABR:metaSem*4,MAY:metaSem*4,JUN:metaSem*4,JUL:metaSem*5,AGO:metaSem*4,SEP:metaSem*4,OCT:metaSem*5,NOV:metaSem*4,DIC:metaSem};
+  const visM=MESES_PLAN.filter(m=>mc[m]>0||pdMetaMensual[m]>0);
+  window.chartPDM=new Chart(ctxM,{type:'bar',data:{labels:visM,datasets:[
+    {label:'Meta',data:visM.map(m=>pdMetaMensual[m]||0),backgroundColor:'#0067B833',borderColor:'#0067B8',borderWidth:1.5,borderRadius:3},
+    {label:'Real',data:visM.map(m=>mc[m]||0),backgroundColor:visM.map(m=>mc[m]>0?'#43AF2A':'transparent'),borderRadius:3}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#6a8099',font:{size:9},boxWidth:10}}},scales:{x:{grid:{color:'#eef2f6'},ticks:{color:'#6a8099',font:{size:8}}},y:{grid:{color:'#eef2f6'},ticks:{color:'#6a8099',font:{size:8}}}}}});
+
+  // Avance por tipo de maquina
+  const tipoMap={};
+  pd.forEach(r=>{
+    const tipo=(r['TIPO DE MAQUINA']||'Sin tipo').trim().toUpperCase();
+    if(!tipoMap[tipo])tipoMap[tipo]={total:0,realizados:0};
+    tipoMap[tipo].total++;
+    if((r['Final Actividad']||'').trim()!=='')tipoMap[tipo].realizados++;
+  });
+  const tipoArr=Object.entries(tipoMap).map(([k,v])=>({tipo:k,...v,pendientes:v.total-v.realizados,pct:Math.round(v.realizados/v.total*1000)/10})).sort((a,b)=>b.realizados-a.realizados);
+  document.getElementById('pd-avance-body').innerHTML=tipoArr.map(t=>`
+    <tr>
+      <td><div class="maq-nm">${t.tipo}</div></td>
+      <td class="r"><span class="v-real">${t.realizados}</span></td>
+      <td class="r"><span class="v-total">${t.total}</span></td>
+      <td class="r"><span class="v-pend" style="color:${t.pendientes>0?'#fb8c00':'#43AF2A'}">${t.pendientes}</span></td>
+      <td class="r"><span class="v-pct" style="color:${pctColor(t.pct)}">${t.pct}%</span></td>
+      <td><div class="prog-w"><div class="prog-b"><div class="prog-f" style="width:${t.pct}%;background:${pctColor(t.pct)};"></div></div></div></td>
+    </tr>`).join('')+`
+    <tr class="total-row">
+      <td><div class="maq-nm" style="color:#0067B8;">TOTAL PD</div></td>
+      <td class="r" style="color:#43AF2A;font-size:.9rem;">${ejecutados.toLocaleString()}</td>
+      <td class="r" style="color:#002B49;font-size:.9rem;">${total.toLocaleString()}</td>
+      <td class="r" style="color:#fb8c00;font-size:.9rem;">${pendientes.toLocaleString()}</td>
+      <td class="r" style="color:#e53935;font-size:.9rem;">${pct}%</td>
+      <td><div class="prog-w"><div class="prog-b" style="height:10px;"><div class="prog-f" style="width:${pct}%;background:#0067B8;"></div></div></div></td>
+    </tr>`;
+  document.getElementById('pd-section').style.display='block';
+}
+
 function filterArea(area,btn){
   currentArea=area;
   document.querySelectorAll('.area-tab').forEach(t=>t.classList.remove('active'));
   if(btn)btn.classList.add('active');
   const isCostura=area.toUpperCase().includes('COSTURA');
+  const isPD=area.toUpperCase()==='PD';
   const mainSection=document.querySelector('.main');
   const costuraSection=document.getElementById('costura-section');
+  const pdSection=document.getElementById('pd-section');
+  // Hide all first
+  mainSection.style.display='none';
+  costuraSection.style.display='none';
+  pdSection.style.display='none';
   if(isCostura){
-    // Hide general, show only costura
-    mainSection.style.display='none';
     const cd=allData.filter(r=>getArea(r).toUpperCase().includes('COSTURA'));
-    if(cd.length>0){renderCosturaSection(cd);costuraSection.style.display='block';}
+    if(cd.length>0)renderCosturaSection(cd);
+  } else if(isPD){
+    const pd=allData.filter(r=>getArea(r).toUpperCase()==='PD');
+    if(pd.length>0)renderPDSection(pd);
   } else {
-    // Show general, hide costura
     mainSection.style.display='block';
-    costuraSection.style.display='none';
     const d=area==='TODAS'?allData:allData.filter(r=>getArea(r)===area);
     renderKPIs(d);renderChartMeses(d);renderChartTipos(d);
     renderBars('bar-areas',cnt(d,'AREA DUEÑA'));
