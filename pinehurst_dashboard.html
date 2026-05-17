@@ -9,7 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:'Barlow',sans-serif;background:#E0E0E0;color:#1a2a3a;min-height:100vh;overflow-x:hidden;}
+body{font-family:'Barlow',sans-serif;background:#c4c8cc;color:#1a2a3a;min-height:100vh;overflow-x:hidden;}
 #loading{position:fixed;inset:0;z-index:999;background:#002B49;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;}
 .spinner{width:44px;height:44px;border:4px solid rgba(255,255,255,.2);border-top-color:#0067B8;border-radius:50%;animation:spin .8s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -266,54 +266,6 @@ footer strong{color:#0067B8;}
 
 
   <!-- STEAM & HEAT SECTION -->
-  <div class="costura-section" id="steam-section" style="display:none;">
-    <div class="section-lbl" style="margin-bottom:1rem;">
-      🔥 Steam Boilers & Heat Transfers — Medición 2026
-      <span style="font-size:.72rem;background:#fff3e0;color:#e65100;padding:3px 10px;border-radius:12px;font-weight:700;margin-left:8px;">Plan Feb 2 → Dic 5</span>
-    </div>
-
-    <!-- STEAM BOILERS -->
-    <div class="section-lbl" style="margin-bottom:.8rem;color:#e53935;">🔴 Steam Boilers</div>
-    <div class="kpi-row-4" id="steam-kpis"></div>
-    <div class="costura-r2" style="margin-bottom:1rem;">
-      <div class="cs-card">
-        <div class="cs-title">Progreso — Steam Boilers</div>
-        <div style="display:flex;flex-direction:column;align-items:center;">
-          <canvas id="steam-gauge" style="max-height:160px;"></canvas>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;width:100%;margin-top:.6rem;" id="steam-gauge-stats"></div>
-        </div>
-      </div>
-      <div class="cs-card">
-        <div class="cs-title">% Avance por Tipo — Steam Boilers</div>
-        <div style="overflow-x:auto;max-height:220px;overflow-y:auto;">
-          <table class="avance-table"><thead><tr>
-            <th>Tipo Máquina</th><th class="r">Real</th><th class="r">Total</th><th class="r">Pend.</th><th class="r">%</th><th>Progreso</th>
-          </tr></thead><tbody id="steam-tipos"></tbody></table>
-        </div>
-      </div>
-    </div>
-
-    <!-- HEAT TRANSFER -->
-    <div class="section-lbl" style="margin-bottom:.8rem;color:#fb8c00;">🟠 Heat Transfer</div>
-    <div class="kpi-row-4" id="heat-kpis"></div>
-    <div class="costura-r2" style="margin-bottom:1rem;">
-      <div class="cs-card">
-        <div class="cs-title">Progreso — Heat Transfer</div>
-        <div style="display:flex;flex-direction:column;align-items:center;">
-          <canvas id="heat-gauge" style="max-height:160px;"></canvas>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;width:100%;margin-top:.6rem;" id="heat-gauge-stats"></div>
-        </div>
-      </div>
-      <div class="cs-card">
-        <div class="cs-title">% Avance por Tipo — Heat Transfer</div>
-        <div style="overflow-x:auto;max-height:220px;overflow-y:auto;">
-          <table class="avance-table"><thead><tr>
-            <th>Tipo Máquina</th><th class="r">Real</th><th class="r">Total</th><th class="r">Pend.</th><th class="r">%</th><th>Progreso</th>
-          </tr></thead><tbody id="heat-tipos"></tbody></table>
-        </div>
-      </div>
-    </div>
-  </div>
 
 <footer><strong>PINEHURST MFG</strong> · Dashboard Mantenimiento · Datos en tiempo real desde Google Sheets · <span id="footer-ts">—</span></footer>
 </div>
@@ -425,13 +377,7 @@ function renderTabs(d){
   const tabs=document.getElementById('area-tabs');
   tabs.innerHTML='<button class="area-tab active" onclick="filterArea(\'TODAS\',this)">TODAS LAS ÁREAS</button>';
   areas.slice(0,14).forEach(a=>{const b=document.createElement('button');b.className='area-tab';b.textContent=a;b.onclick=function(){filterArea(a,this);};tabs.appendChild(b);});
-  // Always add Steam & Heat tab
-  const sh=document.createElement('button');
-  sh.className='area-tab';
-  sh.innerHTML='🔥 STEAM & HEAT';
-  sh.style.cssText='background:#fff3e0;border-color:#fb8c00;color:#e65100;font-weight:700;';
-  sh.onclick=function(){filterArea('__STEAM_HEAT__',this);};
-  tabs.appendChild(sh);
+
 }
 
 function renderCosturaSection(cd){
@@ -790,26 +736,19 @@ function filterArea(area,btn){
   if(btn)btn.classList.add('active');
   const isCostura=area.toUpperCase().includes('COSTURA');
   const isPD=area.toUpperCase()==='PD';
-  const isSteamHeat=area==='__STEAM_HEAT__';
   const mainSection=document.querySelector('.main');
   const costuraSection=document.getElementById('costura-section');
   const pdSection=document.getElementById('pd-section');
-  const steamSection=document.getElementById('steam-section');
   // Hide all first
   mainSection.style.display='none';
   costuraSection.style.display='none';
   pdSection.style.display='none';
-  steamSection.style.display='none';
   if(isCostura){
     const cd=allData.filter(r=>getArea(r).toUpperCase().includes('COSTURA'));
     if(cd.length>0)renderCosturaSection(cd);
   } else if(isPD){
     const pd=allData.filter(r=>getArea(r).toUpperCase()==='PD');
     if(pd.length>0)renderPDSection(pd);
-  } else if(isSteamHeat){
-    steamSection.style.display='block';
-    renderGroupSection(allData,'STEAM BOILER','steam-kpis','steam-gauge','steam-gauge-stats','steam-tipos');
-    renderGroupSection(allData,'HEAT TRANSFER','heat-kpis','heat-gauge','heat-gauge-stats','heat-tipos');
   } else {
     mainSection.style.display='block';
     const d=area==='TODAS'?allData:allData.filter(r=>getArea(r)===area);
