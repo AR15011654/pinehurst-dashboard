@@ -294,7 +294,7 @@ footer strong{color:#0067B8;}
 
 <script>
 const CSV='https://docs.google.com/spreadsheets/d/e/2PACX-1vQvyJg610AkUuW2nmyhUKthxKwTcdmISAptd-oliRib55e5TXNndz7VyiTyK81O4V0OFF5d_RxrISKT/pub?gid=1513570346&single=true&output=csv';
-let allData=[],chartM=null,chartT=null,chartCW=null,chartCM=null,chartGauge=null,currentArea='TODAS';
+let allData=[],costuraData=[],chartM=null,chartT=null,chartCW=null,chartCM=null,chartGauge=null,currentArea='TODAS';
 const PLAN_START=new Date(2026,1,2);   // Feb 2 2026
 const PLAN_END=new Date(2026,11,5);     // Dec 5 2026
 const META_SEMANAL_COSTURA=30;
@@ -527,10 +527,10 @@ function renderCosturaSection(cd){
     </tr>`;
   document.getElementById('costura-section').style.display='block';
   // Render Steam & Heat within COSTURA
-  renderGroupTable(costuraData,'STEAM BOILER','costura-steam-kpis','costura-steam-tipos');
-  renderGroupTable(costuraData,'HEAT TRANSFER','costura-heat-kpis','costura-heat-tipos');
+  renderGroupTable(cd,'STEAM BOILER','costura-steam-kpis','costura-steam-tipos');
+  renderGroupTable(cd,'HEAT TRANSFER','costura-heat-kpis','costura-heat-tipos');
   // Render Gantt
-  renderCosturaGantt(costuraData);
+  renderCosturaGantt(cd);
 }
 
 function renderGroupTable(data, groupFilter, kpiId, tiposId){
@@ -835,8 +835,8 @@ function filterArea(area,btn){
   costuraSection.style.display='none';
   pdSection.style.display='none';
   if(isCostura){
-    const cd=allData.filter(r=>getArea(r).toUpperCase().includes('COSTURA'));
-    if(cd.length>0)renderCosturaSection(cd);
+    costuraData=allData.filter(r=>getArea(r).toUpperCase().includes('COSTURA'));
+    if(costuraData.length>0)renderCosturaSection(costuraData);
   } else if(isPD){
     const pd=allData.filter(r=>getArea(r).toUpperCase()==='PD');
     if(pd.length>0)renderPDSection(pd);
