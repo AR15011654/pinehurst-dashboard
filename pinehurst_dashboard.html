@@ -183,8 +183,8 @@ footer strong{color:#0067B8;}
 const CSV='https://docs.google.com/spreadsheets/d/e/2PACX-1vQvyJg610AkUuW2nmyhUKthxKwTcdmISAptd-oliRib55e5TXNndz7VyiTyK81O4V0OFF5d_RxrISKT/pub?gid=1513570346&single=true&output=csv';
 let allData=[],chartM=null,chartT=null,chartCW=null,chartCM=null,chartGauge=null,currentArea='TODAS';
 const PLAN_START=new Date(2026,4,19);
-const META_MENSUAL={MAY:76,JUN:152,JUL:152,AGO:152,SEP:152,OCT:152,NOV:209};
-const MESES_PLAN=['MAY','JUN','JUL','AGO','SEP','OCT','NOV'];
+const META_MENSUAL={ENE:0,FEB:0,MAR:0,ABR:0,MAY:76,JUN:152,JUL:152,AGO:152,SEP:152,OCT:152,NOV:209,DIC:0};
+const MESES_PLAN=['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV'];
 
 function getArea(r){return(r['AREA DUEÑA']||r['AREA']||'').trim()||'Sin área';}
 function cnt(arr,k){const m={};arr.forEach(r=>{const v=(r[k]||'Sin dato').trim()||'Sin dato';m[v]=(m[v]||0)+1;});return Object.entries(m).sort((a,b)=>b[1]-a[1]);}
@@ -197,9 +197,15 @@ function parseFinalDate(str){
 }
 
 function groupByMes(data){
-  const map={0:'MAY',1:'MAY',2:'MAY',3:'MAY',4:'MAY',5:'JUN',6:'JUL',7:'AGO',8:'SEP',9:'OCT',10:'NOV'};
-  const c={MAY:0,JUN:0,JUL:0,AGO:0,SEP:0,OCT:0,NOV:0};
-  data.forEach(r=>{const d=parseFinalDate(r['Final Actividad']);if(!d||d.getFullYear()!==2026)return;const k=map[d.getMonth()];if(k!==undefined)c[k]++;});
+  // Real month names for 2026
+  const names=['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+  const c={ENE:0,FEB:0,MAR:0,ABR:0,MAY:0,JUN:0,JUL:0,AGO:0,SEP:0,OCT:0,NOV:0,DIC:0};
+  data.forEach(r=>{
+    const d=parseFinalDate(r['Final Actividad']);
+    if(!d||d.getFullYear()!==2026)return;
+    const k=names[d.getMonth()];
+    if(k!==undefined)c[k]++;
+  });
   return c;
 }
 
@@ -336,9 +342,12 @@ function renderCosturaSection(cd){
   const mc=groupByMes(cd);
   const ctxM=document.getElementById('chart-costura-monthly').getContext('2d');
   if(chartCM)chartCM.destroy();
-  chartCM=new Chart(ctxM,{type:'bar',data:{labels:MESES_PLAN,datasets:[
-    {label:'Meta',data:MESES_PLAN.map(m=>META_MENSUAL[m]),backgroundColor:'#0067B833',borderColor:'#0067B8',borderWidth:1.5,borderRadius:3},
-    {label:'Real',data:MESES_PLAN.map(m=>mc[m]||0),backgroundColor:'#43AF2A',borderRadius:3}
+  // Only show months with real data OR plan months
+  const allMonths=['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV'];
+  const visibleMonths=allMonths.filter(m=>mc[m]>0||META_MENSUAL[m]>0);
+  chartCM=new Chart(ctxM,{type:'bar',data:{labels:visibleMonths,datasets:[
+    {label:'Meta',data:visibleMonths.map(m=>META_MENSUAL[m]||0),backgroundColor:'#0067B833',borderColor:'#0067B8',borderWidth:1.5,borderRadius:3},
+    {label:'Real',data:visibleMonths.map(m=>mc[m]||0),backgroundColor:visibleMonths.map(m=>META_MENSUAL[m]>0?'#43AF2A':'#0067B888'),borderRadius:3}
   ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#6a8099',font:{size:9},boxWidth:10}}},scales:{x:{grid:{color:'#eef2f6'},ticks:{color:'#6a8099',font:{size:8}}},y:{grid:{color:'#eef2f6'},ticks:{color:'#6a8099',font:{size:8}}}}}});
 
   // Avance por tipo de maquina
