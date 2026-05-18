@@ -109,7 +109,7 @@ tbody td{padding:8px 12px;color:#c9d1d9;white-space:nowrap}
 .sec-sub{font-size:10px;color:#484f58;text-transform:uppercase;letter-spacing:.1em;margin-bottom:16px}
 
 /* GAUGE ROW */
-.gauge-row{display:grid;grid-template-columns:200px 1fr 1fr;gap:10px;margin-bottom:10px}
+.gauge-row{display:grid;grid-template-columns:180px 1fr;gap:10px;margin-bottom:10px;align-items:start}
 .gauge-card{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;align-items:center;justify-content:center}
 .gauge-svg{width:130px;height:80px}
 .gauge-pct{font-family:'Barlow Condensed',sans-serif;font-size:2rem;font-weight:800;color:#e6edf3;line-height:1;margin-top:2px}
@@ -295,8 +295,7 @@ footer strong{color:#58a6ff}
       <div class="gauge-pct" id="costura-gauge-pct">—%</div>
       <div class="gauge-lbl">Avance Global</div>
     </div>
-    <div class="gauge-stats" id="costura-gauge-stats"></div>
-    <div class="gauge-stats" id="costura-gauge-stats2"></div>
+    <div id="costura-kpi-cards" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;flex:1;align-content:start"></div>
   </div>
   <div class="plan-alert" id="costura-plan-alert"></div>
   <div class="cs-charts">
@@ -363,8 +362,7 @@ footer strong{color:#58a6ff}
       <div class="gauge-pct" id="pd-gauge-pct">—%</div>
       <div class="gauge-lbl">Avance Global</div>
     </div>
-    <div class="gauge-stats" id="pd-gauge-stats"></div>
-    <div class="gauge-stats" id="pd-gauge-stats2"></div>
+    <div id="pd-kpi-cards" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;flex:1;align-content:start"></div>
   </div>
   <div class="avance-card" style="margin-top:10px">
     <div class="avance-head"><h3>% AVANCE POR TIPO DE MÁQUINA — PD</h3><p>Mantenimientos ejecutados vs total programado</p></div>
@@ -486,9 +484,20 @@ function renderGauge(arcId,pctId,pct,color){
   const pe=$(pctId);if(pe)pe.textContent=pct.toFixed(1)+'%';
 }
 
-function renderGaugeStats(id1,id2,tot,done,prog,pend,mp,mc){
-  $(id1).innerHTML=`<div class="gs-item"><div class="gs-label">Completados</div><div class="gs-val">${done}</div></div><div class="gs-item or"><div class="gs-label">En Progreso</div><div class="gs-val">${prog}</div></div><div class="gs-item re"><div class="gs-label">Pendientes</div><div class="gs-val">${pend}</div></div>`;
-  $(id2).innerHTML=`<div class="gs-item"><div class="gs-label">Total</div><div class="gs-val">${tot}</div></div><div class="gs-item or"><div class="gs-label">Costo MP</div><div class="gs-val">$${mp.toLocaleString()}</div></div><div class="gs-item re"><div class="gs-label">Costo MC</div><div class="gs-val">$${mc.toLocaleString()}</div></div>`;
+function miniKPI(label,val,color,pct){
+  return `<div style="background:#161b22;border:1px solid #30363d;border-left:3px solid ${color};border-radius:8px;padding:10px 14px;min-width:0">
+    <div style="font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#7d8590;font-weight:700;margin-bottom:4px">${label}</div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.8rem;font-weight:800;color:#e6edf3;line-height:1">${val}</div>
+    ${pct!=null?`<div style="height:2px;background:#21262d;border-radius:2px;margin-top:7px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${color};border-radius:2px;transition:width .8s"></div></div>`:''}
+  </div>`;
+}
+function renderGaugeStats(cardsId,_unused,tot,done,prog,pend){
+  const p=tot>0?Math.round(done/tot*100):0;
+  $( cardsId).innerHTML=
+    miniKPI('Total',tot.toLocaleString(),'#2563eb',100)+
+    miniKPI('Completados',done.toLocaleString(),'#3fb950',p)+
+    miniKPI('En Progreso',prog.toLocaleString(),'#d29922',tot>0?Math.round(prog/tot*100):0)+
+    miniKPI('Pendientes',pend.toLocaleString(),'#f85149',tot>0?Math.round(pend/tot*100):0);
 }
 
 // ── PLAN CONSTANTS ───────────────────────────────────────────────
@@ -790,7 +799,7 @@ function renderCosturaSection(cd){
   const mp=Math.round(sm(cd,'COSTO MP')),mc=Math.round(sm(cd,'COSTO MC'));
   $('costura-sub').textContent=`Área Costura · ${tot} registros · 2026`;
   renderGauge('costura-gauge-arc','costura-gauge-pct',pct,'#3fb950');
-  renderGaugeStats('costura-gauge-stats','costura-gauge-stats2',tot,done,prog,pend,mp,mc);
+  renderGaugeStats('costura-kpi-cards',null,tot,done,prog,pend);
   // Usar meta dinámica del Gantt (calculada con días hábiles reales)
   const ritmo=window._metaSemanalDinamica||Math.ceil(pend/Math.max(1,Math.ceil((PLAN_END-new Date())/(7*24*3600*1000))));
   const semHabilesRest=Math.round((PLAN_END-new Date())/(7*24*3600*1000*5/7))||1;
@@ -810,7 +819,7 @@ function renderPDSection(pd){
   const mp=Math.round(sm(pd,'COSTO MP')),mc=Math.round(sm(pd,'COSTO MC'));
   $('pd-sub').textContent=`Área PD · ${tot} registros · 2026`;
   renderGauge('pd-gauge-arc','pd-gauge-pct',pct,'#2563eb');
-  renderGaugeStats('pd-gauge-stats','pd-gauge-stats2',tot,done,prog,pend,mp,mc);
+  renderGaugeStats('pd-kpi-cards',null,tot,done,prog,pend);
   renderAvanceTipos(pd,'pd-avance-tipos');
 }
 
