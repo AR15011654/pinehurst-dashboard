@@ -510,12 +510,33 @@ const META_MENSUAL_PLAN = {2:120,3:120,4:120,5:120,6:120,7:150,8:120,9:120,10:15
 
 function parseFinalDate(s){
   if(!s||!s.trim())return null;
-  // Handles formats: M/D/YY H:MM, YYYY-MM-DD, DD/MM/YYYY, etc.
+  const raw=s.trim().split(' ')[0]; // strip time part if any
+
+  // 1. Try native parse (handles YYYY-MM-DD, M/D/YYYY US format)
   const d=new Date(s);
-  if(!isNaN(d)&&d.getFullYear()>=2020)return d;
-  // Try M/D/YY
-  const m1=s.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
-  if(m1){const yr=parseInt(m1[3])<100?2000+parseInt(m1[3]):parseInt(m1[3]);return new Date(yr,parseInt(m1[1])-1,parseInt(m1[2]))}
+  if(!isNaN(d)&&d.getFullYear()>=2020&&d.getFullYear()<=2030)return d;
+
+  // 2. Extract numeric parts from D/M/YY, M/D/YY, D/M/YYYY, M/D/YYYY
+  const parts=raw.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  if(parts){
+    let p1=parseInt(parts[1]),p2=parseInt(parts[2]);
+    const yr=parseInt(parts[3])<100?2000+parseInt(parts[3]):parseInt(parts[3]);
+    if(yr<2020||yr>2030)return null;
+    // If first part > 12 → must be day (D/M/YYYY)
+    if(p1>12){return new Date(yr,p2-1,p1)}
+    // If second part > 12 → must be month first (M/D/YYYY) — but months don't go >12
+    // Default: try M/D first (US), if month invalid try D/M
+    if(p1>=1&&p1<=12&&p2>=1&&p2<=31){
+      // Ambiguous: use M/D (US) as primary since Sheets usually exports that way
+      const dUS=new Date(yr,p1-1,p2);
+      if(!isNaN(dUS))return dUS;
+    }
+    // Fallback: D/M
+    if(p2>=1&&p2<=12&&p1>=1&&p1<=31){
+      const dEU=new Date(yr,p2-1,p1);
+      if(!isNaN(dEU))return dEU;
+    }
+  }
   return null;
 }
 
