@@ -525,7 +525,9 @@ function renderSemanal(d,cid){
   const hoy=new Date();
   const semActual=Math.min(TOTAL_SEMANAS-1,Math.max(-1,Math.floor((hoy-PLAN_START)/(7*24*3600*1000))));
   const labels=Array.from({length:TOTAL_SEMANAS},(_,i)=>`S${i+1}`);
-  const metaLine=new Array(TOTAL_SEMANAS).fill(META_SEMANAL);
+  // Meta semanal dinámica calculada por el Gantt (pendientes/semanas hábiles restantes)
+  const metaSem = window._metaSemanalDinamica || META_SEMANAL;
+  const metaLine=new Array(TOTAL_SEMANAS).fill(metaSem);
   // Real bars: green if ≥ meta, red if below, gray for future
   const barColors=wReal.map((c,i)=>
     i>semActual ? 'rgba(125,133,144,.15)' :
@@ -540,7 +542,7 @@ function renderSemanal(d,cid){
       labels,
       datasets:[
         {label:'Real',data:wReal,backgroundColor:barColors,borderRadius:3,borderSkipped:false,order:2},
-        {label:'Meta (30/sem)',data:metaLine,type:'line',borderColor:'#0067B8',borderWidth:2,pointRadius:0,tension:0,fill:false,order:1},
+        {label:`Meta (${metaSem}/sem)`,data:metaLine,type:'line',borderColor:'#0067B8',borderWidth:2,pointRadius:0,tension:0,fill:false,order:1},
       ]
     },
     options:{
@@ -614,15 +616,27 @@ function renderMensualPlan(d,cid){
   });
 }
 
+function getWorkingDays(year, month, endDay){
+  // Count Mon-Fri days in a month (or up to endDay)
+  const lastDay = endDay || new Date(year, month, 0).getDate();
+  let count = 0;
+  for(let d=1; d<=lastDay; d++){
+    const day = new Date(year, month-1, d).getDay();
+    if(day!==0 && day!==6) count++;
+  }
+  return count;
+}
+
 function renderGantt(cd){
   const MESES_SHOW=['FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
   const MESES_IDX =[  2,    3,    4,    5,    6,    7,    8,    9,   10,   11,   12];
   const GRUPOS=['SEWING MACHINE','STEAM BOILER','HEAT TRANSFER'];
   const LABELS =['Sewing Machine','Steam Boiler','Heat Transfer'];
-  const today=new Date();
-  const mesActual=today.getMonth()+1; // 1-12
+  const today    = new Date();
+  const mesActual= today.getMonth()+1;
+  const PLAN_END_DIA = 4;  // Dec 1-4 (Dec 5 is Saturday)
 
-  // Count real executions per grupo per month from Final Actividad
+  // ── 1. Contar real ejecutado por grupo/mes ──────────────────────
   const counts={};
   GRUPOS.forEach(g=>{counts[g]={};MESES_IDX.forEach(m=>{counts[g][m]=0})});
   cd.forEach(r=>{
@@ -634,74 +648,106 @@ function renderGantt(cd){
     GRUPOS.forEach(g=>{if(grupo.includes(g.split(' ')[0]))counts[g][mes]++});
   });
 
-  // Total per grupo
+  // ── 2. Total de máquinas por grupo ─────────────────────────────
   const grupoTot={};
-  GRUPOS.forEach(g=>{grupoTot[g]=cd.filter(r=>(v(r,'GRUPO DE MAQUINA')||'').toUpperCase().includes(g.split(' ')[0])).length});
-  const totalCD=Object.values(grupoTot).reduce((s,n)=>s+n,0)||1;
-
-  // Meta base — pesos relativos por mes (Feb→Dic)
-  const META_PESOS={2:120,3:120,4:120,5:120,6:120,7:150,8:120,9:120,10:150,11:120,12:37};
-  const META_SUM=Object.values(META_PESOS).reduce((s,n)=>s+n,0); // 1277
-
-  // Calcular meta EXACTA por grupo/mes para que sumen = total del grupo
-  const grupoMetaExacta={};
   GRUPOS.forEach(g=>{
-    const tot=grupoTot[g]||0;
+    grupoTot[g]=cd.filter(r=>(v(r,'GRUPO DE MAQUINA')||'').toUpperCase().includes(g.split(' ')[0])).length;
+  });
+
+  // ── 3. Real acumulado en meses pasados por grupo ────────────────
+  const realPasado={};
+  GRUPOS.forEach(g=>{
+    realPasado[g]=MESES_IDX.filter(m=>m<=mesActual).reduce((s,m)=>s+(counts[g][m]||0),0);
+  });
+
+  // ── 4. Días hábiles en meses futuros ───────────────────────────
+  const mesesFuturos=MESES_IDX.filter(m=>m>mesActual);
+  const diasHabiles={};
+  mesesFuturos.forEach(mi=>{
+    diasHabiles[mi] = (mi===12)
+      ? getWorkingDays(2026, 12, PLAN_END_DIA)
+      : getWorkingDays(2026, mi);
+  });
+  const totalDiasHabiles=mesesFuturos.reduce((s,m)=>s+diasHabiles[m],0)||1;
+
+  // ── 5. Meta futura por grupo/mes (pendientes ÷ días hábiles) ───
+  const metaFutura={};
+  GRUPOS.forEach(g=>{
+    const pendientes=Math.max(0,(grupoTot[g]||0)-realPasado[g]);
     let acum=0;
-    grupoMetaExacta[g]={};
-    MESES_IDX.forEach((mi,i)=>{
-      if(i===MESES_IDX.length-1){
-        grupoMetaExacta[g][mi]=Math.max(0,tot-acum); // último mes = lo que falte
+    metaFutura[g]={};
+    mesesFuturos.forEach((mi,i)=>{
+      if(i===mesesFuturos.length-1){
+        metaFutura[g][mi]=Math.max(0, pendientes-acum);
       } else {
-        const m=Math.round(tot*META_PESOS[mi]/META_SUM);
-        grupoMetaExacta[g][mi]=m;
+        const m=Math.round(pendientes * diasHabiles[mi] / totalDiasHabiles);
+        metaFutura[g][mi]=m;
         acum+=m;
       }
     });
+    // Meses pasados: meta = real (lo que se hizo ES la meta histórica)
+    MESES_IDX.filter(m=>m<=mesActual).forEach(mi=>{
+      metaFutura[g][mi]=counts[g][mi]||0;
+    });
   });
 
-  // Render header
+  // ── 6. Meta semanal dinámica (todas las pendientes / semanas hábiles restantes) ──
+  const totalPendientes=GRUPOS.reduce((s,g)=>s+Math.max(0,(grupoTot[g]||0)-realPasado[g]),0);
+  const semanasRestantes=Math.round(totalDiasHabiles/5);
+  window._metaSemanalDinamica = semanasRestantes>0 ? Math.ceil(totalPendientes/semanasRestantes) : 30;
+
+  // ── 7. Render ───────────────────────────────────────────────────
   $('costura-gantt-head').innerHTML=`<tr>
-    <th style="padding:8px 12px;font-size:.62rem;text-transform:uppercase;letter-spacing:.08em;color:#7d8590;text-align:left;border-bottom:2px solid #30363d;min-width:130px;background:#0d1117;position:sticky;left:0">Grupo</th>
+    <th style="padding:8px 12px;font-size:.62rem;text-transform:uppercase;letter-spacing:.08em;color:#7d8590;text-align:left;border-bottom:2px solid #30363d;min-width:150px;background:#0d1117;position:sticky;left:0">Grupo</th>
     ${MESES_SHOW.map(m=>`<th style="padding:8px 6px;font-size:.62rem;text-transform:uppercase;color:#7d8590;text-align:center;border-bottom:2px solid #30363d;background:#0d1117;">${m}</th>`).join('')}
   </tr>`;
 
-  // Render body
   $('costura-gantt-body').innerHTML=GRUPOS.map((g,gi)=>{
     const tot=grupoTot[g]||0;
+    const totalReal=MESES_IDX.reduce((s,m)=>s+(counts[g][m]||0),0);
+    const pendientes=Math.max(0,tot-totalReal);
+    const pctGlobal=tot>0?Math.round(totalReal/tot*100):0;
+    const metaSem=semanasRestantes>0?Math.ceil(pendientes/semanasRestantes):0;
+
     const cells=MESES_IDX.map(mi=>{
-      const meta=grupoMetaExacta[g][mi]||0;
+      const esFuturo=mi>mesActual;
       const real=counts[g][mi]||0;
-      const pct=Math.round(real/meta*100);
+      const meta=metaFutura[g][mi]||0;
       let bg,color,txt;
-      if(mi>mesActual){
-        bg='rgba(125,133,144,.08)';color='#484f58';
-        txt=`<span style="font-size:.6rem">${meta}</span>`;
-      } else if(real===0){
-        bg='rgba(248,81,73,.12)';color='#f85149';txt='0';
-      } else if(pct>=100){
-        bg='rgba(63,185,80,.2)';color='#3fb950';
-        txt=`${real}<br><span style="font-size:.58rem">${pct}%</span>`;
-      } else if(pct>=50){
-        bg='rgba(210,153,34,.18)';color='#d29922';
-        txt=`${real}<br><span style="font-size:.58rem">${pct}%</span>`;
+
+      if(esFuturo){
+        // Futuro: mostrar meta (máquinas a hacer)
+        bg='rgba(125,133,144,.08)';color='#7d8590';
+        txt=`<span style="font-size:.65rem;font-weight:700">${meta}</span>`;
+      } else if(meta===0 && real===0){
+        bg='rgba(125,133,144,.06)';color='#484f58';txt='—';
       } else {
-        bg='rgba(248,81,73,.15)';color='#f85149';
-        txt=`${real}<br><span style="font-size:.58rem">${pct}%</span>`;
+        // Pasado: mostrar real con color vs meta original del plan
+        const pct=meta>0?Math.round(real/meta*100):100;
+        if(pct>=100){
+          bg='rgba(63,185,80,.2)';color='#3fb950';
+          txt=`${real}<br><span style="font-size:.56rem">${pct}%</span>`;
+        } else if(pct>=50){
+          bg='rgba(210,153,34,.18)';color='#d29922';
+          txt=`${real}<br><span style="font-size:.56rem">${pct}%</span>`;
+        } else {
+          bg='rgba(248,81,73,.15)';color='#f85149';
+          txt=`${real||'0'}<br><span style="font-size:.56rem">${pct}%</span>`;
+        }
       }
       return `<td style="padding:4px;border-top:1px solid #21262d;text-align:center;">
         <div style="height:36px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;background:${bg};color:${color};line-height:1.2;">${txt}</div>
       </td>`;
     }).join('');
-    const totalReal=MESES_IDX.reduce((s,m)=>s+(counts[g][m]||0),0);
-    const sumMeta=MESES_IDX.reduce((s,mi)=>s+(grupoMetaExacta[g][mi]||0),0);
-    const pctTotal=tot>0?Math.round(totalReal/tot*100):0;
-    const metaSem=Math.max(1,Math.ceil(tot/43));
+
+    // Verificación: real pasado + meta futura = total
+    const sumFuturaMeta=mesesFuturos.reduce((s,m)=>s+(metaFutura[g][m]||0),0);
+    const check=totalReal+sumFuturaMeta;
     return `<tr>
       <td style="padding:8px 12px;border-top:1px solid #21262d;background:#161b22;position:sticky;left:0">
         <div style="font-weight:700;font-size:.78rem;color:#e6edf3">${LABELS[gi]}</div>
-        <div style="font-size:.62rem;color:#484f58;margin-top:2px">total: ${tot} · ejecutado: ${totalReal} (${pctTotal}%) · meta/sem: ${metaSem}</div>
-        <div style="font-size:.58rem;color:${sumMeta===tot?'#3fb950':'#f85149'};margin-top:1px">∑ meses = ${sumMeta}</div>
+        <div style="font-size:.61rem;color:#484f58;margin-top:1px">total: ${tot} · ejecutado: ${totalReal} (${pctGlobal}%) · pendiente: ${pendientes} · meta: ${metaSem}/sem</div>
+        <div style="font-size:.58rem;margin-top:1px;color:${check===tot?'#3fb950':'#f85149'}">✓ real(${totalReal}) + plan(${sumFuturaMeta}) = ${check}${check===tot?' = total ✓':' ≠ '+tot+' !'}</div>
       </td>${cells}
     </tr>`;
   }).join('');
@@ -739,9 +785,10 @@ function renderCosturaSection(cd){
   $('costura-sub').textContent=`Área Costura · ${tot} registros · 2026`;
   renderGauge('costura-gauge-arc','costura-gauge-pct',pct,'#3fb950');
   renderGaugeStats('costura-gauge-stats','costura-gauge-stats2',tot,done,prog,pend,mp,mc);
-  const semRest=Math.max(1,Math.ceil((PLAN_END-new Date())/(7*24*3600*1000)));
-  const ritmo=Math.ceil(pend/semRest);
-  $('costura-plan-alert').innerHTML=`<strong>📋 Plan 2026:</strong> Feb 2 → Dic 5 · Total: <strong>${tot}</strong> máq. · Ejecutadas: <strong>${done}</strong> (${pct.toFixed(1)}%) · Pendientes: <strong>${pend}</strong> · Semanas restantes: <strong>${semRest}</strong> · Meta: <strong>30 máq/sem</strong> · Ritmo actual necesario: <strong>${ritmo} máq/sem</strong>`;
+  // Usar meta dinámica del Gantt (calculada con días hábiles reales)
+  const ritmo=window._metaSemanalDinamica||Math.ceil(pend/Math.max(1,Math.ceil((PLAN_END-new Date())/(7*24*3600*1000))));
+  const semHabilesRest=Math.round((PLAN_END-new Date())/(7*24*3600*1000*5/7))||1;
+  $('costura-plan-alert').innerHTML=`<strong>📋 Plan 2026:</strong> Feb → Dic 5 · Total Costura: <strong>${tot}</strong> · Ejecutadas: <strong>${done}</strong> (${pct.toFixed(1)}%) · Pendientes: <strong>${pend}</strong> · Meta actualizada (L-V): <strong style="color:#3fb950">${ritmo} máq/sem</strong>`;
   renderSemanal(cd,'costura-chart-semanal');
   renderMensualPlan(cd,'costura-chart-mensual');
   renderGantt(cd);
