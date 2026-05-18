@@ -364,7 +364,40 @@ footer strong{color:#58a6ff}
     </div>
     <div id="pd-kpi-cards" style="display:flex;flex-wrap:wrap;gap:8px;align-content:start"></div>
   </div>
-  <div class="avance-card" style="margin-top:10px">
+  <div class="plan-alert" id="pd-plan-alert"></div>
+  <div class="cs-charts">
+    <div class="cs-chart-card" style="display:flex;flex-direction:column;height:280px;">
+      <div class="cs-chart-title">Avance Semanal — Meta vs Real</div>
+      <div style="display:flex;align-items:center;gap:8px;padding:6px 16px 2px;">
+        <button onclick="document.getElementById('pd-cws').scrollLeft-=150" style="flex-shrink:0;width:28px;height:28px;background:#2563eb;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:13px;">◀</button>
+        <input type="range" min="0" max="100" value="0" style="flex:1;accent-color:#2563eb;cursor:pointer;height:4px;" oninput="const s=document.getElementById('pd-cws');s.scrollLeft=(s.scrollWidth-s.clientWidth)*this.value/100;">
+        <button onclick="document.getElementById('pd-cws').scrollLeft+=150" style="flex-shrink:0;width:28px;height:28px;background:#2563eb;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:13px;">▶</button>
+      </div>
+      <div id="pd-cws" style="overflow-x:auto;flex:1;scrollbar-width:thin;scrollbar-color:#2563eb #21262d;padding:0 8px 10px;">
+        <div style="position:relative;height:190px;min-width:800px;"><canvas id="pd-chart-semanal"></canvas></div>
+      </div>
+    </div>
+    <div class="cs-chart-card" style="height:280px;display:flex;flex-direction:column;">
+      <div class="cs-chart-title">Avance Mensual — Real vs Meta</div>
+      <div style="position:relative;flex:1;padding:8px 16px 14px;"><canvas id="pd-chart-mensual"></canvas></div>
+    </div>
+  </div>
+  <div class="gantt-wrap">
+    <div class="gantt-head"><h3>PLAN DE MANTENIMIENTO — GANTT MENSUAL 2026 · PD</h3><p>Real vs Meta proporcional por Grupo de Máquina</p></div>
+    <div class="gantt-scroll">
+      <table class="gantt-table" style="min-width:600px">
+        <thead id="pd-gantt-head"></thead>
+        <tbody id="pd-gantt-body"></tbody>
+      </table>
+    </div>
+    <div class="gantt-legend">
+      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(63,185,80,.35)"></div>≥100% meta</div>
+      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(210,153,34,.35)"></div>50–99%</div>
+      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(248,81,73,.35)"></div>&lt;50%</div>
+      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:#161b22;border:1px dashed #30363d"></div>Futuro</div>
+    </div>
+  </div>
+  <div class="avance-card">
     <div class="avance-head"><h3>% AVANCE POR TIPO DE MÁQUINA — PD</h3><p>Mantenimientos ejecutados vs total programado</p></div>
     <div class="avance-scroll"><table class="avance-table"><thead><tr><th>Tipo de Máquina</th><th class="r">Real</th><th class="r">Total</th><th class="r">Pend.</th><th class="r">%</th><th>Progreso</th></tr></thead><tbody id="pd-avance-tipos"></tbody></table></div>
   </div>
@@ -867,11 +900,206 @@ function renderPDSection(pd){
   const tot=pd.length,done=pd.filter(r=>v(r,'Final Actividad')).length;
   const prog=pd.filter(r=>v(r,'Inicio Actividad')&&!v(r,'Final Actividad')).length;
   const pend=tot-done-prog,pct=tot>0?(done/tot*100):0;
-  const mp=Math.round(sm(pd,'COSTO MP')),mc=Math.round(sm(pd,'COSTO MC'));
   $('pd-sub').textContent=`Área PD · ${tot} registros · 2026`;
+
   renderGauge('pd-gauge-arc','pd-gauge-pct',pct,'#2563eb');
   renderGaugeStats('pd-kpi-cards',null,tot,done,prog,pend);
+
+  // % Avance por grupo dinámico (top grupos del área PD)
+  const pdGrupos=[...new Set(pd.map(r=>(v(r,'GRUPO DE MAQUINA')||'').toUpperCase().trim()).filter(Boolean))].slice(0,5);
+  const GCOLS=['#2563eb','#3fb950','#d29922','#f85149','#58a6ff'];
+  const grupoCards=pdGrupos.map((g,i)=>{
+    const rows=pd.filter(r=>(v(r,'GRUPO DE MAQUINA')||'').toUpperCase().trim()===g);
+    const gTot=rows.length,gDone=rows.filter(r=>v(r,'Final Actividad')).length;
+    const gPct=gTot>0?Math.round(gDone/gTot*100):0;
+    const col=GCOLS[i]||'#7d8590';
+    const label=g.length>14?g.slice(0,14)+'…':g;
+    return `<div style="background:#161b22;border:1px solid #30363d;border-left:3px solid ${col};border-radius:8px;padding:8px 12px;width:130px;flex-shrink:0">
+      <div style="font-size:8px;text-transform:uppercase;letter-spacing:.06em;color:#7d8590;font-weight:700;margin-bottom:3px">${label}</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.5rem;font-weight:800;color:${col};line-height:1">${gPct}%</div>
+      <div style="font-size:9px;color:#484f58;margin-top:2px">${gDone} / ${gTot}</div>
+      <div style="height:2px;background:#21262d;border-radius:2px;margin-top:6px;overflow:hidden"><div style="height:100%;width:${gPct}%;background:${col};border-radius:2px;transition:width .8s"></div></div>
+    </div>`;
+  }).join('');
+  $('pd-kpi-cards').innerHTML += grupoCards;
+
+  // Gantt dinámico PD — calcula meta/semanal/mensual igual que Costura
+  renderPDGantt(pd, pdGrupos, GCOLS);
+
+  // Charts usan _pdMetaMensual y _pdMetaSemanal seteados por renderPDGantt
+  renderSemanalPD(pd,'pd-chart-semanal');
+  renderMensualPD(pd,'pd-chart-mensual');
+
+  // Plan alert
+  const ritmo=window._pdMetaSemanal||Math.ceil(pend/27);
+  $('pd-plan-alert').innerHTML=`<strong>📋 Plan 2026:</strong> Feb → Dic 5 · Total: <strong>${tot}</strong> · Ejecutadas: <strong>${done}</strong> (${pct.toFixed(1)}%) · Pendientes: <strong>${pend}</strong> · Meta actualizada (L-V): <strong style="color:#58a6ff">${ritmo} máq/sem</strong>`;
+
   renderAvanceTipos(pd,'pd-avance-tipos');
+}
+
+function renderPDGantt(pd, pdGrupos, GCOLS){
+  const MESES_SHOW=['FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+  const MESES_IDX =[  2,    3,    4,    5,    6,    7,    8,    9,   10,   11,   12];
+  const today=new Date(), mesActual=today.getMonth()+1;
+  const PLAN_END_DIA=4;
+
+  // Real por grupo/mes
+  const counts={};
+  pdGrupos.forEach(g=>{counts[g]={};MESES_IDX.forEach(m=>{counts[g][m]=0})});
+  pd.forEach(r=>{
+    const grupo=(v(r,'GRUPO DE MAQUINA')||'').toUpperCase().trim();
+    const fd=parseFinalDate(v(r,'Final Actividad'));
+    if(!fd||fd.getFullYear()!==2026)return;
+    const mes=fd.getMonth()+1;
+    if(mes>=2&&mes<=12&&counts[grupo])counts[grupo][mes]++;
+  });
+
+  // Total por grupo
+  const grupoTot={};
+  pdGrupos.forEach(g=>{grupoTot[g]=pd.filter(r=>(v(r,'GRUPO DE MAQUINA')||'').toUpperCase().trim()===g).length});
+
+  // Real acumulado pasado
+  const realPasado={};
+  pdGrupos.forEach(g=>{realPasado[g]=MESES_IDX.filter(m=>m<=mesActual).reduce((s,m)=>s+(counts[g][m]||0),0)});
+
+  // Días hábiles futuros
+  const mesesFuturos=MESES_IDX.filter(m=>m>mesActual);
+  const diasHab={};
+  mesesFuturos.forEach(mi=>{ diasHab[mi]=(mi===12)?getWorkingDays(2026,12,PLAN_END_DIA):getWorkingDays(2026,mi) });
+  const totalDias=mesesFuturos.reduce((s,m)=>s+diasHab[m],0)||1;
+
+  // Meta futura por grupo
+  const metaFut={};
+  pdGrupos.forEach(g=>{
+    const pend=Math.max(0,(grupoTot[g]||0)-realPasado[g]);
+    let acum=0; metaFut[g]={};
+    mesesFuturos.forEach((mi,i)=>{
+      if(i===mesesFuturos.length-1){ metaFut[g][mi]=Math.max(0,pend-acum); }
+      else{ const m=Math.round(pend*diasHab[mi]/totalDias); metaFut[g][mi]=m; acum+=m; }
+    });
+    MESES_IDX.filter(m=>m<=mesActual).forEach(mi=>{ metaFut[g][mi]=counts[g][mi]||0; });
+  });
+
+  // Meta semanal y mensual dinámicas
+  const totalPend=pdGrupos.reduce((s,g)=>s+Math.max(0,(grupoTot[g]||0)-realPasado[g]),0);
+  const semRest=Math.round(totalDias/5);
+  window._pdMetaSemanal=semRest>0?Math.ceil(totalPend/semRest):0;
+  window._pdMetaMensual={};
+  mesesFuturos.forEach(mi=>{window._pdMetaMensual[mi]=0});
+  pdGrupos.forEach(g=>{ mesesFuturos.forEach(mi=>{ window._pdMetaMensual[mi]+=(metaFut[g][mi]||0) }) });
+
+  // Render tabla
+  $('pd-gantt-head').innerHTML=`<tr>
+    <th style="padding:8px 12px;font-size:.62rem;text-transform:uppercase;color:#7d8590;text-align:left;border-bottom:2px solid #30363d;min-width:150px;background:#0d1117;position:sticky;left:0">Grupo</th>
+    ${MESES_SHOW.map(m=>`<th style="padding:8px 6px;font-size:.62rem;text-transform:uppercase;color:#7d8590;text-align:center;border-bottom:2px solid #30363d;background:#0d1117;">${m}</th>`).join('')}
+  </tr>`;
+
+  $('pd-gantt-body').innerHTML=pdGrupos.map((g,gi)=>{
+    const tot=grupoTot[g]||0;
+    const totalReal=MESES_IDX.reduce((s,m)=>s+(counts[g][m]||0),0);
+    const pendG=Math.max(0,tot-totalReal);
+    const pctG=tot>0?Math.round(totalReal/tot*100):0;
+    const metaS=semRest>0?Math.ceil(pendG/semRest):0;
+    const col=GCOLS[gi]||'#7d8590';
+    const sumFut=mesesFuturos.reduce((s,m)=>s+(metaFut[g][m]||0),0);
+    const check=totalReal+sumFut;
+
+    const cells=MESES_IDX.map(mi=>{
+      const esFut=mi>mesActual;
+      const real=counts[g][mi]||0;
+      const meta=metaFut[g][mi]||0;
+      let bg,color,txt;
+      if(esFut){
+        bg='rgba(125,133,144,.08)';color='#7d8590';
+        txt=`<span style="font-size:.65rem;font-weight:700">${meta}</span>`;
+      } else if(meta===0&&real===0){
+        bg='rgba(125,133,144,.06)';color='#484f58';txt='—';
+      } else {
+        const pct=meta>0?Math.round(real/meta*100):100;
+        if(pct>=100){bg='rgba(63,185,80,.2)';color='#3fb950';txt=`${real}<br><span style="font-size:.56rem">${pct}%</span>`;}
+        else if(pct>=50){bg='rgba(210,153,34,.18)';color='#d29922';txt=`${real}<br><span style="font-size:.56rem">${pct}%</span>`;}
+        else{bg='rgba(248,81,73,.15)';color='#f85149';txt=`${real||'0'}<br><span style="font-size:.56rem">${pct}%</span>`;}
+      }
+      return `<td style="padding:4px;border-top:1px solid #21262d;text-align:center;">
+        <div style="height:36px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;background:${bg};color:${color};line-height:1.2;">${txt}</div>
+      </td>`;
+    }).join('');
+
+    return `<tr>
+      <td style="padding:8px 12px;border-top:1px solid #21262d;background:#161b22;position:sticky;left:0">
+        <div style="font-weight:700;font-size:.78rem;color:${col}">${g}</div>
+        <div style="font-size:.61rem;color:#484f58;margin-top:1px">total: ${tot} · ejec: ${totalReal} (${pctG}%) · pend: ${pendG} · meta: ${metaS}/sem</div>
+        <div style="font-size:.58rem;margin-top:1px;color:${check===tot?'#3fb950':'#f85149'}">✓ real(${totalReal})+plan(${sumFut})=${check}${check===tot?' ✓':' ≠'+tot}</div>
+      </td>${cells}
+    </tr>`;
+  }).join('');
+}
+
+function renderSemanalPD(d,cid){
+  const metaSem=window._pdMetaSemanal||0;
+  const wReal=new Array(TOTAL_SEMANAS).fill(0);
+  d.forEach(r=>{
+    const fd=parseFinalDate(v(r,'Final Actividad'));
+    if(!fd)return;
+    const diff=fd-PLAN_START;
+    if(diff<0)return;
+    const w=Math.floor(diff/(7*24*3600*1000));
+    if(w>=0&&w<TOTAL_SEMANAS)wReal[w]++;
+  });
+  const hoy=new Date();
+  const semActual=Math.min(TOTAL_SEMANAS-1,Math.max(-1,Math.floor((hoy-PLAN_START)/(7*24*3600*1000))));
+  const labels=Array.from({length:TOTAL_SEMANAS},(_,i)=>`S${i+1}`);
+  const barColors=wReal.map((c,i)=>
+    i>semActual?'rgba(125,133,144,.15)':c>=metaSem?'rgba(63,185,80,.8)':'rgba(248,81,73,.75)'
+  );
+  const ctx=$(cid).getContext('2d');
+  if(charts[cid])charts[cid].destroy();
+  charts[cid]=new Chart(ctx,{
+    type:'bar',
+    data:{labels,datasets:[
+      {label:'Real',data:wReal,backgroundColor:barColors,borderRadius:3,borderSkipped:false,order:2},
+      {label:`Meta (${metaSem}/sem)`,data:new Array(TOTAL_SEMANAS).fill(metaSem),type:'line',borderColor:'#2563eb',borderWidth:2,pointRadius:0,tension:0,fill:false,order:1},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#7d8590',font:{size:9,family:'Barlow'},boxWidth:10}},
+        tooltip:{backgroundColor:'#161b22',borderColor:'#30363d',borderWidth:1,padding:8,titleColor:'#8b949e',bodyColor:'#e6edf3'}},
+      scales:{x:{grid:{display:false},ticks:{color:'#484f58',font:{size:8,family:'Barlow'},maxRotation:0}},
+        y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#484f58',font:{size:9,family:'Barlow'},precision:0},beginAtZero:true,suggestedMax:metaSem+10}}}
+  });
+}
+
+function renderMensualPD(d,cid){
+  const realPorMes={2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:0,10:0,11:0,12:0};
+  d.forEach(r=>{
+    const fd=parseFinalDate(v(r,'Final Actividad'));
+    if(!fd||fd.getFullYear()!==2026)return;
+    const mes=fd.getMonth()+1;
+    if(mes>=2&&mes<=12)realPorMes[mes]++;
+  });
+  const mesesIdx=[2,3,4,5,6,7,8,9,10,11,12];
+  const labels=['Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const mesActual=new Date().getMonth()+1;
+  const dynMeta=window._pdMetaMensual||{};
+  const metaVals=mesesIdx.map(m=>m<=mesActual?(realPorMes[m]||0):(dynMeta[m]||0));
+  const realVals=mesesIdx.map(m=>realPorMes[m]||0);
+  const realColors=mesesIdx.map((m,i)=>
+    m>mesActual?'rgba(125,133,144,.15)':realVals[i]>=metaVals[i]?'rgba(63,185,80,.8)':'rgba(248,81,73,.75)'
+  );
+  const metaColors=mesesIdx.map(m=>m>mesActual?'rgba(37,99,235,.45)':'rgba(37,99,235,.15)');
+  const ctx=$(cid).getContext('2d');
+  if(charts[cid])charts[cid].destroy();
+  charts[cid]=new Chart(ctx,{
+    type:'bar',
+    data:{labels,datasets:[
+      {label:'Meta',data:metaVals,backgroundColor:metaColors,borderColor:'#2563eb',borderWidth:1,borderRadius:3,borderSkipped:false,order:2},
+      {label:'Real',data:realVals,backgroundColor:realColors,borderRadius:3,borderSkipped:false,order:1},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#7d8590',font:{size:9,family:'Barlow'},boxWidth:10}},
+        tooltip:{backgroundColor:'#161b22',borderColor:'#30363d',borderWidth:1,padding:8,titleColor:'#8b949e',bodyColor:'#e6edf3'}},
+      scales:{x:{grid:{display:false},ticks:{color:'#484f58',font:{size:10,family:'Barlow'}}},
+        y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#484f58',font:{size:9,family:'Barlow'},precision:0},beginAtZero:true}}}
+  });
 }
 
 window.addEventListener('DOMContentLoaded',()=>{$('app').style.display='block';setTimeout(loadData,600)});
