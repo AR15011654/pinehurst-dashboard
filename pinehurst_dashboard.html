@@ -3,570 +3,935 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pinehurst MFG — Dashboard Mantenimiento 2026</title>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<title>Pinehurst MFG — Dashboard Mantenimiento</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600;700;800&family=Barlow+Condensed:wght@500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
-*{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:'Barlow',sans-serif;background:#0d1117;color:#e6edf3;min-height:100vh;overflow-x:hidden;}
-#loading{position:fixed;inset:0;z-index:999;background:#0d1117;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;}
-.spinner{width:44px;height:44px;border:3px solid #21262d;border-top-color:#0067B8;border-radius:50%;animation:spin .8s linear infinite;}
+:root{
+  --blue:#0067B8;
+  --blue-dark:#004F8C;
+  --blue-light:#1A82D4;
+  --green:#43AF2A;
+  --green-dark:#2E8A19;
+  --navy:#002B49;
+  --navy-mid:#003A62;
+  --gray-bg:#F0F2F5;
+  --gray-card:#FFFFFF;
+  --gray-border:#DDE3EC;
+  --gray-text:#4A5568;
+  --gray-label:#8896A9;
+  --text-dark:#0D1B2A;
+  --orange:#E8820C;
+  --red:#D93025;
+  --yellow:#F4B400;
+  --radius:10px;
+  --shadow:0 2px 12px rgba(0,43,73,.09);
+  --shadow-hover:0 6px 24px rgba(0,43,73,.16);
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+
+body{
+  font-family:'Barlow',sans-serif;
+  background:var(--gray-bg);
+  color:var(--text-dark);
+  min-height:100vh;
+}
+
+/* ── LOADING SCREEN ── */
+#loadScreen{
+  position:fixed;inset:0;
+  background:var(--navy);
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  gap:24px;z-index:9999;
+  transition:opacity .5s ease;
+}
+#loadScreen.fade{opacity:0;pointer-events:none}
+.load-logo{
+  width:180px;opacity:.95;
+}
+.load-logo svg{width:100%;height:auto}
+.load-bar-outer{
+  width:240px;height:4px;
+  background:rgba(255,255,255,.15);
+  border-radius:4px;overflow:hidden;
+}
+.load-bar-inner{
+  height:100%;width:0%;
+  background:linear-gradient(90deg,var(--blue-light),var(--green));
+  border-radius:4px;
+  animation:loadProgress 2.8s ease forwards;
+}
+@keyframes loadProgress{to{width:100%}}
+.load-text{
+  color:rgba(255,255,255,.6);
+  font-size:13px;font-weight:500;letter-spacing:.5px;
+}
+
+/* ── HEADER ── */
+#app{display:none}
+header{
+  background:var(--navy);
+  padding:0 28px;
+  height:58px;
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:100;
+  box-shadow:0 2px 16px rgba(0,0,0,.25);
+}
+.hdr-left{display:flex;align-items:center;gap:14px}
+.hdr-logo svg{height:32px;width:auto}
+.hdr-divider{width:1px;height:26px;background:rgba(255,255,255,.2)}
+.hdr-title{
+  color:#fff;font-weight:700;font-size:15px;
+  letter-spacing:.3px;
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:17px;
+}
+.hdr-right{display:flex;align-items:center;gap:16px}
+#lastUpdate{color:rgba(255,255,255,.5);font-size:12px;font-weight:400}
+.hdr-dot{
+  width:8px;height:8px;border-radius:50%;
+  background:var(--green);
+  box-shadow:0 0 0 3px rgba(67,175,42,.25);
+  animation:pulse 2.5s ease infinite;
+}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 3px rgba(67,175,42,.25)}50%{box-shadow:0 0 0 6px rgba(67,175,42,.1)}}
+
+/* ── STATUS BAR ── */
+#statusBar{
+  display:none;
+  background:var(--navy-mid);
+  color:#fff;font-size:13px;font-weight:500;
+  padding:8px 28px;
+  align-items:center;gap:10px;
+}
+#statusBar.show{display:flex}
+#statusBar.error{background:#7B2020}
+.spinner{
+  width:14px;height:14px;
+  border:2px solid rgba(255,255,255,.3);
+  border-top-color:#fff;
+  border-radius:50%;
+  animation:spin .8s linear infinite;
+}
 @keyframes spin{to{transform:rotate(360deg)}}
-#loading p{color:#484f58;font-size:.9rem;}
-#app{display:none;}
-.topbar{display:flex;align-items:center;justify-content:space-between;padding:0 2rem;height:64px;background:#161b22;border-bottom:1px solid #30363d;position:sticky;top:0;z-index:100;}
-.topbar-brand{display:flex;align-items:center;gap:14px;}
-.topbar-divider{width:1px;height:28px;background:#30363d;}
-.topbar-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:1rem;letter-spacing:.08em;color:#7d8590;text-transform:uppercase;}
-.topbar-right{display:flex;align-items:center;gap:12px;}
-.status-chip{display:flex;align-items:center;gap:6px;padding:5px 13px;background:rgba(63,185,80,.1);border:1px solid rgba(63,185,80,.3);border-radius:20px;font-size:.75rem;color:#3fb950;}
-.status-dot{width:6px;height:6px;border-radius:50%;background:#3fb950;animation:blink 2s ease-in-out infinite;}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
-.btn-refresh{padding:6px 16px;background:#0067B8;color:#fff;border:none;border-radius:6px;font-family:'Barlow',sans-serif;font-weight:600;font-size:.8rem;cursor:pointer;}
-.area-tabs{display:flex;gap:.3rem;padding:.5rem 2rem;background:#161b22;border-bottom:1px solid #21262d;overflow-x:auto;}
-.area-tab{padding:5px 16px;background:transparent;border:1px solid #30363d;border-radius:20px;font-family:'Barlow',sans-serif;font-weight:500;font-size:.78rem;color:#7d8590;cursor:pointer;white-space:nowrap;transition:all .2s;}
-.area-tab:hover{border-color:#0067B8;color:#58a6ff;}
-.area-tab.active{background:#0067B8;border-color:#0067B8;color:#fff;font-weight:600;}
-.main{padding:1.4rem 2rem;}
-.section-lbl{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;text-transform:uppercase;letter-spacing:.1em;color:#7d8590;margin-bottom:.8rem;display:flex;align-items:center;gap:8px;}
-.section-lbl::after{content:'';flex:1;height:1px;background:#21262d;}
-.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:.8rem;margin-bottom:1.2rem;}
-.kpi-row-4{display:grid;grid-template-columns:repeat(4,1fr);gap:.8rem;margin-bottom:1.2rem;}
-.kpi{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:.9rem 1.1rem;position:relative;overflow:hidden;}
-.kpi::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;}
-.kpi.blue::before{background:#2563eb;}.kpi.green::before{background:#3fb950;}.kpi.orange::before{background:#d29922;}.kpi.red::before{background:#da3633;}.kpi.grey::before{background:#484f58;}
-.kpi-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:#7d8590;margin-bottom:.35rem;font-weight:600;}
-.kpi-val{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:2.2rem;line-height:1;color:#e6edf3;}
-.kpi-sub{font-size:.68rem;color:#484f58;margin-top:.25rem;}
-.kpi-badge{position:absolute;top:10px;right:10px;font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;}
-.charts-row{display:grid;grid-template-columns:2fr 1fr;gap:.8rem;margin-bottom:1.2rem;}
-.bottom-row,.costura-r2{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:1.2rem;}
-.chart-card,.cs-card{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:1rem;}
-.chart-card-title,.cs-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:#7d8590;margin-bottom:.8rem;}
-.chart-wrap{position:relative;height:180px;}
-.bar-list{display:flex;flex-direction:column;gap:.5rem;}
-.bar-item{display:flex;align-items:center;gap:.5rem;font-size:.75rem;}
-.bar-item-label{width:120px;color:#8b949e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;}
-.bar-track{flex:1;height:6px;background:#21262d;border-radius:3px;overflow:hidden;}
-.bar-fill{height:100%;border-radius:3px;background:#0067B8;}.bar-fill.green{background:#3fb950;}
-.bar-item-val{width:32px;text-align:right;color:#c9d1d9;font-weight:600;}
-.table-card{background:#161b22;border:1px solid #30363d;border-radius:10px;overflow:hidden;margin-bottom:1.2rem;}
-.table-head{display:flex;align-items:center;justify-content:space-between;padding:.7rem 1rem;border-bottom:1px solid #21262d;background:#0d1117;}
-.table-head-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:#7d8590;}
-.table-count{font-size:.75rem;color:#58a6ff;font-weight:600;}
-.tbl-wrap{overflow-x:auto;max-height:260px;overflow-y:auto;}
-table{width:100%;border-collapse:collapse;}
-th{position:sticky;top:0;padding:.45rem .9rem;background:#0d1117;font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;color:#7d8590;text-align:left;font-weight:700;border-bottom:1px solid #21262d;white-space:nowrap;}
-td{padding:.55rem .9rem;font-size:.75rem;border-top:1px solid #21262d;color:#c9d1d9;white-space:nowrap;}
-tr:hover td{background:#1c2128;}
-.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.65rem;font-weight:700;}
-.badge-prev{background:rgba(63,185,80,.15);color:#3fb950;}.badge-corr{background:rgba(218,54,51,.15);color:#f85149;}.badge-pred{background:rgba(0,103,184,.15);color:#58a6ff;}.badge-def{background:rgba(48,54,61,.5);color:#7d8590;}
-.alert-plan{background:rgba(0,103,184,.08);border:1px solid rgba(0,103,184,.25);border-radius:8px;padding:.6rem 1rem;margin-bottom:1rem;font-size:.75rem;color:#58a6ff;line-height:1.6;}
-.alert-plan strong{color:#e6edf3;}
-.tipo-item{display:flex;align-items:center;justify-content:space-between;padding:.6rem .9rem;border-radius:7px;border-left:3px solid;margin-bottom:.5rem;}
-.avance-card{background:#161b22;border:1px solid #30363d;border-radius:10px;overflow:hidden;margin-bottom:1.2rem;}
-.avance-head{background:#0d1117;border-bottom:1px solid #21262d;padding:.7rem 1rem;}
-.avance-head h3{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;letter-spacing:.08em;color:#e6edf3;text-transform:uppercase;}
-.avance-head p{font-size:.62rem;color:#484f58;text-transform:uppercase;letter-spacing:.1em;margin-top:2px;}
-.avance-scroll{max-height:380px;overflow-y:auto;}
-.avance-table{width:100%;border-collapse:collapse;}
-.avance-table th{padding:.45rem .9rem;background:#0d1117;font-size:.62rem;text-transform:uppercase;letter-spacing:.08em;color:#7d8590;text-align:left;font-weight:700;border-bottom:2px solid #21262d;white-space:nowrap;position:sticky;top:0;}
-.avance-table th.r{text-align:right;}
-.avance-table td{padding:.55rem .9rem;font-size:.75rem;border-top:1px solid #21262d;color:#c9d1d9;vertical-align:middle;}
-.avance-table td.r{text-align:right;}
-.avance-table tr:hover td{background:#1c2128;}
-.avance-table tr.total-row td{background:#1c2128;border-top:2px solid #30363d;font-weight:700;}
-.maq-nm{font-weight:700;font-size:.78rem;color:#e6edf3;text-transform:uppercase;}
-.v-real{font-size:.88rem;font-weight:800;color:#3fb950;}
-.v-total{font-size:.78rem;color:#7d8590;}
-.v-pend{font-size:.88rem;font-weight:700;}
-.v-pct{font-size:.85rem;font-weight:800;}
-.prog-w{display:flex;align-items:center;gap:8px;min-width:100px;}
-.prog-b{flex:1;height:7px;background:#21262d;border-radius:4px;overflow:hidden;}
-.prog-f{height:100%;border-radius:4px;}
-.gantt-wrap{background:#161b22;border:1px solid #30363d;border-radius:10px;overflow:hidden;margin-bottom:1.2rem;}
-.gantt-head{background:#0d1117;border-bottom:1px solid #21262d;padding:.7rem 1rem;}
-.gantt-head h3{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;letter-spacing:.08em;color:#e6edf3;text-transform:uppercase;}
-.gantt-head p{font-size:.62rem;color:#484f58;margin-top:2px;}
-.gantt-legend{display:flex;gap:12px;padding:.5rem 1rem;border-top:1px solid #21262d;background:#0d1117;flex-wrap:wrap;}
-.gantt-leg-item{display:flex;align-items:center;gap:5px;font-size:.68rem;color:#7d8590;}
-.gantt-leg-box{width:10px;height:10px;border-radius:2px;}
-footer{text-align:center;padding:.8rem 2rem;font-size:.68rem;color:#484f58;border-top:1px solid #21262d;background:#161b22;}
-footer strong{color:#58a6ff;}
-.costura-section{padding:0 2rem 1rem;}
-@media(max-width:900px){.kpi-row,.kpi-row-4{grid-template-columns:repeat(2,1fr)}.charts-row,.bottom-row,.costura-r2{grid-template-columns:1fr}.main,.costura-section{padding:1rem}}
+
+/* ── FILTERS ── */
+.filters{
+  background:#fff;
+  border-bottom:1px solid var(--gray-border);
+  padding:0 28px;
+  display:flex;align-items:center;gap:8px;
+  min-height:48px;
+  overflow-x:auto;
+}
+.filter-btn{
+  padding:6px 16px;
+  border:1.5px solid var(--gray-border);
+  background:#fff;
+  border-radius:20px;
+  font-family:'Barlow',sans-serif;
+  font-size:12px;font-weight:600;
+  color:var(--gray-text);
+  cursor:pointer;white-space:nowrap;
+  transition:all .15s;
+  letter-spacing:.3px;
+  text-transform:uppercase;
+}
+.filter-btn:hover{border-color:var(--blue);color:var(--blue)}
+.filter-btn.active{
+  background:var(--blue);
+  border-color:var(--blue);
+  color:#fff;
+}
+.filter-label{
+  font-size:11px;font-weight:600;
+  color:var(--gray-label);
+  text-transform:uppercase;letter-spacing:.8px;
+  margin-right:4px;white-space:nowrap;
+}
+
+/* ── MAIN ── */
+.main{padding:22px 28px 40px}
+
+/* ── KPI GRID ── */
+.kpi-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(172px,1fr));
+  gap:14px;
+  margin-bottom:22px;
+}
+.kpi{
+  background:var(--gray-card);
+  border-radius:var(--radius);
+  padding:18px 20px;
+  box-shadow:var(--shadow);
+  border-top:3px solid transparent;
+  transition:box-shadow .2s,transform .2s;
+  cursor:default;
+}
+.kpi:hover{box-shadow:var(--shadow-hover);transform:translateY(-2px)}
+.kpi.blue{border-top-color:var(--blue)}
+.kpi.green{border-top-color:var(--green)}
+.kpi.orange{border-top-color:var(--orange)}
+.kpi.navy{border-top-color:var(--navy)}
+.kpi.red{border-top-color:var(--red)}
+.kpi.yellow{border-top-color:var(--yellow)}
+.kpi-label{
+  font-size:10.5px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.8px;
+  color:var(--gray-label);margin-bottom:8px;
+}
+.kpi-value{
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:38px;font-weight:800;
+  line-height:1;color:var(--text-dark);
+}
+.kpi-sub{
+  margin-top:5px;font-size:11.5px;
+  font-weight:500;color:var(--gray-label);
+}
+.kpi-bar{
+  margin-top:10px;height:3px;
+  background:var(--gray-bg);border-radius:2px;overflow:hidden;
+}
+.kpi-bar-fill{height:100%;border-radius:2px;transition:width .8s ease}
+.kpi.blue .kpi-bar-fill{background:var(--blue)}
+.kpi.green .kpi-bar-fill{background:var(--green)}
+.kpi.orange .kpi-bar-fill{background:var(--orange)}
+.kpi.navy .kpi-bar-fill{background:var(--navy)}
+.kpi.red .kpi-bar-fill{background:var(--red)}
+.kpi.yellow .kpi-bar-fill{background:var(--yellow)}
+
+/* ── CHARTS ROW ── */
+.charts-row{
+  display:grid;
+  grid-template-columns:2fr 1fr;
+  gap:14px;
+  margin-bottom:14px;
+}
+.bottom-row{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:14px;
+  margin-bottom:14px;
+}
+
+/* ── CARD ── */
+.card{
+  background:var(--gray-card);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+  overflow:hidden;
+}
+.card-hdr{
+  padding:14px 20px 0;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.card-title{
+  font-size:12px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.8px;
+  color:var(--gray-label);
+}
+.card-body{padding:14px 20px 18px}
+.chart-wrap{height:230px;position:relative}
+
+/* ── BAR LIST ── */
+.bar-list{display:flex;flex-direction:column;gap:10px;padding:4px 0}
+.bar-item{display:flex;flex-direction:column;gap:4px}
+.bar-name{
+  font-size:12px;font-weight:600;
+  color:var(--text-dark);
+  display:flex;justify-content:space-between;
+}
+.bar-name span{color:var(--gray-label);font-weight:500}
+.bar-track{height:6px;background:var(--gray-bg);border-radius:3px;overflow:hidden}
+.bar-fill{height:100%;border-radius:3px;transition:width .8s ease}
+.bar-fill.blue{background:var(--blue)}
+.bar-fill.green{background:var(--green)}
+
+/* ── TABLE ── */
+.table-card{
+  background:var(--gray-card);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+  overflow:hidden;
+  margin-bottom:14px;
+}
+.table-hdr{
+  padding:14px 20px;
+  display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid var(--gray-bg);
+}
+.table-title{
+  font-size:12px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.8px;
+  color:var(--gray-label);
+}
+.table-count{
+  background:var(--blue);color:#fff;
+  font-size:11px;font-weight:700;
+  padding:3px 10px;border-radius:10px;
+}
+.tbl-wrap{overflow-x:auto;max-height:340px;overflow-y:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{
+  position:sticky;top:0;
+  background:var(--navy);
+  color:rgba(255,255,255,.85);
+  font-weight:600;font-size:11px;
+  text-transform:uppercase;letter-spacing:.5px;
+  padding:10px 14px;text-align:left;white-space:nowrap;
+}
+tbody tr{border-bottom:1px solid var(--gray-bg)}
+tbody tr:hover{background:rgba(0,103,184,.04)}
+tbody td{padding:9px 14px;color:var(--gray-text);white-space:nowrap}
+.badge{
+  display:inline-block;
+  padding:2px 8px;border-radius:10px;
+  font-size:10.5px;font-weight:600;
+}
+.badge-done{background:#E8F5E9;color:#2E7D32}
+.badge-prog{background:#FFF3E0;color:#E65100}
+.badge-pend{background:#F3F4F6;color:#6B7280}
+
+/* ── FOOTER ── */
+footer{
+  text-align:center;
+  padding:20px;
+  font-size:11.5px;
+  font-weight:500;
+  color:var(--gray-label);
+  letter-spacing:.3px;
+}
+footer strong{color:var(--navy)}
+
+/* ── RESPONSIVE ── */
+@media(max-width:900px){
+  .charts-row,.bottom-row{grid-template-columns:1fr}
+  .main{padding:16px}
+  .kpi-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:500px){
+  header{padding:0 14px}
+  .main{padding:12px}
+  .filters{padding:0 14px}
+}
+
+/* ── ERROR PANEL ── */
+#errorPanel{
+  display:none;
+  margin:24px;
+  background:#fff;
+  border-radius:var(--radius);
+  border-left:4px solid var(--red);
+  padding:20px 24px;
+  box-shadow:var(--shadow);
+}
+#errorPanel h3{color:var(--red);font-size:15px;margin-bottom:8px}
+#errorPanel p{color:var(--gray-text);font-size:13px;line-height:1.6}
+#errorPanel code{
+  display:block;margin-top:12px;
+  background:var(--gray-bg);padding:10px 14px;
+  border-radius:6px;font-size:12px;
+  word-break:break-all;color:var(--navy);
+}
+.retry-btn{
+  margin-top:14px;
+  padding:8px 20px;
+  background:var(--blue);color:#fff;
+  border:none;border-radius:6px;
+  font-family:'Barlow',sans-serif;font-size:13px;font-weight:600;
+  cursor:pointer;
+}
+.retry-btn:hover{background:var(--blue-dark)}
 </style>
 </head>
 <body>
-<div id="loading">
-  
-  <div class="spinner"></div>
-  <p>Cargando datos de mantenimiento...</p>
+
+<!-- LOADING SCREEN -->
+<div id="loadScreen">
+  <div class="load-logo">
+    <!-- Pinehurst logo SVG placeholder (reemplazar con tu logo real) -->
+    <svg viewBox="0 0 300 60" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="18" width="6" height="24" fill="#43AF2A"/>
+      <rect x="10" y="10" width="6" height="40" fill="#43AF2A"/>
+      <rect x="20" y="4" width="6" height="46" fill="#43AF2A"/>
+      <text x="36" y="42" font-family="Barlow Condensed,sans-serif" font-size="32" font-weight="800" fill="white" letter-spacing="1">PINEHURST</text>
+      <text x="38" y="57" font-family="Barlow,sans-serif" font-size="11" font-weight="500" fill="rgba(255,255,255,0.55)" letter-spacing="3">M A N U F A C T U R I N G</text>
+    </svg>
+  </div>
+  <div class="load-bar-outer"><div class="load-bar-inner"></div></div>
+  <div class="load-text">Cargando datos de mantenimiento…</div>
 </div>
+
+<!-- MAIN APP -->
 <div id="app">
-  <div class="topbar">
-    <div class="topbar-brand">
-      
-      <div class="topbar-divider"></div>
-      <div class="topbar-title">Dashboard Mantenimiento 2026</div>
-    </div>
-    <div class="topbar-right">
-      <div class="status-chip"><div class="status-dot"></div><span id="status-text">En línea</span></div>
-      <button class="btn-refresh" onclick="loadData()">⟳ Actualizar</button>
-    </div>
-  </div>
-  <div class="area-tabs" id="area-tabs">
-    <button class="area-tab active" onclick="filterArea('TODAS',this)">TODAS LAS ÁREAS</button>
-  </div>
-  <div class="main">
-    <div class="section-lbl">Resumen General</div>
-    <div class="kpi-row" id="kpi-row"></div>
-    <div class="charts-row">
-      <div class="chart-card"><div class="chart-card-title">Actividad mensual</div><div class="chart-wrap"><canvas id="chart-meses" role="img" aria-label="Actividad mensual"></canvas></div></div>
-      <div class="chart-card"><div class="chart-card-title">Tipo de mantenimiento</div><div class="chart-wrap"><canvas id="chart-tipos" role="img" aria-label="Tipo de mantenimiento"></canvas></div></div>
-    </div>
-    <div class="bottom-row">
-      <div class="chart-card"><div class="chart-card-title">Top áreas por volumen</div><div class="bar-list" id="bar-areas"></div></div>
-      <div class="chart-card"><div class="chart-card-title">Top mecánicos</div><div class="bar-list" id="bar-mecanicos"></div></div>
-    </div>
-    <div class="table-card">
-      <div class="table-head"><span class="table-head-title">Registros recientes</span><span class="table-count" id="table-count">—</span></div>
-      <div class="tbl-wrap"><table><thead><tr><th>Asset ID</th><th>Tipo Máquina</th><th>Área</th><th>Mecánico</th><th>Tipo Mant.</th><th>Inicio</th><th>Final</th><th>Costo MP</th><th>Costo MC</th></tr></thead><tbody id="tbody"></tbody></table></div>
-    </div>
-  </div>
 
-  <!-- COSTURA SECTION -->
-  <div class="costura-section" id="costura-section" style="display:none;">
-    <div class="section-lbl">⚙ Dashboard COSTURA — Plan 2026 <span style="font-size:.7rem;background:rgba(0,103,184,.15);color:#58a6ff;padding:3px 10px;border-radius:12px;font-weight:700;margin-left:8px;">30 máq/sem · 6 máq/día · Feb→Dic</span></div>
-    <div class="kpi-row-4" id="costura-kpis"></div>
-    <div class="costura-r2">
-      <div class="cs-card"><div class="cs-title">Progreso de ejecución</div><div style="display:flex;flex-direction:column;align-items:center;"><canvas id="costura-gauge" style="max-height:150px;" role="img" aria-label="Gauge cumplimiento COSTURA"></canvas><div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;width:100%;margin-top:.5rem;" id="costura-gauge-stats"></div></div></div>
-      <div class="cs-card"><div class="cs-title">Tipo de mantenimiento</div><div id="costura-tipos"></div></div>
+<header>
+  <div class="hdr-left">
+    <div class="hdr-logo">
+      <svg viewBox="0 0 220 40" xmlns="http://www.w3.org/2000/svg">
+        <rect x="0" y="10" width="5" height="20" fill="#43AF2A"/>
+        <rect x="8" y="5" width="5" height="30" fill="#43AF2A"/>
+        <rect x="16" y="1" width="5" height="34" fill="#43AF2A"/>
+        <text x="28" y="28" font-family="Barlow Condensed,sans-serif" font-size="24" font-weight="800" fill="white" letter-spacing="0.5">PINEHURST</text>
+        <text x="29" y="38" font-family="Barlow,sans-serif" font-size="7.5" font-weight="500" fill="rgba(255,255,255,0.5)" letter-spacing="2.5">MANUFACTURING</text>
+      </svg>
     </div>
-    <div class="alert-plan" id="costura-alert"></div>
-    <div class="costura-r2">
-      <div class="cs-card" style="display:flex;flex-direction:column;height:300px;">
-        <div class="cs-title">Avance semanal — Meta vs Real</div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-          <button onclick="document.getElementById('cws').scrollLeft-=150" style="flex-shrink:0;width:30px;height:30px;background:#0067B8;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:13px;">◀</button>
-          <input type="range" min="0" max="100" value="0" style="flex:1;accent-color:#0067B8;cursor:pointer;height:5px;" oninput="const s=document.getElementById('cws');s.scrollLeft=(s.scrollWidth-s.clientWidth)*this.value/100;">
-          <button onclick="document.getElementById('cws').scrollLeft+=150" style="flex-shrink:0;width:30px;height:30px;background:#0067B8;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:13px;">▶</button>
-        </div>
-        <div id="cws" style="overflow-x:auto;flex:1;scrollbar-width:thin;scrollbar-color:#0067B8 #21262d;">
-          <div style="position:relative;height:220px;min-width:700px;"><canvas id="chart-costura-weekly" role="img" aria-label="Avance semanal COSTURA"></canvas></div>
-        </div>
-      </div>
-      <div class="cs-card" style="height:300px;display:flex;flex-direction:column;">
-        <div class="cs-title">Avance mensual — Real vs Meta</div>
-        <div style="position:relative;flex:1;"><canvas id="chart-costura-monthly" role="img" aria-label="Avance mensual COSTURA"></canvas></div>
-      </div>
-    </div>
-    <!-- STEAM & HEAT -->
-    <div class="section-lbl" style="margin-bottom:.8rem;">🔥 Steam Boilers & Heat Transfer — COSTURA</div>
-    <div class="costura-r2">
-      <div class="cs-card"><div class="cs-title" style="color:#f85149;">🔴 Steam Boilers</div><div class="kpi-row-4" id="costura-steam-kpis" style="margin-bottom:.6rem;"></div><div style="overflow-x:auto;max-height:180px;overflow-y:auto;"><table class="avance-table"><thead><tr><th>Tipo Máquina</th><th class="r">Real</th><th class="r">Total</th><th class="r">Pend.</th><th class="r">%</th><th>Progreso</th></tr></thead><tbody id="costura-steam-tipos"></tbody></table></div></div>
-      <div class="cs-card"><div class="cs-title" style="color:#d29922;">🟠 Heat Transfer</div><div class="kpi-row-4" id="costura-heat-kpis" style="margin-bottom:.6rem;"></div><div style="overflow-x:auto;max-height:180px;overflow-y:auto;"><table class="avance-table"><thead><tr><th>Tipo Máquina</th><th class="r">Real</th><th class="r">Total</th><th class="r">Pend.</th><th class="r">%</th><th>Progreso</th></tr></thead><tbody id="costura-heat-tipos"></tbody></table></div></div>
-    </div>
-    <!-- GANTT -->
-    <div class="section-lbl" style="margin-bottom:.8rem;">📅 Gantt de cumplimiento — Feb a Dic 2026</div>
-    <div class="gantt-wrap">
-      <div class="gantt-head"><h3>Cumplimiento mensual por grupo — COSTURA</h3><p>Real ejecutado vs meta · Plan Feb 2 → Dic 5 · datos desde Final Actividad</p></div>
-      <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;min-width:600px;"><thead id="costura-gantt-head"></thead><tbody id="costura-gantt-body"></tbody></table></div>
-      <div class="gantt-legend">
-        <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(63,185,80,.2);border:1px solid rgba(63,185,80,.4);"></div>Cumplió (≥100%)</div>
-        <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(210,153,34,.15);border:1px solid rgba(210,153,34,.3);"></div>Parcial (50–99%)</div>
-        <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(218,54,51,.12);border:1px solid rgba(218,54,51,.3);"></div>Bajo meta (&lt;50%)</div>
-        <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(48,54,61,.3);border:1px dashed #30363d;"></div>Meta proyectada</div>
-      </div>
-    </div>
-    <!-- AVANCE POR TIPO -->
-    <div class="avance-card">
-      <div class="avance-head"><h3>% Avance por Tipo de Máquina</h3><p>Área Dueña: COSTURA · desde columna Final Actividad</p></div>
-      <div class="avance-scroll"><table class="avance-table"><thead><tr><th>Tipo de Máquina</th><th class="r">Realizados</th><th class="r">Parque Total</th><th class="r">Pendientes</th><th class="r">% Avance</th><th>Progreso</th></tr></thead><tbody id="costura-avance-body"></tbody></table></div>
-    </div>
+    <div class="hdr-divider"></div>
+    <div class="hdr-title">Dashboard Mantenimiento</div>
   </div>
-
-  <!-- PD SECTION -->
-  <div class="costura-section" id="pd-section" style="display:none;">
-    <div class="section-lbl">⚙ Dashboard PD — Plan 2026 <span style="font-size:.7rem;background:rgba(0,103,184,.15);color:#58a6ff;padding:3px 10px;border-radius:12px;font-weight:700;margin-left:8px;">Feb→Dic</span></div>
-    <div class="kpi-row-4" id="pd-kpis"></div>
-    <div class="costura-r2">
-      <div class="cs-card"><div class="cs-title">Progreso de ejecución — PD</div><div style="display:flex;flex-direction:column;align-items:center;"><canvas id="pd-gauge" style="max-height:150px;" role="img" aria-label="Gauge PD"></canvas><div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;width:100%;margin-top:.5rem;" id="pd-gauge-stats"></div></div></div>
-      <div class="cs-card"><div class="cs-title">Tipo de mantenimiento — PD</div><div id="pd-tipos"></div></div>
-    </div>
-    <div class="alert-plan" id="pd-alert"></div>
-    <div class="costura-r2">
-      <div class="cs-card" style="display:flex;flex-direction:column;height:300px;">
-        <div class="cs-title">Avance semanal — Meta vs Real</div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-          <button onclick="document.getElementById('pws').scrollLeft-=150" style="flex-shrink:0;width:30px;height:30px;background:#0067B8;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:13px;">◀</button>
-          <input type="range" min="0" max="100" value="0" style="flex:1;accent-color:#0067B8;cursor:pointer;height:5px;" oninput="const s=document.getElementById('pws');s.scrollLeft=(s.scrollWidth-s.clientWidth)*this.value/100;">
-          <button onclick="document.getElementById('pws').scrollLeft+=150" style="flex-shrink:0;width:30px;height:30px;background:#0067B8;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:13px;">▶</button>
-        </div>
-        <div id="pws" style="overflow-x:auto;flex:1;scrollbar-width:thin;scrollbar-color:#0067B8 #21262d;">
-          <div style="position:relative;height:220px;min-width:700px;"><canvas id="chart-pd-weekly" role="img" aria-label="Avance semanal PD"></canvas></div>
-        </div>
-      </div>
-      <div class="cs-card" style="height:300px;display:flex;flex-direction:column;">
-        <div class="cs-title">Avance mensual — Real vs Meta</div>
-        <div style="position:relative;flex:1;"><canvas id="chart-pd-monthly" role="img" aria-label="Avance mensual PD"></canvas></div>
-      </div>
-    </div>
-    <div class="avance-card">
-      <div class="avance-head"><h3>% Avance por Tipo de Máquina</h3><p>Área Dueña: PD · desde columna Final Actividad</p></div>
-      <div class="avance-scroll"><table class="avance-table"><thead><tr><th>Tipo de Máquina</th><th class="r">Realizados</th><th class="r">Parque Total</th><th class="r">Pendientes</th><th class="r">% Avance</th><th>Progreso</th></tr></thead><tbody id="pd-avance-body"></tbody></table></div>
-    </div>
+  <div class="hdr-right">
+    <span id="lastUpdate"></span>
+    <div class="hdr-dot"></div>
   </div>
+</header>
 
-  <footer><strong>PINEHURST MFG</strong> · Dashboard Mantenimiento · Datos en tiempo real desde Google Sheets · <span id="footer-ts">—</span></footer>
+<div id="statusBar">
+  <div class="spinner" id="statusSpinner"></div>
+  <span id="statusMsg">Cargando…</span>
 </div>
+
+<div id="errorPanel">
+  <h3>⚠ Error al cargar datos</h3>
+  <p id="errorMsg">No se pudo conectar con Google Sheets.</p>
+  <code id="errorDetail"></code>
+  <button class="retry-btn" onclick="loadData()">↺ Reintentar</button>
+</div>
+
+<div class="filters" id="filterBar">
+  <span class="filter-label">Área:</span>
+  <button class="filter-btn active" onclick="setArea('TODAS',this)">TODAS</button>
+</div>
+
+<div class="main">
+
+  <!-- KPIs -->
+  <div class="kpi-grid" id="kpiGrid">
+    <div class="kpi blue">
+      <div class="kpi-label">Total Registros</div>
+      <div class="kpi-value" id="kTot">—</div>
+      <div class="kpi-sub">registros en base</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" id="bTot" style="width:100%"></div></div>
+    </div>
+    <div class="kpi green">
+      <div class="kpi-label">Completados</div>
+      <div class="kpi-value" id="kDone">—</div>
+      <div class="kpi-sub" id="sDone">con fecha de cierre</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" id="bDone" style="width:0%"></div></div>
+    </div>
+    <div class="kpi orange">
+      <div class="kpi-label">En Progreso</div>
+      <div class="kpi-value" id="kProg">—</div>
+      <div class="kpi-sub" id="sProg">inicio sin cierre</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" id="bProg" style="width:0%"></div></div>
+    </div>
+    <div class="kpi red">
+      <div class="kpi-label">Pendientes</div>
+      <div class="kpi-value" id="kPend">—</div>
+      <div class="kpi-sub" id="sPend">sin iniciar</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" id="bPend" style="width:0%"></div></div>
+    </div>
+    <div class="kpi navy">
+      <div class="kpi-label">Máq. con Fecha Final</div>
+      <div class="kpi-value" id="kFinal">—</div>
+      <div class="kpi-sub" id="sFinal">máquinas finalizadas</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" id="bFinal" style="width:0%"></div></div>
+    </div>
+    <div class="kpi yellow">
+      <div class="kpi-label">Mecánicos Activos</div>
+      <div class="kpi-value" id="kMec">—</div>
+      <div class="kpi-sub">en período</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" id="bMec" style="width:0%"></div></div>
+    </div>
+  </div>
+
+  <!-- Charts Row -->
+  <div class="charts-row">
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">Actividad Mensual</span></div>
+      <div class="card-body"><div class="chart-wrap"><canvas id="chartMeses"></canvas></div></div>
+    </div>
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">Tipo de Mantenimiento</span></div>
+      <div class="card-body"><div class="chart-wrap"><canvas id="chartTipos"></canvas></div></div>
+    </div>
+  </div>
+
+  <!-- Bottom Row -->
+  <div class="bottom-row">
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">Top Áreas por Volumen</span></div>
+      <div class="card-body"><div class="bar-list" id="barAreas"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">Top Mecánicos</span></div>
+      <div class="card-body"><div class="bar-list" id="barMecanicos"></div></div>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="table-card">
+    <div class="table-hdr">
+      <span class="table-title">Registros Recientes</span>
+      <span class="table-count" id="tableCount">—</span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Asset ID</th>
+            <th>Tipo Máquina</th>
+            <th>Área</th>
+            <th>Mecánico</th>
+            <th>Tipo Mant.</th>
+            <th>Estado</th>
+            <th>Inicio</th>
+            <th>Final</th>
+            <th>Costo MP</th>
+            <th>Costo MC</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<footer>
+  <strong>PINEHURST MFG</strong> &nbsp;·&nbsp; Dashboard Mantenimiento &nbsp;·&nbsp;
+  Datos en tiempo real desde Google Sheets &nbsp;·&nbsp;
+  <span id="footerTs">—</span>
+</footer>
+
+</div><!-- /app -->
+
 <script>
-const CSV='https://docs.google.com/spreadsheets/d/e/2PACX-1vQvyJg610AkUuW2nmyhUKthxKwTcdmISAptd-oliRib55e5TXNndz7VyiTyK81O4V0OFF5d_RxrISKT/pub?output=csv';
-let allData=[],chartM=null,chartT=null,chartCW=null,chartCM=null,chartGauge=null,currentArea='TODAS';
-const PLAN_START=new Date(2026,1,2);
-const META_BASE={FEB:120,MAR:120,ABR:120,MAY:120,JUN:120,JUL:150,AGO:120,SEP:120,OCT:150,NOV:120,DIC:37};
-const MESES_ALL=['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
-const MESES_SHOW=['FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+// ── CONFIG ──────────────────────────────────────────────────────────
+const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQvyJg610AkUuW2nmyhUKthxKwTcdmISAptd-oliRib55e5TXNndz7VyiTyK81O4V0OFF5d_RxrISKT/pub?gid=1513570346&single=true&output=csv';
 
-function getArea(r){return(r['AREA DUEÑA']||r['AREA']||'').trim()||'Sin área';}
-function cnt(arr,k){const m={};arr.forEach(r=>{const v=(r[k]||'Sin dato').trim()||'Sin dato';m[v]=(m[v]||0)+1;});return Object.entries(m).sort((a,b)=>b[1]-a[1]);}
-function sm(arr,k){return arr.reduce((s,r)=>s+(parseFloat((r[k]||'').replace(/[^0-9.-]/g,''))||0),0);}
-function pctColor(p){return p>=40?'#3fb950':p>=20?'#3fb950':p>=10?'#d29922':'#f85149';}
+// CORS proxies (fallback chain)
+const PROXIES = [
+  u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+  u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+  u => `https://thingproxy.freeboard.io/fetch/${u}`,
+];
 
-function parseFinalDate(str){
-  if(!str||!str.trim())return null;
-  try{
-    const dp=str.trim().split(' ')[0];
-    const p=dp.split('/');
-    if(p.length<3)return null;
-    const mo=parseInt(p[0]),d=parseInt(p[1]),y=parseInt(p[2]);
-    if(!mo||!d||!y)return null;
-    return new Date(y<100?2000+y:y,mo-1,d);
-  }catch(e){return null;}
+const REFRESH_MS = 5 * 60 * 1000; // auto-refresh every 5 min
+
+// Column names (match your Google Sheets headers exactly)
+const C = {
+  assetId   : 'Asset ID',
+  tipoMaq   : 'TIPO DE MAQUINA',
+  location  : 'HOME LOCATION',
+  fechaProg : 'FECHA A REALIZAR MANTENIMIENTO',
+  area      : 'AREA',
+  inicio    : 'Inicio Actividad',
+  mecanico  : 'MECANICO',
+  tipoMant  : 'Tipo de Mantenimiento',
+  final     : 'Final Actividad',
+  semana    : 'SEMANA',
+  mes       : 'Mes',
+  anio      : 'AñO',
+  areaDuena : 'AREA DUEÑA',
+  costoMP   : 'COSTO MP',
+  costoMC   : 'COSTO MC',
+};
+
+// ── STATE ──────────────────────────────────────────────────────────
+let allRows = [];
+let activeArea = 'TODAS';
+let charts = {};
+
+// ── HELPERS ────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const val = (row, col) => (row[col] || '').toString().trim();
+
+function setStatus(msg, isErr = false) {
+  const bar = $('statusBar');
+  $('statusMsg').textContent = msg;
+  $('statusSpinner').style.display = isErr ? 'none' : '';
+  bar.className = 'show' + (isErr ? ' error' : '');
+}
+function hideStatus() { $('statusBar').className = ''; }
+
+function showError(msg, detail = '') {
+  $('errorPanel').style.display = 'block';
+  $('errorMsg').textContent = msg;
+  $('errorDetail').textContent = detail || CSV_URL;
+  hideStatus();
+}
+function hideError() { $('errorPanel').style.display = 'none'; }
+
+function fmtDate(str) {
+  if (!str) return '';
+  const d = new Date(str);
+  if (isNaN(d)) return str;
+  return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function groupByMes(data){
-  const c={};MESES_ALL.forEach(m=>{c[m]=0;});
-  data.forEach(r=>{
-    const d=parseFinalDate(r['Final Actividad']);
-    if(!d||d.getFullYear()!==2026)return;
-    const k=MESES_ALL[d.getMonth()];
-    if(k)c[k]++;
+function fmtCost(str) {
+  const n = parseFloat((str || '').replace(/[^0-9.]/g, ''));
+  if (isNaN(n) || n === 0) return '—';
+  return '$' + n.toLocaleString('es-MX', { minimumFractionDigits: 0 });
+}
+
+// ── DATA LOADING — robust strategy ─────────────────────────────────
+async function loadData() {
+  hideError();
+  setStatus('Conectando con Google Sheets…');
+
+  let csvText = null;
+  let lastError = null;
+
+  // Strategy 1: direct fetch (Google Sheets pub CSV has CORS headers)
+  try {
+    const res = await fetch(CSV_URL, { mode: 'cors', cache: 'no-cache' });
+    if (res.ok) {
+      csvText = await res.text();
+      if (csvText && csvText.includes(',')) {
+        console.log('[CSV] Direct fetch OK');
+      } else {
+        csvText = null;
+      }
+    }
+  } catch (e) {
+    lastError = e;
+    console.warn('[CSV] Direct fetch failed:', e.message);
+  }
+
+  // Strategy 2-4: CORS proxies
+  if (!csvText) {
+    for (let i = 0; i < PROXIES.length; i++) {
+      try {
+        const proxyUrl = PROXIES[i](CSV_URL);
+        setStatus(`Intentando ruta alternativa ${i + 1}/${PROXIES.length}…`);
+        const res = await fetch(proxyUrl, { cache: 'no-cache' });
+        if (res.ok) {
+          csvText = await res.text();
+          if (csvText && csvText.includes(',')) {
+            console.log(`[CSV] Proxy ${i + 1} OK`);
+            break;
+          } else {
+            csvText = null;
+          }
+        }
+      } catch (e) {
+        lastError = e;
+        console.warn(`[CSV] Proxy ${i + 1} failed:`, e.message);
+      }
+    }
+  }
+
+  // Strategy 5: PapaParse download (last resort)
+  if (!csvText) {
+    try {
+      setStatus('Cargando via PapaParse…');
+      csvText = await new Promise((resolve, reject) => {
+        Papa.parse(CSV_URL, {
+          download: true,
+          complete: r => {
+            if (r.data && r.data.length > 1) {
+              // Reconstruct CSV text from Papa result
+              const headers = r.meta.fields || Object.keys(r.data[0]);
+              const rows = r.data.map(row => headers.map(h => `"${(row[h]||'').replace(/"/g,'""')}"`).join(','));
+              resolve([headers.join(','), ...rows].join('\n'));
+            } else {
+              reject(new Error('Empty data from PapaParse'));
+            }
+          },
+          error: err => reject(err),
+          header: true,
+          skipEmptyLines: true,
+        });
+      });
+      console.log('[CSV] PapaParse OK');
+    } catch(e) {
+      lastError = e;
+      console.error('[CSV] All strategies failed');
+    }
+  }
+
+  if (!csvText) {
+    showError(
+      'No se pudo cargar el CSV de Google Sheets. Verifica que el archivo esté publicado en "Archivo → Compartir → Publicar en la web".',
+      lastError ? lastError.message : 'Sin conexión'
+    );
+    return;
+  }
+
+  // Parse CSV text
+  const result = Papa.parse(csvText, {
+    header: true,
+    skipEmptyLines: true,
+    transformHeader: h => h.trim(),
   });
-  return c;
-}
 
-function groupByWeek(data){
-  const c={};
-  data.forEach(r=>{
-    const d=parseFinalDate(r['Final Actividad']);
-    if(!d||d.getFullYear()!==2026)return;
-    const diff=d-PLAN_START;
-    if(diff<0)return;
-    const w=Math.floor(diff/(7*24*3600*1000))+1;
-    if(w>=1&&w<=43)c[w]=(c[w]||0)+1;
+  allRows = result.data.filter(r =>
+    Object.values(r).some(v => v && v.toString().trim())
+  );
+
+  if (allRows.length === 0) {
+    showError('El CSV se cargó pero no tiene datos. Verifica la hoja "REGISTRO".');
+    return;
+  }
+
+  console.log('[CSV] Rows loaded:', allRows.length);
+  populateFilters();
+  render();
+
+  const now = new Date().toLocaleString('es-MX', {
+    hour: '2-digit', minute: '2-digit',
+    day: '2-digit', month: 'short',
   });
-  return c;
+  $('lastUpdate').textContent = 'Actualizado: ' + now;
+  $('footerTs').textContent = now;
+  hideStatus();
+
+  // Show app
+  $('app').style.display = 'block';
+  const ls = $('loadScreen');
+  ls.classList.add('fade');
+  setTimeout(() => ls.style.display = 'none', 550);
+
+  // Schedule refresh
+  setTimeout(loadData, REFRESH_MS);
 }
 
-function renderKPIs(d){
-  const mp=Math.round(sm(d,'COSTO MP')),mc=Math.round(sm(d,'COSTO MC'));
-  const areas=new Set(d.map(getArea).filter(a=>a&&a!=='Sin área')).size;
-  const conFinal=d.filter(r=>(r['Final Actividad']||'').trim()!=='').length;
-  document.getElementById('kpi-row').innerHTML=`
-    <div class="kpi blue"><div class="kpi-label">Total Registros</div><div class="kpi-val">${d.length.toLocaleString()}</div><div class="kpi-sub">mantenimientos</div></div>
-    <div class="kpi green"><div class="kpi-label">Áreas Activas</div><div class="kpi-val">${areas}</div><div class="kpi-sub">en seguimiento</div></div>
-    <div class="kpi orange"><div class="kpi-label">Con Fecha Final</div><div class="kpi-val">${conFinal.toLocaleString()}</div><div class="kpi-sub">mant. finalizados</div></div>
-    <div class="kpi red"><div class="kpi-label">Costo MP</div><div class="kpi-val">$${mp.toLocaleString()}</div><div class="kpi-sub">preventivo</div></div>
-    <div class="kpi grey"><div class="kpi-label">Costo MC</div><div class="kpi-val">$${mc.toLocaleString()}</div><div class="kpi-sub">correctivo</div></div>`;
+// ── FILTERS ────────────────────────────────────────────────────────
+function populateFilters() {
+  const areas = [...new Set(
+    allRows.map(r => val(r, C.areaDuena) || val(r, C.area)).filter(Boolean)
+  )].sort();
+
+  const bar = $('filterBar');
+  // Remove old area buttons (keep label + TODAS)
+  Array.from(bar.querySelectorAll('.filter-btn')).slice(1).forEach(b => b.remove());
+
+  areas.forEach(area => {
+    const btn = document.createElement('button');
+    btn.className = 'filter-btn';
+    btn.textContent = area;
+    btn.onclick = () => setArea(area, btn);
+    bar.appendChild(btn);
+  });
 }
 
-function renderChartMeses(d){
-  const mc=cnt(d,'Mes');
-  const NOMBRES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  const labels=[],vals=[];
-  NOMBRES.forEach((m,i)=>{const f=mc.find(([k])=>k.toLowerCase()===m.toLowerCase()||parseInt(k)===i+1);if(f){labels.push(m.substring(0,3));vals.push(f[1]);}});
-  if(!labels.length)mc.slice(0,12).forEach(([k,v])=>{labels.push(k);vals.push(v);});
-  const ctx=document.getElementById('chart-meses').getContext('2d');
-  if(chartM)chartM.destroy();
-  chartM=new Chart(ctx,{type:'bar',data:{labels,datasets:[{data:vals,backgroundColor:'rgba(0,103,184,0.8)',borderRadius:6,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(48,54,61,0.5)'},ticks:{color:'#8b949e',font:{size:9}}},y:{grid:{color:'rgba(48,54,61,0.5)'},ticks:{color:'#8b949e',font:{size:9}},beginAtZero:true}}}});
+function setArea(area, btn) {
+  activeArea = area;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
 }
 
-function renderChartTipos(d){
-  const tc=cnt(d,'Tipo de Mantenimiento').slice(0,6);
-  const ctx=document.getElementById('chart-tipos').getContext('2d');
-  if(chartT)chartT.destroy();
-  chartT=new Chart(ctx,{type:'doughnut',data:{labels:tc.map(([k])=>k),datasets:[{data:tc.map(([,v])=>v),backgroundColor:['#0067B8','#3fb950','#da3633','#d29922','#9c27b0','#00bcd4'],borderWidth:2,borderColor:'#161b22'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#8b949e',font:{size:9},boxWidth:10}}}}});
+// ── RENDER ─────────────────────────────────────────────────────────
+function render() {
+  const rows = activeArea === 'TODAS'
+    ? allRows
+    : allRows.filter(r =>
+        (val(r, C.areaDuena) || val(r, C.area)).toUpperCase() === activeArea.toUpperCase()
+      );
+
+  renderKPIs(rows);
+  renderChartMeses(rows);
+  renderChartTipos(rows);
+  renderBarAreas(rows);
+  renderBarMecanicos(rows);
+  renderTable(rows);
 }
 
-function renderBars(id,entries,cls=''){
-  const max=entries[0]?.[1]||1;
-  document.getElementById(id).innerHTML=entries.slice(0,8).map(([l,v])=>`
-    <div class="bar-item"><div class="bar-item-label" title="${l}">${l}</div>
-    <div class="bar-track"><div class="bar-fill ${cls}" style="width:${Math.round(v/max*100)}%"></div></div>
-    <div class="bar-item-val">${v}</div></div>`).join('');
+// ── KPIs ──────────────────────────────────────────────────────────
+function renderKPIs(rows) {
+  const total    = rows.length;
+  const done     = rows.filter(r => val(r, C.final)).length;
+  const prog     = rows.filter(r => val(r, C.inicio) && !val(r, C.final)).length;
+  const pend     = rows.filter(r => !val(r, C.inicio) && !val(r, C.final)).length;
+  const uniqMaq  = new Set(rows.filter(r => val(r, C.final)).map(r => val(r, C.assetId) || val(r, C.tipoMaq))).size;
+  const mecActiv = new Set(rows.filter(r => val(r, C.mecanico)).map(r => val(r, C.mecanico))).size;
+
+  $('kTot').textContent  = total.toLocaleString();
+  $('kDone').textContent = done.toLocaleString();
+  $('kProg').textContent = prog.toLocaleString();
+  $('kPend').textContent = pend.toLocaleString();
+  $('kFinal').textContent= uniqMaq.toLocaleString();
+  $('kMec').textContent  = mecActiv.toLocaleString();
+
+  const pct = n => total > 0 ? Math.round(n / total * 100) : 0;
+  $('sDone').textContent = `${pct(done)}% del total`;
+  $('sProg').textContent = `${pct(prog)}% del total`;
+  $('sPend').textContent = `${pct(pend)}% del total`;
+  $('sFinal').textContent= 'con registro de cierre';
+  $('bDone').style.width = pct(done) + '%';
+  $('bProg').style.width = pct(prog) + '%';
+  $('bPend').style.width = pct(pend) + '%';
+  $('bFinal').style.width= total > 0 ? Math.round(uniqMaq / total * 100) + '%' : '0%';
+  $('bMec').style.width  = '70%';
 }
 
-function renderTable(d){
-  document.getElementById('table-count').textContent=d.length.toLocaleString()+' registros';
-  const bc=t=>{const tl=(t||'').toLowerCase();if(tl.includes('prev'))return'badge-prev';if(tl.includes('corr'))return'badge-corr';if(tl.includes('pred'))return'badge-pred';return'badge-def';};
-  document.getElementById('tbody').innerHTML=d.slice(0,200).map(r=>`<tr>
-    <td>${r['Asset ID']||'—'}</td><td>${r['TIPO DE MAQUINA']||'—'}</td><td>${getArea(r)}</td>
-    <td>${r['MECANICO']||'—'}</td><td><span class="badge ${bc(r['Tipo de Mantenimiento'])}">${r['Tipo de Mantenimiento']||'—'}</span></td>
-    <td>${r['Inicio Actividad']||'—'}</td><td>${r['Final Actividad']||'—'}</td>
-    <td>${r['COSTO MP']?'$'+parseFloat(r['COSTO MP']||0).toLocaleString():'—'}</td>
-    <td>${r['COSTO MC']?'$'+parseFloat(r['COSTO MC']||0).toLocaleString():'—'}</td>
-  </tr>`).join('');
+// ── CHART: Actividad Mensual ───────────────────────────────────────
+const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+function renderChartMeses(rows) {
+  const counts = new Array(12).fill(0);
+  rows.forEach(r => {
+    const m = parseInt(val(r, C.mes));
+    if (m >= 1 && m <= 12) counts[m - 1]++;
+  });
+
+  const ctx = $('chartMeses').getContext('2d');
+  if (charts.meses) charts.meses.destroy();
+  charts.meses = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: MESES,
+      datasets: [{
+        label: 'Registros',
+        data: counts,
+        backgroundColor: counts.map(v =>
+          v === Math.max(...counts) ? '#0067B8' : 'rgba(0,103,184,.22)'
+        ),
+        borderRadius: 5,
+        borderSkipped: false,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#002B49',
+          padding: 10,
+          callbacks: {
+            label: ctx => ` ${ctx.parsed.y} registros`,
+          },
+        },
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11, family: 'Barlow' }, color: '#8896A9' } },
+        y: {
+          grid: { color: 'rgba(0,0,0,.05)' },
+          ticks: { font: { size: 11, family: 'Barlow' }, color: '#8896A9', precision: 0 },
+          beginAtZero: true,
+        },
+      },
+    },
+  });
 }
 
-function renderAreaSection(data,pfx,gaugeKey,weeklyKey,monthlyKey){
-  const total=data.length;
-  const ejecutados=data.filter(r=>(r['Final Actividad']||'').trim()!=='').length;
-  const pendientes=total-ejecutados;
-  const pct=total>0?Math.round(ejecutados/total*1000)/10:0;
-  const prev=data.filter(r=>(r['Tipo de Mantenimiento']||'').toLowerCase().includes('prev')&&(r['Final Actividad']||'').trim()!=='').length;
-  const corr=data.filter(r=>(r['Tipo de Mantenimiento']||'').toLowerCase().includes('corr')&&(r['Final Actividad']||'').trim()!=='').length;
-  const prevPct=ejecutados>0?Math.round(prev/ejecutados*1000)/10:0;
-  const corrPct=ejecutados>0?Math.round(corr/ejecutados*1000)/10:0;
-  const metaSem=Math.max(1,Math.ceil(total/43));
-  const metaDia=Math.max(1,Math.ceil(metaSem/5));
+// ── CHART: Tipo Mantenimiento ──────────────────────────────────────
+function renderChartTipos(rows) {
+  const counts = {};
+  rows.forEach(r => {
+    const t = val(r, C.tipoMant) || 'Sin clasificar';
+    counts[t] = (counts[t] || 0) + 1;
+  });
 
-  document.getElementById(pfx+'-kpis').innerHTML=`
-    <div class="kpi blue"><div class="kpi-label">Total Máquinas</div><div class="kpi-val">${total.toLocaleString()}</div><div class="kpi-sub">asignadas a ${pfx.toUpperCase()}</div></div>
-    <div class="kpi green"><div class="kpi-label">Ejecutados</div><div class="kpi-val">${ejecutados.toLocaleString()}</div><div class="kpi-sub">${pct}% con fecha final</div></div>
-    <div class="kpi orange"><div class="kpi-label">Pendientes</div><div class="kpi-val">${pendientes.toLocaleString()}</div><div class="kpi-sub">${(100-pct).toFixed(1)}% sin fecha final</div></div>
-    <div class="kpi red"><div class="kpi-label">% Cumplimiento</div><div class="kpi-val">${pct}%</div><div class="kpi-sub">meta: 100%</div></div>`;
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const COLORS = ['#0067B8','#43AF2A','#002B49','#E8820C','#1A82D4','#8896A9'];
 
-  const ctx=document.getElementById(gaugeKey).getContext('2d');
-  if(window['_g_'+pfx])window['_g_'+pfx].destroy();
-  window['_g_'+pfx]=new Chart(ctx,{type:'doughnut',data:{datasets:[{data:[ejecutados,pendientes],backgroundColor:['#3fb950','#d29922'],borderWidth:2,borderColor:'#161b22',circumference:180,rotation:270}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}}}});
-  document.getElementById(pfx+'-gauge-stats').innerHTML=`
-    <div style="background:rgba(63,185,80,.1);border:1px solid rgba(63,185,80,.25);border-top:3px solid #3fb950;border-radius:6px;padding:.5rem;text-align:center;"><div style="font-size:1.1rem;font-weight:800;color:#3fb950;">${ejecutados.toLocaleString()}</div><div style="font-size:.62rem;text-transform:uppercase;color:#7d8590;margin-top:1px;">Ejecutados</div></div>
-    <div style="background:rgba(210,153,34,.1);border:1px solid rgba(210,153,34,.25);border-top:3px solid #d29922;border-radius:6px;padding:.5rem;text-align:center;"><div style="font-size:1.1rem;font-weight:800;color:#d29922;">${pendientes.toLocaleString()}</div><div style="font-size:.62rem;text-transform:uppercase;color:#7d8590;margin-top:1px;">Pendientes</div></div>`;
+  const ctx = $('chartTipos').getContext('2d');
+  if (charts.tipos) charts.tipos.destroy();
+  charts.tipos = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: sorted.map(([k]) => k),
+      datasets: [{
+        data: sorted.map(([, v]) => v),
+        backgroundColor: COLORS,
+        borderWidth: 2,
+        borderColor: '#fff',
+        hoverOffset: 8,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '62%',
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            font: { size: 11, family: 'Barlow' },
+            padding: 10,
+            boxWidth: 10,
+            color: '#4A5568',
+          },
+        },
+        tooltip: {
+          backgroundColor: '#002B49',
+          padding: 10,
+        },
+      },
+    },
+  });
+}
 
-  document.getElementById(pfx+'-tipos').innerHTML=`
-    <div class="tipo-item" style="background:rgba(63,185,80,.08);border-color:#3fb950;">
-      <div><div style="font-size:.85rem;color:#c9d1d9;font-weight:600;">Mantenimiento Preventivo</div><div style="font-size:.7rem;color:#484f58;">de ${ejecutados} ejecutados</div></div>
-      <div style="text-align:right;"><span style="font-size:1.3rem;font-weight:800;color:#3fb950;">${prev}</span><span style="font-size:.75rem;font-weight:700;color:#3fb950;margin-left:4px;">${prevPct}%</span></div>
+// ── BAR LIST ──────────────────────────────────────────────────────
+function renderBarList(elId, rows, colKey, colorClass, top = 7) {
+  const counts = {};
+  rows.forEach(r => {
+    const k = val(r, colKey) || 'Sin datos';
+    if (k) counts[k] = (counts[k] || 0) + 1;
+  });
+
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, top);
+  const max = sorted[0]?.[1] || 1;
+  const el = $(elId);
+  el.innerHTML = sorted.map(([name, count]) => `
+    <div class="bar-item">
+      <div class="bar-name">${name}<span>${count}</span></div>
+      <div class="bar-track"><div class="bar-fill ${colorClass}" style="width:${Math.round(count/max*100)}%"></div></div>
     </div>
-    <div class="tipo-item" style="background:rgba(218,54,51,.08);border-color:#da3633;">
-      <div><div style="font-size:.85rem;color:#c9d1d9;font-weight:600;">Mantenimiento Correctivo</div><div style="font-size:.7rem;color:#484f58;">de ${ejecutados} ejecutados</div></div>
-      <div style="text-align:right;"><span style="font-size:1.3rem;font-weight:800;color:#f85149;">${corr}</span><span style="font-size:.75rem;font-weight:700;color:#f85149;margin-left:4px;">${corrPct}%</span></div>
-    </div>
-    <div style="height:4px;background:#21262d;border-radius:2px;overflow:hidden;margin-top:.5rem;"><div style="height:100%;width:${prevPct}%;background:#3fb950;border-radius:2px;"></div></div>
-    <div style="display:flex;justify-content:space-between;font-size:.7rem;margin-top:.3rem;">
-      <span style="color:#3fb950;font-weight:700;">Preventivo ${prevPct}%</span>
-      <span style="color:#f85149;font-weight:700;">Correctivo ${corrPct}%</span>
-    </div>`;
-
-  document.getElementById(pfx+'-alert').innerHTML=`📋 Plan 2026 · Total: <strong>${total.toLocaleString()} máq.</strong> · Feb 2 → Dic 5 · Meta semanal: <strong>${metaSem} máq/sem</strong> · Meta diaria: <strong>${metaDia} máq/día</strong> · Ejecutadas: <strong>${ejecutados} (${pct}%)</strong> · Pendientes: <strong>${pendientes}</strong>`;
-
-  const wc=groupByWeek(data);
-  const today=new Date();
-  const curW=Math.max(1,Math.min(43,Math.floor((today-PLAN_START)/(7*24*3600*1000))+1));
-  const wLabels=[],wMeta=[],wReal=[];
-  for(let w=1;w<=Math.min(curW+6,43);w++){wLabels.push('S'+w);wMeta.push(metaSem);wReal.push(wc[w]||0);}
-  const ctxW=document.getElementById(weeklyKey).getContext('2d');
-  if(window['_cw_'+pfx])window['_cw_'+pfx].destroy();
-  window['_cw_'+pfx]=new Chart(ctxW,{type:'bar',data:{labels:wLabels,datasets:[
-    {label:'Meta',data:wMeta,backgroundColor:'rgba(0,103,184,0.15)',borderColor:'rgba(0,103,184,0.5)',borderWidth:1.5,borderRadius:6,borderSkipped:false},
-    {label:'Real',data:wReal,backgroundColor:wReal.map((v,i)=>{if(i>=curW)return'rgba(63,185,80,0.2)';return v>=metaSem?'rgba(63,185,80,0.85)':'rgba(218,54,51,0.8)';}),borderRadius:6,borderSkipped:false}
-  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#8b949e',font:{size:9},boxWidth:8,usePointStyle:true,pointStyle:'rect'}}},scales:{x:{grid:{color:'rgba(48,54,61,0.5)'},ticks:{color:'#8b949e',font:{size:8}}},y:{grid:{color:'rgba(48,54,61,0.5)'},ticks:{color:'#8b949e',font:{size:8}},beginAtZero:true,suggestedMax:metaSem+10}}}});
-
-  const mc=groupByMes(data);
-  const metaMensual={FEB:metaSem*4,MAR:metaSem*4,ABR:metaSem*4,MAY:metaSem*4,JUN:metaSem*4,JUL:metaSem*5,AGO:metaSem*4,SEP:metaSem*4,OCT:metaSem*5,NOV:metaSem*4,DIC:Math.round(metaSem)};
-  const visM=MESES_SHOW.filter(m=>mc[m]>0||metaMensual[m]>0);
-  const ctxM=document.getElementById(monthlyKey).getContext('2d');
-  if(window['_cm_'+pfx])window['_cm_'+pfx].destroy();
-  window['_cm_'+pfx]=new Chart(ctxM,{type:'bar',data:{labels:visM,datasets:[
-    {label:'Meta',data:visM.map(m=>metaMensual[m]||0),backgroundColor:'rgba(0,103,184,0.15)',borderColor:'rgba(0,103,184,0.5)',borderWidth:1.5,borderRadius:6,borderSkipped:false},
-    {label:'Real',data:visM.map(m=>mc[m]||0),backgroundColor:visM.map(m=>mc[m]>0?'rgba(63,185,80,0.85)':'transparent'),borderRadius:6,borderSkipped:false}
-  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#8b949e',font:{size:9},boxWidth:8,usePointStyle:true,pointStyle:'rect'}}},scales:{x:{grid:{color:'rgba(48,54,61,0.5)'},ticks:{color:'#8b949e',font:{size:8}}},y:{grid:{color:'rgba(48,54,61,0.5)'},ticks:{color:'#8b949e',font:{size:8}},beginAtZero:true}}}});
-
-  const tipoMap={};
-  data.forEach(r=>{
-    const tipo=(r['TIPO DE MAQUINA']||'Sin tipo').trim().toUpperCase();
-    if(!tipoMap[tipo])tipoMap[tipo]={total:0,realizados:0};
-    tipoMap[tipo].total++;
-    if((r['Final Actividad']||'').trim()!=='')tipoMap[tipo].realizados++;
-  });
-  const tipoArr=Object.entries(tipoMap).map(([k,v])=>({tipo:k,...v,pendientes:v.total-v.realizados,pct:Math.round(v.realizados/v.total*1000)/10})).sort((a,b)=>b.realizados-a.realizados);
-  const avBody=document.getElementById(pfx+'-avance-body');
-  if(avBody)avBody.innerHTML=tipoArr.map(t=>`
-    <tr><td><div class="maq-nm">${t.tipo}</div></td>
-    <td class="r"><span class="v-real">${t.realizados}</span></td>
-    <td class="r"><span class="v-total">${t.total}</span></td>
-    <td class="r"><span class="v-pend" style="color:${t.pendientes>0?'#d29922':'#3fb950'}">${t.pendientes}</span></td>
-    <td class="r"><span class="v-pct" style="color:${pctColor(t.pct)}">${t.pct}%</span></td>
-    <td><div class="prog-w"><div class="prog-b"><div class="prog-f" style="width:${t.pct}%;background:${pctColor(t.pct)};"></div></div></div></td>
-    </tr>`).join('')+`
-    <tr class="total-row"><td><div class="maq-nm" style="color:#58a6ff;">TOTAL ${pfx.toUpperCase()}</div></td>
-    <td class="r" style="color:#3fb950;">${ejecutados.toLocaleString()}</td>
-    <td class="r" style="color:#e6edf3;">${total.toLocaleString()}</td>
-    <td class="r" style="color:#d29922;">${pendientes.toLocaleString()}</td>
-    <td class="r" style="color:#f85149;">${pct}%</td>
-    <td><div class="prog-w"><div class="prog-b" style="height:8px;"><div class="prog-f" style="width:${pct}%;background:#0067B8;"></div></div></div></td></tr>`;
+  `).join('');
 }
 
-function renderGroupTable(data,groupFilter,kpiId,tiposId){
-  const allGrupos=[...new Set(data.map(r=>(r['GRUPO DE MAQUINA']||'').trim()))].filter(Boolean);
-  const group=data.filter(r=>(r['GRUPO DE MAQUINA']||'').toUpperCase().trim().includes(groupFilter.toUpperCase().trim()));
-  const total=group.length;
-  const ejecutados=group.filter(r=>(r['Final Actividad']||'').trim()!=='').length;
-  const pendientes=total-ejecutados;
-  const pct=total>0?Math.round(ejecutados/total*1000)/10:0;
-  const color=groupFilter.includes('STEAM')?'#f85149':'#d29922';
-  const kpiEl=document.getElementById(kpiId);
-  if(!kpiEl)return;
-  if(total===0){kpiEl.innerHTML=`<div class="kpi"><div class="kpi-label">Sin datos</div><div class="kpi-val">0</div><div class="kpi-sub">No hay registros de ${groupFilter}</div></div>`;document.getElementById(tiposId).innerHTML='<tr><td colspan="6" style="text-align:center;color:#484f58;padding:1rem;">Sin datos — verifica columna GRUPO DE MAQUINA</td></tr>';return;}
-  kpiEl.innerHTML=`
-    <div class="kpi"><div class="kpi-label">Total</div><div class="kpi-val" style="font-size:1.6rem;">${total}</div><div class="kpi-sub">máquinas</div></div>
-    <div class="kpi green"><div class="kpi-label">Ejecutados</div><div class="kpi-val" style="font-size:1.6rem;">${ejecutados}</div><div class="kpi-sub">${pct}%</div></div>
-    <div class="kpi orange"><div class="kpi-label">Pendientes</div><div class="kpi-val" style="font-size:1.6rem;">${pendientes}</div><div class="kpi-sub">${(100-pct).toFixed(1)}%</div></div>
-    <div class="kpi" style="--c:${color};"><div class="kpi-label">Cumplimiento</div><div class="kpi-val" style="font-size:1.6rem;color:${color};">${pct}%</div><div class="kpi-sub">meta: 100%</div></div>`;
-  const tipoMap={};
-  group.forEach(r=>{const tipo=(r['TIPO DE MAQUINA']||'Sin tipo').trim().toUpperCase();if(!tipoMap[tipo])tipoMap[tipo]={total:0,realizados:0};tipoMap[tipo].total++;if((r['Final Actividad']||'').trim()!=='')tipoMap[tipo].realizados++;});
-  const tipoArr=Object.entries(tipoMap).map(([k,v])=>({tipo:k,...v,pendientes:v.total-v.realizados,pct:Math.round(v.realizados/v.total*1000)/10})).sort((a,b)=>b.realizados-a.realizados);
-  document.getElementById(tiposId).innerHTML=tipoArr.map(t=>`
-    <tr><td><div class="maq-nm" style="font-size:.72rem;">${t.tipo}</div></td>
-    <td class="r"><span class="v-real">${t.realizados}</span></td><td class="r"><span class="v-total">${t.total}</span></td>
-    <td class="r"><span class="v-pend" style="color:${t.pendientes>0?'#d29922':'#3fb950'}">${t.pendientes}</span></td>
-    <td class="r"><span class="v-pct" style="color:${pctColor(t.pct)}">${t.pct}%</span></td>
-    <td><div class="prog-w"><div class="prog-b"><div class="prog-f" style="width:${t.pct}%;background:${pctColor(t.pct)};"></div></div></div></td></tr>`).join('')+`
-    <tr class="total-row"><td><div class="maq-nm" style="color:${color};font-size:.72rem;">TOTAL ${groupFilter}</div></td>
-    <td class="r" style="color:#3fb950;">${ejecutados}</td><td class="r" style="color:#e6edf3;">${total}</td>
-    <td class="r" style="color:#d29922;">${pendientes}</td><td class="r" style="color:${color};">${pct}%</td>
-    <td><div class="prog-w"><div class="prog-b" style="height:7px;"><div class="prog-f" style="width:${pct}%;background:${color};"></div></div></div></td></tr>`;
-}
+function renderBarAreas(rows)     { renderBarList('barAreas', rows, C.area, 'blue'); }
+function renderBarMecanicos(rows) { renderBarList('barMecanicos', rows, C.mecanico, 'green'); }
 
-function renderCosturaGantt(cd){
-  const GRUPOS=['SEWING MACHINE','STEAM BOILER','HEAT TRANSFER'];
-  const today=new Date();
-  const curMesIdx=today.getMonth();
-  const counts={};
-  GRUPOS.forEach(g=>{counts[g]={};MESES_ALL.forEach(m=>{counts[g][m]=0;});});
-  cd.forEach(r=>{
-    const grupo=(r['GRUPO DE MAQUINA']||'').toUpperCase().trim();
-    const d=parseFinalDate(r['Final Actividad']);
-    if(!d||d.getFullYear()!==2026)return;
-    const mes=MESES_ALL[d.getMonth()];
-    GRUPOS.forEach(g=>{if(grupo.includes(g.split(' ')[0]))counts[g][mes]++;});
-  });
-  const grupoTotals={};
-  GRUPOS.forEach(g=>{const kw=g.split(' ')[0];grupoTotals[g]=cd.filter(r=>(r['GRUPO DE MAQUINA']||'').toUpperCase().includes(kw)).length;});
-  const totalCD=cd.length||1;
-  const grupoMeta={};
-  GRUPOS.forEach(g=>{grupoMeta[g]={};const share=grupoTotals[g]/totalCD;MESES_SHOW.forEach(m=>{grupoMeta[g][m]=Math.max(1,Math.round(META_BASE[m]*share));});});
+// ── TABLE ─────────────────────────────────────────────────────────
+function renderTable(rows) {
+  const recent = [...rows].reverse().slice(0, 100);
+  $('tableCount').textContent = `${rows.length} registros`;
 
-  document.getElementById('costura-gantt-head').innerHTML=`<tr>
-    <th style="padding:7px 10px;font-size:.62rem;text-transform:uppercase;letter-spacing:.08em;color:#7d8590;text-align:left;border-bottom:2px solid #21262d;width:130px;background:#0d1117;">Grupo</th>
-    ${MESES_SHOW.map(m=>`<th style="padding:7px 5px;font-size:.62rem;text-transform:uppercase;letter-spacing:.08em;color:#7d8590;text-align:center;border-bottom:2px solid #21262d;background:#0d1117;">${m}</th>`).join('')}</tr>`;
+  $('tbody').innerHTML = recent.map(r => {
+    const hasInicio = !!val(r, C.inicio);
+    const hasFinal  = !!val(r, C.final);
+    let badge, label;
+    if (hasFinal)       { badge = 'badge-done'; label = 'Completado'; }
+    else if (hasInicio) { badge = 'badge-prog'; label = 'En progreso'; }
+    else                { badge = 'badge-pend'; label = 'Pendiente'; }
 
-  document.getElementById('costura-gantt-body').innerHTML=GRUPOS.map(g=>{
-    const kw=g.split(' ')[0];
-    const cells=MESES_SHOW.map(m=>{
-      const mesIdx=MESES_ALL.indexOf(m);
-      const real=counts[g][m]||0;
-      const meta=grupoMeta[g][m]||1;
-      const pct=Math.round(real/meta*100);
-      const isFuture=mesIdx>curMesIdx;
-      const isCurrent=mesIdx===curMesIdx;
-      let bg,color,border,txt;
-      if(isFuture){bg='rgba(48,54,61,0.3)';color='#484f58';border='1px dashed #30363d';txt=`<span style="font-size:.58rem;">${meta}</span>`;}
-      else if(real===0){bg='rgba(13,17,23,0.5)';color='#30363d';border='1px solid #21262d';txt='—';}
-      else if(pct>=100){bg='rgba(63,185,80,0.15)';color='#3fb950';border='1px solid rgba(63,185,80,0.4)';txt=`<strong>${real}</strong><br><span style="font-size:.58rem;">${pct}%</span>`;}
-      else if(pct>=50){bg='rgba(210,153,34,0.12)';color='#d29922';border='1px solid rgba(210,153,34,0.35)';txt=`<strong>${real}</strong><br><span style="font-size:.58rem;">${pct}%</span>`;}
-      else{bg='rgba(218,54,51,0.12)';color='#f85149';border='1px solid rgba(218,54,51,0.35)';txt=`<strong>${real}</strong><br><span style="font-size:.58rem;">${pct}%</span>`;}
-      const ring=isCurrent?'outline:2px solid #58a6ff;outline-offset:1px;':'';
-      return `<td style="padding:4px;border-top:1px solid #21262d;text-align:center;"><div style="height:34px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:600;background:${bg};color:${color};border:${border};line-height:1.3;${ring}">${txt}</div></td>`;
-    }).join('');
-    const totalReal=MESES_ALL.reduce((s,m)=>s+(counts[g][m]||0),0);
-    const pctTotal=grupoTotals[g]>0?Math.round(totalReal/grupoTotals[g]*100):0;
-    const gLabel=g==='SEWING MACHINE'?'Sewing Machine':g==='STEAM BOILER'?'Steam Boiler':'Heat Transfer';
-    return `<tr><td style="padding:7px 10px;border-top:1px solid #21262d;">
-      <div style="font-weight:700;font-size:.75rem;color:#e6edf3;">${gLabel}</div>
-      <div style="font-size:.62rem;color:#484f58;margin-top:2px;">total: ${grupoTotals[g]} · real: ${totalReal} · ${pctTotal}% · meta: ${Math.max(1,Math.ceil(grupoTotals[g]/43))}/sem</div>
-    </td>${cells}</tr>`;
+    return `<tr>
+      <td><strong>${val(r, C.assetId) || '—'}</strong></td>
+      <td>${val(r, C.tipoMaq) || '—'}</td>
+      <td>${val(r, C.area) || val(r, C.areaDuena) || '—'}</td>
+      <td>${val(r, C.mecanico) || '—'}</td>
+      <td>${val(r, C.tipoMant) || '—'}</td>
+      <td><span class="badge ${badge}">${label}</span></td>
+      <td>${fmtDate(val(r, C.inicio))}</td>
+      <td>${fmtDate(val(r, C.final))}</td>
+      <td>${fmtCost(val(r, C.costoMP))}</td>
+      <td>${fmtCost(val(r, C.costoMC))}</td>
+    </tr>`;
   }).join('');
 }
 
-function renderTabs(d){
-  const areas=cnt(d,'AREA DUEÑA').map(([a])=>a).filter(a=>a&&a!=='Sin área');
-  const tabs=document.getElementById('area-tabs');
-  tabs.innerHTML='<button class="area-tab active" onclick="filterArea('TODAS',this)">TODAS LAS ÁREAS</button>';
-  areas.slice(0,14).forEach(a=>{const b=document.createElement('button');b.className='area-tab';b.textContent=a;b.onclick=function(){filterArea(a,this);};tabs.appendChild(b);});
-}
+// ── INIT ──────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  // Show app shell immediately (header/filters/skeleton)
+  $('app').style.display = 'block';
+  setTimeout(loadData, 800); // slight delay for load animation
+});
 
-function filterArea(area,btn){
-  currentArea=area;
-  document.querySelectorAll('.area-tab').forEach(t=>t.classList.remove('active'));
-  if(btn)btn.classList.add('active');
-  const isCostura=area.toUpperCase().includes('COSTURA');
-  const isPD=area.toUpperCase()==='PD';
-  const mainSection=document.querySelector('.main');
-  const costuraSection=document.getElementById('costura-section');
-  const pdSection=document.getElementById('pd-section');
-  mainSection.style.display='none';
-  costuraSection.style.display='none';
-  pdSection.style.display='none';
-  if(isCostura){
-    costuraSection.style.display='block';
-    const cd=allData.filter(r=>getArea(r).toUpperCase().includes('COSTURA'));
-    if(cd.length>0){
-      renderAreaSection(cd,'costura','costura-gauge','chart-costura-weekly','chart-costura-monthly');
-      renderGroupTable(cd,'STEAM BOILER','costura-steam-kpis','costura-steam-tipos');
-      renderGroupTable(cd,'HEAT TRANSFER','costura-heat-kpis','costura-heat-tipos');
-      renderCosturaGantt(cd);
-    }
-  } else if(isPD){
-    pdSection.style.display='block';
-    const pd=allData.filter(r=>getArea(r).toUpperCase()==='PD');
-    if(pd.length>0)renderAreaSection(pd,'pd','pd-gauge','chart-pd-weekly','chart-pd-monthly');
-  } else {
-    mainSection.style.display='block';
-    const d=area==='TODAS'?allData:allData.filter(r=>getArea(r)===area);
-    renderKPIs(d);renderChartMeses(d);renderChartTipos(d);
-    renderBars('bar-areas',cnt(d,'AREA DUEÑA'));
-    renderBars('bar-mecanicos',cnt(d,'MECANICO'),'green');
-    renderTable(d);
-  }
-}
-
-async function loadData(){
-  document.getElementById('status-text').textContent='Actualizando...';
-  const controller=new AbortController();
-  const timeout=setTimeout(()=>controller.abort(),15000);
-  try{
-    const res=await fetch(CSV+'&t='+Date.now(),{signal:controller.signal});
-    clearTimeout(timeout);
-    const text=await res.text();
-    const parsed=Papa.parse(text,{header:true,skipEmptyLines:true});
-    allData=parsed.data.filter(r=>r['Asset ID']||r['TIPO DE MAQUINA']);
-    if(allData.length===0)throw new Error('Sin datos');
-    renderTabs(allData);
-    filterArea(currentArea,null);
-    const now=new Date().toLocaleString('es',{dateStyle:'short',timeStyle:'short'});
-    document.getElementById('status-text').textContent='Actualizado '+now;
-    document.getElementById('footer-ts').textContent='Última actualización: '+now;
-    document.getElementById('loading').style.display='none';
-    document.getElementById('app').style.display='block';
-  }catch(e){
-    clearTimeout(timeout);
-    const msg=e.name==='AbortError'?'Tiempo de espera agotado':'Error de conexión';
-    document.getElementById('status-text').textContent=msg;
-    document.getElementById('loading').innerHTML=`
-      <div style="text-align:center;padding:2rem;">
-        <div style="font-size:2rem;margin-bottom:1rem;">⚠️</div>
-        <p style="color:#f85149;margin-bottom:.5rem;font-weight:600;">${msg}</p>
-        <p style="color:#484f58;font-size:.85rem;margin-bottom:1.5rem;">Verifica que el Google Sheet esté publicado como CSV</p>
-        <button onclick="loadData()" style="padding:.5rem 1.5rem;background:#0067B8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:.9rem;">🔄 Reintentar</button>
-      </div>`;
-    console.error(e);
-  }
-}
-loadData();
-setInterval(loadData,5*60*1000);
+// Make setArea global for filter buttons
+window.setArea = setArea;
 </script>
+
 </body>
 </html>
