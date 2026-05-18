@@ -3,935 +3,565 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pinehurst MFG — Dashboard Mantenimiento</title>
+<title>Pinehurst MFG — Dashboard Mantenimiento 2026</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600;700;800&family=Barlow+Condensed:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600;700&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
-:root{
-  --blue:#0067B8;
-  --blue-dark:#004F8C;
-  --blue-light:#1A82D4;
-  --green:#43AF2A;
-  --green-dark:#2E8A19;
-  --navy:#002B49;
-  --navy-mid:#003A62;
-  --gray-bg:#F0F2F5;
-  --gray-card:#FFFFFF;
-  --gray-border:#DDE3EC;
-  --gray-text:#4A5568;
-  --gray-label:#8896A9;
-  --text-dark:#0D1B2A;
-  --orange:#E8820C;
-  --red:#D93025;
-  --yellow:#F4B400;
-  --radius:10px;
-  --shadow:0 2px 12px rgba(0,43,73,.09);
-  --shadow-hover:0 6px 24px rgba(0,43,73,.16);
-}
-
 *{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Barlow',sans-serif;background:#0d1117;color:#e6edf3;min-height:100vh}
 
-body{
-  font-family:'Barlow',sans-serif;
-  background:var(--gray-bg);
-  color:var(--text-dark);
-  min-height:100vh;
-}
+/* LOADING */
+#loading{position:fixed;inset:0;background:#0d1117;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;z-index:9999;transition:opacity .5s}
+#loading.fade{opacity:0;pointer-events:none}
+.load-logo-txt{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:2.4rem;letter-spacing:.06em;color:#e6edf3}
+.load-logo-txt span{color:#3fb950}
+.load-bar-outer{width:200px;height:3px;background:#21262d;border-radius:2px;overflow:hidden}
+.load-bar-inner{height:100%;width:0%;background:linear-gradient(90deg,#0067B8,#3fb950);border-radius:2px;animation:lp 2.5s ease forwards}
+@keyframes lp{to{width:100%}}
+.load-sub{font-size:11px;color:#484f58;letter-spacing:.1em;text-transform:uppercase}
 
-/* ── LOADING SCREEN ── */
-#loadScreen{
-  position:fixed;inset:0;
-  background:var(--navy);
-  display:flex;flex-direction:column;
-  align-items:center;justify-content:center;
-  gap:24px;z-index:9999;
-  transition:opacity .5s ease;
-}
-#loadScreen.fade{opacity:0;pointer-events:none}
-.load-logo{
-  width:180px;opacity:.95;
-}
-.load-logo svg{width:100%;height:auto}
-.load-bar-outer{
-  width:240px;height:4px;
-  background:rgba(255,255,255,.15);
-  border-radius:4px;overflow:hidden;
-}
-.load-bar-inner{
-  height:100%;width:0%;
-  background:linear-gradient(90deg,var(--blue-light),var(--green));
-  border-radius:4px;
-  animation:loadProgress 2.8s ease forwards;
-}
-@keyframes loadProgress{to{width:100%}}
-.load-text{
-  color:rgba(255,255,255,.6);
-  font-size:13px;font-weight:500;letter-spacing:.5px;
-}
-
-/* ── HEADER ── */
+/* TOPBAR */
 #app{display:none}
-header{
-  background:var(--navy);
-  padding:0 28px;
-  height:58px;
-  display:flex;align-items:center;justify-content:space-between;
-  position:sticky;top:0;z-index:100;
-  box-shadow:0 2px 16px rgba(0,0,0,.25);
-}
-.hdr-left{display:flex;align-items:center;gap:14px}
-.hdr-logo svg{height:32px;width:auto}
-.hdr-divider{width:1px;height:26px;background:rgba(255,255,255,.2)}
-.hdr-title{
-  color:#fff;font-weight:700;font-size:15px;
-  letter-spacing:.3px;
-  font-family:'Barlow Condensed',sans-serif;
-  font-size:17px;
-}
-.hdr-right{display:flex;align-items:center;gap:16px}
-#lastUpdate{color:rgba(255,255,255,.5);font-size:12px;font-weight:400}
-.hdr-dot{
-  width:8px;height:8px;border-radius:50%;
-  background:var(--green);
-  box-shadow:0 0 0 3px rgba(67,175,42,.25);
-  animation:pulse 2.5s ease infinite;
-}
-@keyframes pulse{0%,100%{box-shadow:0 0 0 3px rgba(67,175,42,.25)}50%{box-shadow:0 0 0 6px rgba(67,175,42,.1)}}
+.topbar{background:#161b22;border-bottom:1px solid #30363d;padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.topbar-brand{display:flex;align-items:center;gap:12px}
+.topbar-logo{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.4rem;letter-spacing:.05em;color:#e6edf3;line-height:1}
+.topbar-logo span{color:#3fb950}
+.topbar-divider{width:1px;height:22px;background:#30363d}
+.topbar-title{font-size:11px;text-transform:uppercase;letter-spacing:.15em;color:#7d8590;font-weight:500}
+.topbar-right{display:flex;align-items:center;gap:12px}
+.status-chip{display:flex;align-items:center;gap:6px;background:rgba(63,185,80,.12);border:1px solid rgba(63,185,80,.3);padding:4px 12px;border-radius:20px;font-size:11px;color:#3fb950;font-weight:500}
+.status-dot{width:6px;height:6px;border-radius:50%;background:#3fb950;animation:pulse 2s ease infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.status-chip.err{background:rgba(248,81,73,.12);border-color:rgba(248,81,73,.3);color:#f85149}
+.status-chip.err .status-dot{background:#f85149;animation:none}
+#last-update{font-size:11px;color:#484f58}
+.btn-refresh{background:transparent;border:1px solid #30363d;color:#8b949e;padding:5px 14px;border-radius:6px;font-family:'Barlow',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all .2s}
+.btn-refresh:hover{border-color:#58a6ff;color:#58a6ff}
 
-/* ── STATUS BAR ── */
-#statusBar{
-  display:none;
-  background:var(--navy-mid);
-  color:#fff;font-size:13px;font-weight:500;
-  padding:8px 28px;
-  align-items:center;gap:10px;
-}
-#statusBar.show{display:flex}
-#statusBar.error{background:#7B2020}
-.spinner{
-  width:14px;height:14px;
-  border:2px solid rgba(255,255,255,.3);
-  border-top-color:#fff;
-  border-radius:50%;
-  animation:spin .8s linear infinite;
-}
-@keyframes spin{to{transform:rotate(360deg)}}
+/* AREA TABS */
+.area-tabs{background:#161b22;border-bottom:1px solid #21262d;padding:0 24px;display:flex;align-items:center;gap:6px;min-height:46px;overflow-x:auto}
+.area-tab{padding:5px 16px;background:transparent;border:1px solid #30363d;border-radius:20px;font-family:'Barlow',sans-serif;font-size:11px;font-weight:600;color:#7d8590;cursor:pointer;white-space:nowrap;transition:all .2s;text-transform:uppercase;letter-spacing:.05em}
+.area-tab:hover{border-color:#58a6ff;color:#58a6ff}
+.area-tab.active{background:#0067B8;border-color:#0067B8;color:#fff}
 
-/* ── FILTERS ── */
-.filters{
-  background:#fff;
-  border-bottom:1px solid var(--gray-border);
-  padding:0 28px;
-  display:flex;align-items:center;gap:8px;
-  min-height:48px;
-  overflow-x:auto;
-}
-.filter-btn{
-  padding:6px 16px;
-  border:1.5px solid var(--gray-border);
-  background:#fff;
-  border-radius:20px;
-  font-family:'Barlow',sans-serif;
-  font-size:12px;font-weight:600;
-  color:var(--gray-text);
-  cursor:pointer;white-space:nowrap;
-  transition:all .15s;
-  letter-spacing:.3px;
-  text-transform:uppercase;
-}
-.filter-btn:hover{border-color:var(--blue);color:var(--blue)}
-.filter-btn.active{
-  background:var(--blue);
-  border-color:var(--blue);
-  color:#fff;
-}
-.filter-label{
-  font-size:11px;font-weight:600;
-  color:var(--gray-label);
-  text-transform:uppercase;letter-spacing:.8px;
-  margin-right:4px;white-space:nowrap;
-}
+/* ERROR PANEL */
+#error-panel{display:none;margin:20px 24px;background:#161b22;border:1px solid #30363d;border-left:4px solid #f85149;border-radius:10px;padding:18px 20px}
+#error-panel h3{color:#f85149;font-size:14px;margin-bottom:6px}
+#error-panel p{color:#8b949e;font-size:12px;line-height:1.6}
+#error-panel code{display:block;margin-top:8px;background:#0d1117;padding:8px 12px;border-radius:6px;font-size:11px;word-break:break-all;color:#58a6ff}
+.retry-btn{margin-top:12px;padding:6px 16px;background:#0067B8;color:#fff;border:none;border-radius:6px;font-family:'Barlow',sans-serif;font-size:12px;font-weight:600;cursor:pointer}
+.retry-btn:hover{background:#004F8C}
 
-/* ── MAIN ── */
-.main{padding:22px 28px 40px}
+/* MAIN */
+.main{padding:20px 24px 40px}
+.section-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.15em;color:#7d8590;font-weight:700;margin:0 0 14px;display:flex;align-items:center;gap:8px}
+.section-lbl::after{content:'';flex:1;height:1px;background:#21262d}
 
-/* ── KPI GRID ── */
-.kpi-grid{
-  display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(172px,1fr));
-  gap:14px;
-  margin-bottom:22px;
-}
-.kpi{
-  background:var(--gray-card);
-  border-radius:var(--radius);
-  padding:18px 20px;
-  box-shadow:var(--shadow);
-  border-top:3px solid transparent;
-  transition:box-shadow .2s,transform .2s;
-  cursor:default;
-}
-.kpi:hover{box-shadow:var(--shadow-hover);transform:translateY(-2px)}
-.kpi.blue{border-top-color:var(--blue)}
-.kpi.green{border-top-color:var(--green)}
-.kpi.orange{border-top-color:var(--orange)}
-.kpi.navy{border-top-color:var(--navy)}
-.kpi.red{border-top-color:var(--red)}
-.kpi.yellow{border-top-color:var(--yellow)}
-.kpi-label{
-  font-size:10.5px;font-weight:700;
-  text-transform:uppercase;letter-spacing:.8px;
-  color:var(--gray-label);margin-bottom:8px;
-}
-.kpi-value{
-  font-family:'Barlow Condensed',sans-serif;
-  font-size:38px;font-weight:800;
-  line-height:1;color:var(--text-dark);
-}
-.kpi-sub{
-  margin-top:5px;font-size:11.5px;
-  font-weight:500;color:var(--gray-label);
-}
-.kpi-bar{
-  margin-top:10px;height:3px;
-  background:var(--gray-bg);border-radius:2px;overflow:hidden;
-}
+/* KPIs */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:16px}
+.kpi{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px 16px;position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.kpi.bl::before{background:#2563eb}.kpi.gr::before{background:#3fb950}.kpi.or::before{background:#d29922}.kpi.re::before{background:#f85149}.kpi.gy::before{background:#7d8590}
+.kpi-label{font-size:9.5px;text-transform:uppercase;letter-spacing:.08em;color:#7d8590;margin-bottom:6px;font-weight:600}
+.kpi-val{font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:800;color:#e6edf3;line-height:1}
+.kpi-sub{font-size:10px;color:#484f58;margin-top:3px}
+.kpi-bar{height:3px;background:#21262d;border-radius:2px;margin-top:8px;overflow:hidden}
 .kpi-bar-fill{height:100%;border-radius:2px;transition:width .8s ease}
-.kpi.blue .kpi-bar-fill{background:var(--blue)}
-.kpi.green .kpi-bar-fill{background:var(--green)}
-.kpi.orange .kpi-bar-fill{background:var(--orange)}
-.kpi.navy .kpi-bar-fill{background:var(--navy)}
-.kpi.red .kpi-bar-fill{background:var(--red)}
-.kpi.yellow .kpi-bar-fill{background:var(--yellow)}
+.kpi.bl .kpi-bar-fill{background:#2563eb}.kpi.gr .kpi-bar-fill{background:#3fb950}.kpi.or .kpi-bar-fill{background:#d29922}.kpi.re .kpi-bar-fill{background:#f85149}.kpi.gy .kpi-bar-fill{background:#7d8590}
 
-/* ── CHARTS ROW ── */
-.charts-row{
-  display:grid;
-  grid-template-columns:2fr 1fr;
-  gap:14px;
-  margin-bottom:14px;
-}
-.bottom-row{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:14px;
-  margin-bottom:14px;
-}
-
-/* ── CARD ── */
-.card{
-  background:var(--gray-card);
-  border-radius:var(--radius);
-  box-shadow:var(--shadow);
-  overflow:hidden;
-}
-.card-hdr{
-  padding:14px 20px 0;
-  display:flex;align-items:center;justify-content:space-between;
-}
-.card-title{
-  font-size:12px;font-weight:700;
-  text-transform:uppercase;letter-spacing:.8px;
-  color:var(--gray-label);
-}
-.card-body{padding:14px 20px 18px}
-.chart-wrap{height:230px;position:relative}
-
-/* ── BAR LIST ── */
-.bar-list{display:flex;flex-direction:column;gap:10px;padding:4px 0}
+/* CHARTS */
+.charts-row{display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:10px}
+.bottom-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.chart-card{background:#161b22;border:1px solid #30363d;border-radius:10px;overflow:hidden}
+.chart-card-title{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#7d8590;font-weight:700;padding:12px 16px 0}
+.chart-wrap{padding:8px 16px 14px;height:220px;position:relative}
+.bar-list{padding:12px 16px 14px;display:flex;flex-direction:column;gap:9px}
 .bar-item{display:flex;flex-direction:column;gap:4px}
-.bar-name{
-  font-size:12px;font-weight:600;
-  color:var(--text-dark);
-  display:flex;justify-content:space-between;
-}
-.bar-name span{color:var(--gray-label);font-weight:500}
-.bar-track{height:6px;background:var(--gray-bg);border-radius:3px;overflow:hidden}
+.bar-name{font-size:11px;font-weight:600;color:#c9d1d9;display:flex;justify-content:space-between}
+.bar-name span{color:#484f58;font-weight:500}
+.bar-track{height:5px;background:#21262d;border-radius:3px;overflow:hidden}
 .bar-fill{height:100%;border-radius:3px;transition:width .8s ease}
-.bar-fill.blue{background:var(--blue)}
-.bar-fill.green{background:var(--green)}
+.bar-fill.blue{background:#0067B8}.bar-fill.green{background:#3fb950}
 
-/* ── TABLE ── */
-.table-card{
-  background:var(--gray-card);
-  border-radius:var(--radius);
-  box-shadow:var(--shadow);
-  overflow:hidden;
-  margin-bottom:14px;
-}
-.table-hdr{
-  padding:14px 20px;
-  display:flex;align-items:center;justify-content:space-between;
-  border-bottom:1px solid var(--gray-bg);
-}
-.table-title{
-  font-size:12px;font-weight:700;
-  text-transform:uppercase;letter-spacing:.8px;
-  color:var(--gray-label);
-}
-.table-count{
-  background:var(--blue);color:#fff;
-  font-size:11px;font-weight:700;
-  padding:3px 10px;border-radius:10px;
-}
-.tbl-wrap{overflow-x:auto;max-height:340px;overflow-y:auto}
-table{width:100%;border-collapse:collapse;font-size:13px}
-thead th{
-  position:sticky;top:0;
-  background:var(--navy);
-  color:rgba(255,255,255,.85);
-  font-weight:600;font-size:11px;
-  text-transform:uppercase;letter-spacing:.5px;
-  padding:10px 14px;text-align:left;white-space:nowrap;
-}
-tbody tr{border-bottom:1px solid var(--gray-bg)}
-tbody tr:hover{background:rgba(0,103,184,.04)}
-tbody td{padding:9px 14px;color:var(--gray-text);white-space:nowrap}
-.badge{
-  display:inline-block;
-  padding:2px 8px;border-radius:10px;
-  font-size:10.5px;font-weight:600;
-}
-.badge-done{background:#E8F5E9;color:#2E7D32}
-.badge-prog{background:#FFF3E0;color:#E65100}
-.badge-pend{background:#F3F4F6;color:#6B7280}
+/* TABLE */
+.table-card{background:#161b22;border:1px solid #30363d;border-radius:10px;overflow:hidden;margin-bottom:10px}
+.table-head{padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #21262d}
+.table-head-title{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#7d8590;font-weight:700}
+.table-count{background:#2563eb;color:#fff;font-size:10px;font-weight:700;padding:2px 10px;border-radius:10px}
+.tbl-wrap{overflow-x:auto;max-height:320px;overflow-y:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{position:sticky;top:0;background:#0d1117;color:#7d8590;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.05em;padding:9px 12px;text-align:left;white-space:nowrap;border-bottom:1px solid #21262d}
+tbody tr{border-top:1px solid #21262d}
+tbody tr:hover td{background:#1c2128}
+tbody td{padding:8px 12px;color:#c9d1d9;white-space:nowrap}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:9.5px;font-weight:700}
+.badge-pm{background:rgba(37,99,235,.15);color:#58a6ff}
+.badge-cm{background:rgba(248,81,73,.15);color:#f85149}
+.badge-done{background:rgba(63,185,80,.15);color:#3fb950}
+.badge-pend{background:rgba(125,133,144,.12);color:#7d8590}
 
-/* ── FOOTER ── */
-footer{
-  text-align:center;
-  padding:20px;
-  font-size:11.5px;
-  font-weight:500;
-  color:var(--gray-label);
-  letter-spacing:.3px;
-}
-footer strong{color:var(--navy)}
+/* SECTION WRAPPER */
+.sec-wrap{padding:0 24px 40px;display:none}
+.sec-title{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.3rem;letter-spacing:.06em;color:#e6edf3;text-transform:uppercase;margin-bottom:4px}
+.sec-sub{font-size:10px;color:#484f58;text-transform:uppercase;letter-spacing:.1em;margin-bottom:16px}
 
-/* ── RESPONSIVE ── */
+/* GAUGE ROW */
+.gauge-row{display:grid;grid-template-columns:200px 1fr 1fr;gap:10px;margin-bottom:10px}
+.gauge-card{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.gauge-svg{width:130px;height:80px}
+.gauge-pct{font-family:'Barlow Condensed',sans-serif;font-size:2rem;font-weight:800;color:#e6edf3;line-height:1;margin-top:2px}
+.gauge-lbl{font-size:9.5px;text-transform:uppercase;letter-spacing:.08em;color:#484f58;margin-top:2px}
+.gauge-stats{display:flex;flex-direction:column;gap:6px}
+.gs-item{background:rgba(63,185,80,.08);border:1px solid rgba(63,185,80,.2);border-top:3px solid #3fb950;border-radius:8px;padding:8px 12px}
+.gs-item.or{background:rgba(210,153,34,.08);border-color:rgba(210,153,34,.2);border-top-color:#d29922}
+.gs-item.re{background:rgba(248,81,73,.08);border-color:rgba(248,81,73,.2);border-top-color:#f85149}
+.gs-label{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#7d8590;font-weight:600}
+.gs-val{font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:800;color:#e6edf3;line-height:1.1}
+
+/* PLAN ALERT */
+.plan-alert{background:rgba(210,153,34,.08);border:1px solid rgba(210,153,34,.25);border-left:4px solid #d29922;border-radius:8px;padding:12px 16px;margin-bottom:10px;font-size:12px;color:#c9d1d9;line-height:1.6}
+.plan-alert strong{color:#d29922}
+
+/* SUB CHARTS */
+.cs-charts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.cs-chart-card{background:#161b22;border:1px solid #30363d;border-radius:10px;overflow:hidden}
+.cs-chart-title{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#7d8590;font-weight:700;padding:12px 16px 0}
+.cs-chart-wrap{padding:8px 16px 14px;height:200px;position:relative}
+
+/* AVANCE TABLE */
+.avance-card{background:#161b22;border:1px solid #30363d;border-radius:10px;overflow:hidden;margin-bottom:10px}
+.avance-head{background:#0d1117;border-bottom:1px solid #21262d;padding:10px 14px}
+.avance-head h3{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;letter-spacing:.08em;color:#e6edf3;text-transform:uppercase}
+.avance-head p{font-size:.6rem;color:#484f58;text-transform:uppercase;letter-spacing:.1em;margin-top:2px}
+.avance-scroll{max-height:320px;overflow-y:auto}
+.avance-table{width:100%;border-collapse:collapse}
+.avance-table th{padding:7px 12px;background:#0d1117;font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;color:#7d8590;text-align:left;font-weight:700;border-bottom:2px solid #21262d;white-space:nowrap;position:sticky;top:0}
+.avance-table th.r{text-align:right}
+.avance-table td{padding:8px 12px;font-size:.72rem;border-top:1px solid #21262d;color:#c9d1d9;vertical-align:middle}
+.avance-table td.r{text-align:right}
+.avance-table tr:hover td{background:#1c2128}
+.avance-table tr.total-row td{background:#1c2128;border-top:2px solid #30363d;font-weight:700}
+.maq-nm{font-weight:700;font-size:.76rem;color:#e6edf3;text-transform:uppercase}
+.v-real{font-size:.85rem;font-weight:800;color:#3fb950}
+.v-pend{font-size:.85rem;font-weight:700;color:#f85149}
+.v-pct{font-size:.82rem;font-weight:800}
+.prog-w{display:flex;align-items:center;gap:8px;min-width:100px}
+.prog-b{flex:1;height:6px;background:#21262d;border-radius:3px;overflow:hidden}
+.prog-f{height:100%;border-radius:3px}
+
+/* GANTT */
+.gantt-wrap{background:#161b22;border:1px solid #30363d;border-radius:10px;overflow:hidden;margin-bottom:10px}
+.gantt-head{background:#0d1117;border-bottom:1px solid #21262d;padding:10px 14px}
+.gantt-head h3{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;letter-spacing:.08em;color:#e6edf3;text-transform:uppercase}
+.gantt-head p{font-size:.6rem;color:#484f58;margin-top:2px}
+.gantt-legend{display:flex;gap:14px;padding:8px 14px;border-top:1px solid #21262d;background:#0d1117;flex-wrap:wrap}
+.gantt-leg-item{display:flex;align-items:center;gap:5px;font-size:.65rem;color:#7d8590}
+.gantt-leg-box{width:10px;height:10px;border-radius:2px}
+.gantt-scroll{overflow-x:auto}
+.gantt-table{width:100%;border-collapse:collapse;min-width:700px}
+.gantt-table th{padding:7px 8px;background:#0d1117;font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;color:#7d8590;font-weight:700;border-bottom:1px solid #21262d;text-align:center}
+.gantt-table th.l{text-align:left}
+.gantt-table td{padding:5px 4px;border-top:1px solid #1c2128}
+.gantt-table tr:hover td{background:#1c2128}
+.g-name{font-weight:700;font-size:.72rem;color:#e6edf3;padding-left:8px}
+.g-sub{font-size:.6rem;color:#484f58;margin-top:1px;padding-left:8px}
+.mb{height:26px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:.58rem;font-weight:700;flex-direction:column;line-height:1.1;padding:0 4px}
+.md{background:rgba(63,185,80,.2);color:#3fb950;border:1px solid rgba(63,185,80,.3)}
+.mp{background:rgba(210,153,34,.15);color:#d29922;border:1px solid rgba(210,153,34,.25)}
+.ml{background:rgba(248,81,73,.15);color:#f85149;border:1px solid rgba(248,81,73,.25)}
+.mf{background:#161b22;color:#484f58;border:1px dashed #30363d;font-size:.55rem}
+.mz{background:#0d1117;color:#30363d;font-size:.55rem}
+
+/* GROUP CARDS (Steam/Heat) */
+.group-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.group-card{background:#161b22;border:1px solid #30363d;border-radius:10px;overflow:hidden}
+.group-card-head{background:#0d1117;border-bottom:1px solid #21262d;padding:10px 14px}
+.group-card-head h3{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;letter-spacing:.08em;color:#e6edf3;text-transform:uppercase}
+.group-kpis{display:flex;gap:8px;padding:10px 14px}
+.group-kpi{flex:1;background:#0d1117;border:1px solid #21262d;border-radius:8px;padding:8px 10px}
+.group-kpi-lbl{font-size:.58rem;text-transform:uppercase;letter-spacing:.08em;color:#484f58;font-weight:600}
+.group-kpi-val{font-family:'Barlow Condensed',sans-serif;font-size:1.5rem;font-weight:800;color:#e6edf3;line-height:1.1}
+.group-tipos{padding:0 14px 12px;overflow-y:auto;max-height:160px}
+.group-tipos table{width:100%;border-collapse:collapse}
+.group-tipos th{font-size:.58rem;text-transform:uppercase;letter-spacing:.06em;color:#7d8590;font-weight:700;padding:4px 8px;border-bottom:1px solid #21262d;text-align:left}
+.group-tipos th.r{text-align:right}
+.group-tipos td{padding:5px 8px;font-size:.7rem;border-top:1px solid #21262d;color:#c9d1d9}
+.group-tipos td.r{text-align:right}
+
+/* FOOTER */
+footer{text-align:center;padding:14px 24px;font-size:11px;color:#484f58;border-top:1px solid #21262d;background:#161b22}
+footer strong{color:#58a6ff}
+
+/* RESPONSIVE */
 @media(max-width:900px){
-  .charts-row,.bottom-row{grid-template-columns:1fr}
-  .main{padding:16px}
-  .kpi-grid{grid-template-columns:repeat(2,1fr)}
+  .charts-row,.bottom-row,.cs-charts,.gauge-row,.group-grid{grid-template-columns:1fr}
+  .main,.sec-wrap{padding-left:14px;padding-right:14px}
+  .area-tabs,.topbar{padding-left:14px;padding-right:14px}
 }
-@media(max-width:500px){
-  header{padding:0 14px}
-  .main{padding:12px}
-  .filters{padding:0 14px}
-}
-
-/* ── ERROR PANEL ── */
-#errorPanel{
-  display:none;
-  margin:24px;
-  background:#fff;
-  border-radius:var(--radius);
-  border-left:4px solid var(--red);
-  padding:20px 24px;
-  box-shadow:var(--shadow);
-}
-#errorPanel h3{color:var(--red);font-size:15px;margin-bottom:8px}
-#errorPanel p{color:var(--gray-text);font-size:13px;line-height:1.6}
-#errorPanel code{
-  display:block;margin-top:12px;
-  background:var(--gray-bg);padding:10px 14px;
-  border-radius:6px;font-size:12px;
-  word-break:break-all;color:var(--navy);
-}
-.retry-btn{
-  margin-top:14px;
-  padding:8px 20px;
-  background:var(--blue);color:#fff;
-  border:none;border-radius:6px;
-  font-family:'Barlow',sans-serif;font-size:13px;font-weight:600;
-  cursor:pointer;
-}
-.retry-btn:hover{background:var(--blue-dark)}
 </style>
 </head>
 <body>
 
-<!-- LOADING SCREEN -->
-<div id="loadScreen">
-  <div class="load-logo">
-    <!-- Pinehurst logo SVG placeholder (reemplazar con tu logo real) -->
-    <svg viewBox="0 0 300 60" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="18" width="6" height="24" fill="#43AF2A"/>
-      <rect x="10" y="10" width="6" height="40" fill="#43AF2A"/>
-      <rect x="20" y="4" width="6" height="46" fill="#43AF2A"/>
-      <text x="36" y="42" font-family="Barlow Condensed,sans-serif" font-size="32" font-weight="800" fill="white" letter-spacing="1">PINEHURST</text>
-      <text x="38" y="57" font-family="Barlow,sans-serif" font-size="11" font-weight="500" fill="rgba(255,255,255,0.55)" letter-spacing="3">M A N U F A C T U R I N G</text>
-    </svg>
-  </div>
+<div id="loading">
+  <div class="load-logo-txt">PINE<span>HURST</span> MFG</div>
   <div class="load-bar-outer"><div class="load-bar-inner"></div></div>
-  <div class="load-text">Cargando datos de mantenimiento…</div>
+  <div class="load-sub">Cargando datos de mantenimiento…</div>
 </div>
 
-<!-- MAIN APP -->
 <div id="app">
 
-<header>
-  <div class="hdr-left">
-    <div class="hdr-logo">
-      <svg viewBox="0 0 220 40" xmlns="http://www.w3.org/2000/svg">
-        <rect x="0" y="10" width="5" height="20" fill="#43AF2A"/>
-        <rect x="8" y="5" width="5" height="30" fill="#43AF2A"/>
-        <rect x="16" y="1" width="5" height="34" fill="#43AF2A"/>
-        <text x="28" y="28" font-family="Barlow Condensed,sans-serif" font-size="24" font-weight="800" fill="white" letter-spacing="0.5">PINEHURST</text>
-        <text x="29" y="38" font-family="Barlow,sans-serif" font-size="7.5" font-weight="500" fill="rgba(255,255,255,0.5)" letter-spacing="2.5">MANUFACTURING</text>
-      </svg>
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="topbar-logo" id="hdr-logo">PINE<span>HURST</span> MFG</div>
+    <div class="topbar-divider"></div>
+    <div class="topbar-title">Dashboard Mantenimiento 2026</div>
+  </div>
+  <div class="topbar-right">
+    <span id="last-update"></span>
+    <div class="status-chip" id="status-chip">
+      <div class="status-dot"></div>
+      <span id="status-text">Conectando…</span>
     </div>
-    <div class="hdr-divider"></div>
-    <div class="hdr-title">Dashboard Mantenimiento</div>
+    <button class="btn-refresh" onclick="loadData()">⟳ Actualizar</button>
   </div>
-  <div class="hdr-right">
-    <span id="lastUpdate"></span>
-    <div class="hdr-dot"></div>
-  </div>
-</header>
-
-<div id="statusBar">
-  <div class="spinner" id="statusSpinner"></div>
-  <span id="statusMsg">Cargando…</span>
 </div>
 
-<div id="errorPanel">
+<div class="area-tabs" id="area-tabs">
+  <button class="area-tab active" onclick="filterArea('TODAS',this)">TODAS LAS ÁREAS</button>
+</div>
+
+<div id="error-panel">
   <h3>⚠ Error al cargar datos</h3>
-  <p id="errorMsg">No se pudo conectar con Google Sheets.</p>
-  <code id="errorDetail"></code>
+  <p id="error-msg"></p>
+  <code id="error-detail"></code>
   <button class="retry-btn" onclick="loadData()">↺ Reintentar</button>
 </div>
 
-<div class="filters" id="filterBar">
-  <span class="filter-label">Área:</span>
-  <button class="filter-btn active" onclick="setArea('TODAS',this)">TODAS</button>
-</div>
-
-<div class="main">
-
-  <!-- KPIs -->
-  <div class="kpi-grid" id="kpiGrid">
-    <div class="kpi blue">
-      <div class="kpi-label">Total Registros</div>
-      <div class="kpi-value" id="kTot">—</div>
-      <div class="kpi-sub">registros en base</div>
-      <div class="kpi-bar"><div class="kpi-bar-fill" id="bTot" style="width:100%"></div></div>
-    </div>
-    <div class="kpi green">
-      <div class="kpi-label">Completados</div>
-      <div class="kpi-value" id="kDone">—</div>
-      <div class="kpi-sub" id="sDone">con fecha de cierre</div>
-      <div class="kpi-bar"><div class="kpi-bar-fill" id="bDone" style="width:0%"></div></div>
-    </div>
-    <div class="kpi orange">
-      <div class="kpi-label">En Progreso</div>
-      <div class="kpi-value" id="kProg">—</div>
-      <div class="kpi-sub" id="sProg">inicio sin cierre</div>
-      <div class="kpi-bar"><div class="kpi-bar-fill" id="bProg" style="width:0%"></div></div>
-    </div>
-    <div class="kpi red">
-      <div class="kpi-label">Pendientes</div>
-      <div class="kpi-value" id="kPend">—</div>
-      <div class="kpi-sub" id="sPend">sin iniciar</div>
-      <div class="kpi-bar"><div class="kpi-bar-fill" id="bPend" style="width:0%"></div></div>
-    </div>
-    <div class="kpi navy">
-      <div class="kpi-label">Máq. con Fecha Final</div>
-      <div class="kpi-value" id="kFinal">—</div>
-      <div class="kpi-sub" id="sFinal">máquinas finalizadas</div>
-      <div class="kpi-bar"><div class="kpi-bar-fill" id="bFinal" style="width:0%"></div></div>
-    </div>
-    <div class="kpi yellow">
-      <div class="kpi-label">Mecánicos Activos</div>
-      <div class="kpi-value" id="kMec">—</div>
-      <div class="kpi-sub">en período</div>
-      <div class="kpi-bar"><div class="kpi-bar-fill" id="bMec" style="width:0%"></div></div>
-    </div>
-  </div>
-
-  <!-- Charts Row -->
+<!-- GENERAL -->
+<div class="main" id="main-section">
+  <div class="section-lbl">Resumen General</div>
+  <div class="kpi-row" id="kpi-row"></div>
   <div class="charts-row">
-    <div class="card">
-      <div class="card-hdr"><span class="card-title">Actividad Mensual</span></div>
-      <div class="card-body"><div class="chart-wrap"><canvas id="chartMeses"></canvas></div></div>
+    <div class="chart-card">
+      <div class="chart-card-title">Actividad Mensual</div>
+      <div class="chart-wrap"><canvas id="chart-meses"></canvas></div>
     </div>
-    <div class="card">
-      <div class="card-hdr"><span class="card-title">Tipo de Mantenimiento</span></div>
-      <div class="card-body"><div class="chart-wrap"><canvas id="chartTipos"></canvas></div></div>
+    <div class="chart-card">
+      <div class="chart-card-title">Tipo de Mantenimiento</div>
+      <div class="chart-wrap"><canvas id="chart-tipos"></canvas></div>
     </div>
   </div>
-
-  <!-- Bottom Row -->
   <div class="bottom-row">
-    <div class="card">
-      <div class="card-hdr"><span class="card-title">Top Áreas por Volumen</span></div>
-      <div class="card-body"><div class="bar-list" id="barAreas"></div></div>
+    <div class="chart-card">
+      <div class="chart-card-title">Top Áreas por Volumen</div>
+      <div class="bar-list" id="bar-areas"></div>
     </div>
-    <div class="card">
-      <div class="card-hdr"><span class="card-title">Top Mecánicos</span></div>
-      <div class="card-body"><div class="bar-list" id="barMecanicos"></div></div>
+    <div class="chart-card">
+      <div class="chart-card-title">Top Mecánicos</div>
+      <div class="bar-list" id="bar-mecanicos"></div>
     </div>
   </div>
-
-  <!-- Table -->
   <div class="table-card">
-    <div class="table-hdr">
-      <span class="table-title">Registros Recientes</span>
-      <span class="table-count" id="tableCount">—</span>
+    <div class="table-head">
+      <span class="table-head-title">Registros Recientes</span>
+      <span class="table-count" id="table-count">—</span>
     </div>
     <div class="tbl-wrap">
       <table>
-        <thead>
-          <tr>
-            <th>Asset ID</th>
-            <th>Tipo Máquina</th>
-            <th>Área</th>
-            <th>Mecánico</th>
-            <th>Tipo Mant.</th>
-            <th>Estado</th>
-            <th>Inicio</th>
-            <th>Final</th>
-            <th>Costo MP</th>
-            <th>Costo MC</th>
-          </tr>
-        </thead>
+        <thead><tr>
+          <th>Asset ID</th><th>Tipo Máquina</th><th>Área Dueña</th>
+          <th>Mecánico</th><th>Tipo Mant.</th><th>Inicio</th><th>Final</th>
+          <th>Costo MP</th><th>Costo MC</th>
+        </tr></thead>
         <tbody id="tbody"></tbody>
       </table>
     </div>
   </div>
+</div>
 
-</div><!-- /main -->
+<!-- COSTURA -->
+<div class="sec-wrap" id="costura-section">
+  <div class="sec-title">COSTURA</div>
+  <div class="sec-sub" id="costura-sub"></div>
+  <div class="gauge-row">
+    <div class="gauge-card">
+      <svg class="gauge-svg" viewBox="0 0 130 70">
+        <path d="M10,65 A55,55 0 0,1 120,65" fill="none" stroke="#21262d" stroke-width="10" stroke-linecap="round"/>
+        <path id="costura-gauge-arc" d="M10,65 A55,55 0 0,1 120,65" fill="none" stroke="#3fb950" stroke-width="10" stroke-linecap="round" stroke-dasharray="0,173"/>
+      </svg>
+      <div class="gauge-pct" id="costura-gauge-pct">—%</div>
+      <div class="gauge-lbl">Avance Global</div>
+    </div>
+    <div class="gauge-stats" id="costura-gauge-stats"></div>
+    <div class="gauge-stats" id="costura-gauge-stats2"></div>
+  </div>
+  <div class="plan-alert" id="costura-plan-alert"></div>
+  <div class="cs-charts">
+    <div class="cs-chart-card"><div class="cs-chart-title">Actividad Semanal</div><div class="cs-chart-wrap"><canvas id="costura-chart-semanal"></canvas></div></div>
+    <div class="cs-chart-card"><div class="cs-chart-title">Actividad Mensual</div><div class="cs-chart-wrap"><canvas id="costura-chart-mensual"></canvas></div></div>
+  </div>
+  <div class="gantt-wrap">
+    <div class="gantt-head"><h3>PLAN DE MANTENIMIENTO — GANTT MENSUAL 2026</h3><p>Comparativo Real vs Meta · Feb → Dic</p></div>
+    <div class="gantt-scroll"><div id="costura-gantt"></div></div>
+    <div class="gantt-legend">
+      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(63,185,80,.3)"></div>Completado</div>
+      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(210,153,34,.3)"></div>En Progreso</div>
+      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(248,81,73,.3)"></div>Atrasado</div>
+      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:#161b22;border:1px dashed #30363d"></div>Futuro</div>
+    </div>
+  </div>
+  <div class="group-grid">
+    <div class="group-card">
+      <div class="group-card-head"><h3>🔥 Steam Boilers</h3></div>
+      <div class="group-kpis" id="costura-steam-kpis"></div>
+      <div class="group-tipos"><table><thead><tr><th>Tipo Máquina</th><th class="r">Real</th><th class="r">Total</th><th class="r">%</th></tr></thead><tbody id="costura-steam-tipos"></tbody></table></div>
+    </div>
+    <div class="group-card">
+      <div class="group-card-head"><h3>♨ Heat Transfer</h3></div>
+      <div class="group-kpis" id="costura-heat-kpis"></div>
+      <div class="group-tipos"><table><thead><tr><th>Tipo Máquina</th><th class="r">Real</th><th class="r">Total</th><th class="r">%</th></tr></thead><tbody id="costura-heat-tipos"></tbody></table></div>
+    </div>
+  </div>
+  <!-- Avance tipos AL FINAL -->
+  <div class="avance-card">
+    <div class="avance-head"><h3>% AVANCE POR TIPO DE MÁQUINA — COSTURA</h3><p>Mantenimientos ejecutados vs total programado</p></div>
+    <div class="avance-scroll"><table class="avance-table"><thead><tr><th>Tipo de Máquina</th><th class="r">Real</th><th class="r">Total</th><th class="r">Pend.</th><th class="r">%</th><th>Progreso</th></tr></thead><tbody id="costura-avance-tipos"></tbody></table></div>
+  </div>
+</div>
 
-<footer>
-  <strong>PINEHURST MFG</strong> &nbsp;·&nbsp; Dashboard Mantenimiento &nbsp;·&nbsp;
-  Datos en tiempo real desde Google Sheets &nbsp;·&nbsp;
-  <span id="footerTs">—</span>
-</footer>
+<!-- PD -->
+<div class="sec-wrap" id="pd-section">
+  <div class="sec-title">PD — PRODUCT DEVELOPMENT</div>
+  <div class="sec-sub" id="pd-sub"></div>
+  <div class="gauge-row">
+    <div class="gauge-card">
+      <svg class="gauge-svg" viewBox="0 0 130 70">
+        <path d="M10,65 A55,55 0 0,1 120,65" fill="none" stroke="#21262d" stroke-width="10" stroke-linecap="round"/>
+        <path id="pd-gauge-arc" d="M10,65 A55,55 0 0,1 120,65" fill="none" stroke="#2563eb" stroke-width="10" stroke-linecap="round" stroke-dasharray="0,173"/>
+      </svg>
+      <div class="gauge-pct" id="pd-gauge-pct">—%</div>
+      <div class="gauge-lbl">Avance Global</div>
+    </div>
+    <div class="gauge-stats" id="pd-gauge-stats"></div>
+    <div class="gauge-stats" id="pd-gauge-stats2"></div>
+  </div>
+  <div class="avance-card" style="margin-top:10px">
+    <div class="avance-head"><h3>% AVANCE POR TIPO DE MÁQUINA — PD</h3><p>Mantenimientos ejecutados vs total programado</p></div>
+    <div class="avance-scroll"><table class="avance-table"><thead><tr><th>Tipo de Máquina</th><th class="r">Real</th><th class="r">Total</th><th class="r">Pend.</th><th class="r">%</th><th>Progreso</th></tr></thead><tbody id="pd-avance-tipos"></tbody></table></div>
+  </div>
+</div>
 
-</div><!-- /app -->
+<footer><strong>PINEHURST MFG</strong> &nbsp;·&nbsp; Dashboard Mantenimiento &nbsp;·&nbsp; Datos en tiempo real · Auto-actualización cada 5 min &nbsp;·&nbsp; <span id="footer-ts">—</span></footer>
+</div>
 
 <script>
-// ── CONFIG ──────────────────────────────────────────────────────────
-const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQvyJg610AkUuW2nmyhUKthxKwTcdmISAptd-oliRib55e5TXNndz7VyiTyK81O4V0OFF5d_RxrISKT/pub?gid=1513570346&single=true&output=csv';
+const CSV_URL='https://docs.google.com/spreadsheets/d/e/2PACX-1vQvyJg610AkUuW2nmyhUKthxKwTcdmISAptd-oliRib55e5TXNndz7VyiTyK81O4V0OFF5d_RxrISKT/pub?gid=1513570346&single=true&output=csv';
+const PROXIES=[u=>`https://corsproxy.io/?${encodeURIComponent(u)}`,u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`];
+const REFRESH=5*60*1000;
+let allData=[],charts={},activeArea='TODAS';
+const $=id=>document.getElementById(id);
+const v=(r,k)=>(r[k]||'').toString().trim();
+const getArea=r=>v(r,'AREA DUEÑA')||v(r,'AREA')||'Sin área';
+function cnt(d,col,top=8){const m={};d.forEach(r=>{const k=v(r,col)||'Sin datos';if(k)m[k]=(m[k]||0)+1});return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,top)}
+function sm(d,col){return d.reduce((s,r)=>{const n=parseFloat((v(r,col)||'0').replace(/[^0-9.]/g,''));return s+(isNaN(n)?0:n)},0)}
+function fmtDate(s){return s?s.split('T')[0]||s:'—'}
+function fmtCost(s){const n=parseFloat((s||'').replace(/[^0-9.]/g,''));if(!n||isNaN(n))return'—';return'$'+n.toLocaleString('es-MX')}
+function setStatus(msg,ok=true){$('status-text').textContent=msg;$('status-chip').className='status-chip'+(ok?'':' err')}
 
-// CORS proxies (fallback chain)
-const PROXIES = [
-  u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
-  u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-  u => `https://thingproxy.freeboard.io/fetch/${u}`,
-];
-
-const REFRESH_MS = 5 * 60 * 1000; // auto-refresh every 5 min
-
-// Column names (match your Google Sheets headers exactly)
-const C = {
-  assetId   : 'Asset ID',
-  tipoMaq   : 'TIPO DE MAQUINA',
-  location  : 'HOME LOCATION',
-  fechaProg : 'FECHA A REALIZAR MANTENIMIENTO',
-  area      : 'AREA',
-  inicio    : 'Inicio Actividad',
-  mecanico  : 'MECANICO',
-  tipoMant  : 'Tipo de Mantenimiento',
-  final     : 'Final Actividad',
-  semana    : 'SEMANA',
-  mes       : 'Mes',
-  anio      : 'AñO',
-  areaDuena : 'AREA DUEÑA',
-  costoMP   : 'COSTO MP',
-  costoMC   : 'COSTO MC',
-};
-
-// ── STATE ──────────────────────────────────────────────────────────
-let allRows = [];
-let activeArea = 'TODAS';
-let charts = {};
-
-// ── HELPERS ────────────────────────────────────────────────────────
-const $ = id => document.getElementById(id);
-const val = (row, col) => (row[col] || '').toString().trim();
-
-function setStatus(msg, isErr = false) {
-  const bar = $('statusBar');
-  $('statusMsg').textContent = msg;
-  $('statusSpinner').style.display = isErr ? 'none' : '';
-  bar.className = 'show' + (isErr ? ' error' : '');
-}
-function hideStatus() { $('statusBar').className = ''; }
-
-function showError(msg, detail = '') {
-  $('errorPanel').style.display = 'block';
-  $('errorMsg').textContent = msg;
-  $('errorDetail').textContent = detail || CSV_URL;
-  hideStatus();
-}
-function hideError() { $('errorPanel').style.display = 'none'; }
-
-function fmtDate(str) {
-  if (!str) return '';
-  const d = new Date(str);
-  if (isNaN(d)) return str;
-  return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+async function loadData(){
+  setStatus('Actualizando…');
+  $('error-panel').style.display='none';
+  let text=null,lastErr=null;
+  try{const r=await fetch(CSV_URL,{mode:'cors',cache:'no-cache'});if(r.ok){const t=await r.text();if(t&&t.includes(','))text=t}}catch(e){lastErr=e}
+  if(!text){for(const pFn of PROXIES){try{const r=await fetch(pFn(CSV_URL),{cache:'no-cache'});if(r.ok){const t=await r.text();if(t&&t.includes(','))text=t;break}}catch(e){lastErr=e}}}
+  if(!text){try{text=await new Promise((res,rej)=>{Papa.parse(CSV_URL,{download:true,header:true,skipEmptyLines:true,complete:r=>{if(!r.data?.length){rej(new Error('Empty'));return}const h=r.meta.fields||Object.keys(r.data[0]);const rows=r.data.map(row=>h.map(k=>`"${(row[k]||'').replace(/"/g,'""')}"`).join(','));res([h.join(','),...rows].join('\n'))},error:rej})})}catch(e){lastErr=e}}
+  if(!text){$('error-panel').style.display='block';$('error-msg').textContent='No se pudo cargar el CSV. Verifica que Google Sheets esté publicado: Archivo → Compartir → Publicar en la web.';$('error-detail').textContent=lastErr?lastErr.message:'';setStatus('Error',false);return}
+  const result=Papa.parse(text,{header:true,skipEmptyLines:true,transformHeader:h=>h.trim()});
+  allData=result.data.filter(r=>Object.values(r).some(v2=>v2&&v2.toString().trim()));
+  if(!allData.length){$('error-panel').style.display='block';$('error-msg').textContent='CSV cargado pero sin datos. Verifica la hoja REGISTRO.';setStatus('Sin datos',false);return}
+  renderTabs();
+  const activeBtn=document.querySelector('.area-tab.active');
+  filterArea(activeArea,activeBtn);
+  const now=new Date().toLocaleString('es-MX',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'short'});
+  $('last-update').textContent=now;$('footer-ts').textContent=now;
+  setStatus('En línea');
+  $('app').style.display='block';
+  const ls=$('loading');ls.classList.add('fade');setTimeout(()=>ls.style.display='none',600);
+  setTimeout(loadData,REFRESH);
 }
 
-function fmtCost(str) {
-  const n = parseFloat((str || '').replace(/[^0-9.]/g, ''));
-  if (isNaN(n) || n === 0) return '—';
-  return '$' + n.toLocaleString('es-MX', { minimumFractionDigits: 0 });
+function renderTabs(){
+  const areas=[...new Set(allData.map(r=>getArea(r)).filter(a=>a&&a!=='Sin área'))].sort();
+  const bar=$('area-tabs');
+  bar.innerHTML='<button class="area-tab active" onclick="filterArea(\'TODAS\',this)">TODAS LAS ÁREAS</button>';
+  areas.forEach(a=>{const btn=document.createElement('button');btn.className='area-tab';btn.textContent=a;btn.onclick=()=>filterArea(a,btn);bar.appendChild(btn)});
 }
 
-// ── DATA LOADING — robust strategy ─────────────────────────────────
-async function loadData() {
-  hideError();
-  setStatus('Conectando con Google Sheets…');
-
-  let csvText = null;
-  let lastError = null;
-
-  // Strategy 1: direct fetch (Google Sheets pub CSV has CORS headers)
-  try {
-    const res = await fetch(CSV_URL, { mode: 'cors', cache: 'no-cache' });
-    if (res.ok) {
-      csvText = await res.text();
-      if (csvText && csvText.includes(',')) {
-        console.log('[CSV] Direct fetch OK');
-      } else {
-        csvText = null;
-      }
-    }
-  } catch (e) {
-    lastError = e;
-    console.warn('[CSV] Direct fetch failed:', e.message);
-  }
-
-  // Strategy 2-4: CORS proxies
-  if (!csvText) {
-    for (let i = 0; i < PROXIES.length; i++) {
-      try {
-        const proxyUrl = PROXIES[i](CSV_URL);
-        setStatus(`Intentando ruta alternativa ${i + 1}/${PROXIES.length}…`);
-        const res = await fetch(proxyUrl, { cache: 'no-cache' });
-        if (res.ok) {
-          csvText = await res.text();
-          if (csvText && csvText.includes(',')) {
-            console.log(`[CSV] Proxy ${i + 1} OK`);
-            break;
-          } else {
-            csvText = null;
-          }
-        }
-      } catch (e) {
-        lastError = e;
-        console.warn(`[CSV] Proxy ${i + 1} failed:`, e.message);
-      }
-    }
-  }
-
-  // Strategy 5: PapaParse download (last resort)
-  if (!csvText) {
-    try {
-      setStatus('Cargando via PapaParse…');
-      csvText = await new Promise((resolve, reject) => {
-        Papa.parse(CSV_URL, {
-          download: true,
-          complete: r => {
-            if (r.data && r.data.length > 1) {
-              // Reconstruct CSV text from Papa result
-              const headers = r.meta.fields || Object.keys(r.data[0]);
-              const rows = r.data.map(row => headers.map(h => `"${(row[h]||'').replace(/"/g,'""')}"`).join(','));
-              resolve([headers.join(','), ...rows].join('\n'));
-            } else {
-              reject(new Error('Empty data from PapaParse'));
-            }
-          },
-          error: err => reject(err),
-          header: true,
-          skipEmptyLines: true,
-        });
-      });
-      console.log('[CSV] PapaParse OK');
-    } catch(e) {
-      lastError = e;
-      console.error('[CSV] All strategies failed');
-    }
-  }
-
-  if (!csvText) {
-    showError(
-      'No se pudo cargar el CSV de Google Sheets. Verifica que el archivo esté publicado en "Archivo → Compartir → Publicar en la web".',
-      lastError ? lastError.message : 'Sin conexión'
-    );
-    return;
-  }
-
-  // Parse CSV text
-  const result = Papa.parse(csvText, {
-    header: true,
-    skipEmptyLines: true,
-    transformHeader: h => h.trim(),
-  });
-
-  allRows = result.data.filter(r =>
-    Object.values(r).some(v => v && v.toString().trim())
-  );
-
-  if (allRows.length === 0) {
-    showError('El CSV se cargó pero no tiene datos. Verifica la hoja "REGISTRO".');
-    return;
-  }
-
-  console.log('[CSV] Rows loaded:', allRows.length);
-  populateFilters();
-  render();
-
-  const now = new Date().toLocaleString('es-MX', {
-    hour: '2-digit', minute: '2-digit',
-    day: '2-digit', month: 'short',
-  });
-  $('lastUpdate').textContent = 'Actualizado: ' + now;
-  $('footerTs').textContent = now;
-  hideStatus();
-
-  // Show app
-  $('app').style.display = 'block';
-  const ls = $('loadScreen');
-  ls.classList.add('fade');
-  setTimeout(() => ls.style.display = 'none', 550);
-
-  // Schedule refresh
-  setTimeout(loadData, REFRESH_MS);
+function filterArea(area,btn){
+  activeArea=area;
+  document.querySelectorAll('.area-tab').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  $('main-section').style.display='none';
+  $('costura-section').style.display='none';
+  $('pd-section').style.display='none';
+  const up=area.toUpperCase();
+  if(up.includes('COSTURA')){$('costura-section').style.display='block';renderCosturaSection(allData.filter(r=>getArea(r).toUpperCase().includes('COSTURA')))}
+  else if(up==='PD'){$('pd-section').style.display='block';renderPDSection(allData.filter(r=>getArea(r).toUpperCase()==='PD'))}
+  else{$('main-section').style.display='block';renderMain(area==='TODAS'?allData:allData.filter(r=>getArea(r)===area))}
 }
 
-// ── FILTERS ────────────────────────────────────────────────────────
-function populateFilters() {
-  const areas = [...new Set(
-    allRows.map(r => val(r, C.areaDuena) || val(r, C.area)).filter(Boolean)
-  )].sort();
-
-  const bar = $('filterBar');
-  // Remove old area buttons (keep label + TODAS)
-  Array.from(bar.querySelectorAll('.filter-btn')).slice(1).forEach(b => b.remove());
-
-  areas.forEach(area => {
-    const btn = document.createElement('button');
-    btn.className = 'filter-btn';
-    btn.textContent = area;
-    btn.onclick = () => setArea(area, btn);
-    bar.appendChild(btn);
-  });
+function renderMain(d){
+  const tot=d.length;
+  const areas=new Set(d.map(r=>getArea(r)).filter(a=>a&&a!=='Sin área')).size;
+  const conFinal=d.filter(r=>v(r,'Final Actividad')).length;
+  const mp=Math.round(sm(d,'COSTO MP'));const mc=Math.round(sm(d,'COSTO MC'));
+  const pct=n=>tot>0?Math.round(n/tot*100):0;
+  $('kpi-row').innerHTML=`
+    <div class="kpi bl"><div class="kpi-label">Total Registros</div><div class="kpi-val">${tot.toLocaleString()}</div><div class="kpi-sub">mantenimientos en base</div><div class="kpi-bar"><div class="kpi-bar-fill" style="width:100%"></div></div></div>
+    <div class="kpi gr"><div class="kpi-label">Áreas Activas</div><div class="kpi-val">${areas}</div><div class="kpi-sub">en seguimiento</div><div class="kpi-bar"><div class="kpi-bar-fill" style="width:70%"></div></div></div>
+    <div class="kpi or"><div class="kpi-label">Con Fecha Final</div><div class="kpi-val">${conFinal.toLocaleString()}</div><div class="kpi-sub">${pct(conFinal)}% completados</div><div class="kpi-bar"><div class="kpi-bar-fill" style="width:${pct(conFinal)}%"></div></div></div>
+    <div class="kpi re"><div class="kpi-label">Costo MP</div><div class="kpi-val">$${mp.toLocaleString()}</div><div class="kpi-sub">mantenimiento preventivo</div><div class="kpi-bar"><div class="kpi-bar-fill" style="width:60%"></div></div></div>
+    <div class="kpi gy"><div class="kpi-label">Costo MC</div><div class="kpi-val">$${mc.toLocaleString()}</div><div class="kpi-sub">mantenimiento correctivo</div><div class="kpi-bar"><div class="kpi-bar-fill" style="width:40%"></div></div></div>`;
+  renderChartMeses(d,'chart-meses');
+  renderChartTipos(d,'chart-tipos');
+  renderBars('bar-areas',cnt(d,'AREA DUEÑA'));
+  renderBars('bar-mecanicos',cnt(d,'MECANICO'),'green');
+  renderTable(d);
 }
 
-function setArea(area, btn) {
-  activeArea = area;
-  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  render();
+const MESES=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+function renderChartMeses(d,cid){
+  const c=new Array(12).fill(0);d.forEach(r=>{const m=parseInt(v(r,'Mes'));if(m>=1&&m<=12)c[m-1]++});
+  const max=Math.max(...c)||1;
+  const ctx=$(cid).getContext('2d');if(charts[cid])charts[cid].destroy();
+  charts[cid]=new Chart(ctx,{type:'bar',data:{labels:MESES,datasets:[{label:'Registros',data:c,backgroundColor:c.map(n=>n===max?'#0067B8':'rgba(0,103,184,.25)'),borderRadius:5,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#161b22',borderColor:'#30363d',borderWidth:1,padding:10,titleColor:'#8b949e',bodyColor:'#e6edf3'}},scales:{x:{grid:{display:false},ticks:{color:'#484f58',font:{size:10,family:'Barlow'}}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#484f58',font:{size:10,family:'Barlow'},precision:0},beginAtZero:true}}}});
 }
 
-// ── RENDER ─────────────────────────────────────────────────────────
-function render() {
-  const rows = activeArea === 'TODAS'
-    ? allRows
-    : allRows.filter(r =>
-        (val(r, C.areaDuena) || val(r, C.area)).toUpperCase() === activeArea.toUpperCase()
-      );
-
-  renderKPIs(rows);
-  renderChartMeses(rows);
-  renderChartTipos(rows);
-  renderBarAreas(rows);
-  renderBarMecanicos(rows);
-  renderTable(rows);
+function renderChartTipos(d,cid){
+  const m={};d.forEach(r=>{const t=v(r,'Tipo de Mantenimiento')||'Sin clasificar';m[t]=(m[t]||0)+1});
+  const s=Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const COLS=['#0067B8','#3fb950','#d29922','#f85149','#58a6ff','#7d8590'];
+  const ctx=$(cid).getContext('2d');if(charts[cid])charts[cid].destroy();
+  charts[cid]=new Chart(ctx,{type:'doughnut',data:{labels:s.map(([k])=>k),datasets:[{data:s.map(([,v2])=>v2),backgroundColor:COLS,borderWidth:2,borderColor:'#161b22',hoverOffset:8}]},options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom',labels:{color:'#7d8590',font:{size:10,family:'Barlow'},padding:8,boxWidth:10}},tooltip:{backgroundColor:'#161b22',borderColor:'#30363d',borderWidth:1,padding:10}}}});
 }
 
-// ── KPIs ──────────────────────────────────────────────────────────
-function renderKPIs(rows) {
-  const total    = rows.length;
-  const done     = rows.filter(r => val(r, C.final)).length;
-  const prog     = rows.filter(r => val(r, C.inicio) && !val(r, C.final)).length;
-  const pend     = rows.filter(r => !val(r, C.inicio) && !val(r, C.final)).length;
-  const uniqMaq  = new Set(rows.filter(r => val(r, C.final)).map(r => val(r, C.assetId) || val(r, C.tipoMaq))).size;
-  const mecActiv = new Set(rows.filter(r => val(r, C.mecanico)).map(r => val(r, C.mecanico))).size;
-
-  $('kTot').textContent  = total.toLocaleString();
-  $('kDone').textContent = done.toLocaleString();
-  $('kProg').textContent = prog.toLocaleString();
-  $('kPend').textContent = pend.toLocaleString();
-  $('kFinal').textContent= uniqMaq.toLocaleString();
-  $('kMec').textContent  = mecActiv.toLocaleString();
-
-  const pct = n => total > 0 ? Math.round(n / total * 100) : 0;
-  $('sDone').textContent = `${pct(done)}% del total`;
-  $('sProg').textContent = `${pct(prog)}% del total`;
-  $('sPend').textContent = `${pct(pend)}% del total`;
-  $('sFinal').textContent= 'con registro de cierre';
-  $('bDone').style.width = pct(done) + '%';
-  $('bProg').style.width = pct(prog) + '%';
-  $('bPend').style.width = pct(pend) + '%';
-  $('bFinal').style.width= total > 0 ? Math.round(uniqMaq / total * 100) + '%' : '0%';
-  $('bMec').style.width  = '70%';
+function renderBars(id,entries,cls='blue'){
+  const max=entries[0]?.[1]||1;
+  $(id).innerHTML=entries.map(([n,c])=>`<div class="bar-item"><div class="bar-name">${n}<span>${c}</span></div><div class="bar-track"><div class="bar-fill ${cls}" style="width:${Math.round(c/max*100)}%"></div></div></div>`).join('');
 }
 
-// ── CHART: Actividad Mensual ───────────────────────────────────────
-const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-function renderChartMeses(rows) {
-  const counts = new Array(12).fill(0);
-  rows.forEach(r => {
-    const m = parseInt(val(r, C.mes));
-    if (m >= 1 && m <= 12) counts[m - 1]++;
-  });
-
-  const ctx = $('chartMeses').getContext('2d');
-  if (charts.meses) charts.meses.destroy();
-  charts.meses = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: MESES,
-      datasets: [{
-        label: 'Registros',
-        data: counts,
-        backgroundColor: counts.map(v =>
-          v === Math.max(...counts) ? '#0067B8' : 'rgba(0,103,184,.22)'
-        ),
-        borderRadius: 5,
-        borderSkipped: false,
-      }],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: '#002B49',
-          padding: 10,
-          callbacks: {
-            label: ctx => ` ${ctx.parsed.y} registros`,
-          },
-        },
-      },
-      scales: {
-        x: { grid: { display: false }, ticks: { font: { size: 11, family: 'Barlow' }, color: '#8896A9' } },
-        y: {
-          grid: { color: 'rgba(0,0,0,.05)' },
-          ticks: { font: { size: 11, family: 'Barlow' }, color: '#8896A9', precision: 0 },
-          beginAtZero: true,
-        },
-      },
-    },
-  });
-}
-
-// ── CHART: Tipo Mantenimiento ──────────────────────────────────────
-function renderChartTipos(rows) {
-  const counts = {};
-  rows.forEach(r => {
-    const t = val(r, C.tipoMant) || 'Sin clasificar';
-    counts[t] = (counts[t] || 0) + 1;
-  });
-
-  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 6);
-  const COLORS = ['#0067B8','#43AF2A','#002B49','#E8820C','#1A82D4','#8896A9'];
-
-  const ctx = $('chartTipos').getContext('2d');
-  if (charts.tipos) charts.tipos.destroy();
-  charts.tipos = new Chart(ctx, {
-    type: 'doughnut',
-    data: {
-      labels: sorted.map(([k]) => k),
-      datasets: [{
-        data: sorted.map(([, v]) => v),
-        backgroundColor: COLORS,
-        borderWidth: 2,
-        borderColor: '#fff',
-        hoverOffset: 8,
-      }],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      cutout: '62%',
-      plugins: {
-        legend: {
-          position: 'bottom',
-          labels: {
-            font: { size: 11, family: 'Barlow' },
-            padding: 10,
-            boxWidth: 10,
-            color: '#4A5568',
-          },
-        },
-        tooltip: {
-          backgroundColor: '#002B49',
-          padding: 10,
-        },
-      },
-    },
-  });
-}
-
-// ── BAR LIST ──────────────────────────────────────────────────────
-function renderBarList(elId, rows, colKey, colorClass, top = 7) {
-  const counts = {};
-  rows.forEach(r => {
-    const k = val(r, colKey) || 'Sin datos';
-    if (k) counts[k] = (counts[k] || 0) + 1;
-  });
-
-  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, top);
-  const max = sorted[0]?.[1] || 1;
-  const el = $(elId);
-  el.innerHTML = sorted.map(([name, count]) => `
-    <div class="bar-item">
-      <div class="bar-name">${name}<span>${count}</span></div>
-      <div class="bar-track"><div class="bar-fill ${colorClass}" style="width:${Math.round(count/max*100)}%"></div></div>
-    </div>
-  `).join('');
-}
-
-function renderBarAreas(rows)     { renderBarList('barAreas', rows, C.area, 'blue'); }
-function renderBarMecanicos(rows) { renderBarList('barMecanicos', rows, C.mecanico, 'green'); }
-
-// ── TABLE ─────────────────────────────────────────────────────────
-function renderTable(rows) {
-  const recent = [...rows].reverse().slice(0, 100);
-  $('tableCount').textContent = `${rows.length} registros`;
-
-  $('tbody').innerHTML = recent.map(r => {
-    const hasInicio = !!val(r, C.inicio);
-    const hasFinal  = !!val(r, C.final);
-    let badge, label;
-    if (hasFinal)       { badge = 'badge-done'; label = 'Completado'; }
-    else if (hasInicio) { badge = 'badge-prog'; label = 'En progreso'; }
-    else                { badge = 'badge-pend'; label = 'Pendiente'; }
-
-    return `<tr>
-      <td><strong>${val(r, C.assetId) || '—'}</strong></td>
-      <td>${val(r, C.tipoMaq) || '—'}</td>
-      <td>${val(r, C.area) || val(r, C.areaDuena) || '—'}</td>
-      <td>${val(r, C.mecanico) || '—'}</td>
-      <td>${val(r, C.tipoMant) || '—'}</td>
-      <td><span class="badge ${badge}">${label}</span></td>
-      <td>${fmtDate(val(r, C.inicio))}</td>
-      <td>${fmtDate(val(r, C.final))}</td>
-      <td>${fmtCost(val(r, C.costoMP))}</td>
-      <td>${fmtCost(val(r, C.costoMC))}</td>
-    </tr>`;
+function renderTable(d){
+  $('table-count').textContent=`${d.length} registros`;
+  $('tbody').innerHTML=[...d].reverse().slice(0,120).map(r=>{
+    const t=v(r,'Tipo de Mantenimiento');
+    const hf=!!v(r,'Final Actividad');
+    const bc=hf?'badge-done':t.toLowerCase().includes('prev')?'badge-pm':t.toLowerCase().includes('corr')?'badge-cm':'badge-pend';
+    return`<tr><td>${v(r,'Asset ID')||'—'}</td><td>${v(r,'TIPO DE MAQUINA')||'—'}</td><td>${getArea(r)}</td><td>${v(r,'MECANICO')||'—'}</td><td><span class="badge ${bc}">${t||'—'}</span></td><td>${fmtDate(v(r,'Inicio Actividad'))}</td><td>${fmtDate(v(r,'Final Actividad'))}</td><td>${fmtCost(v(r,'COSTO MP'))}</td><td>${fmtCost(v(r,'COSTO MC'))}</td></tr>`;
   }).join('');
 }
 
-// ── INIT ──────────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', () => {
-  // Show app shell immediately (header/filters/skeleton)
-  $('app').style.display = 'block';
-  setTimeout(loadData, 800); // slight delay for load animation
-});
+function renderGauge(arcId,pctId,pct,color){
+  const el=$(arcId);if(el){el.setAttribute('stroke',color);el.setAttribute('stroke-dasharray',`${Math.round(pct/100*173)},173`)}
+  const pe=$(pctId);if(pe)pe.textContent=pct.toFixed(1)+'%';
+}
 
-// Make setArea global for filter buttons
-window.setArea = setArea;
+function renderGaugeStats(id1,id2,tot,done,prog,pend,mp,mc){
+  $(id1).innerHTML=`<div class="gs-item"><div class="gs-label">Completados</div><div class="gs-val">${done}</div></div><div class="gs-item or"><div class="gs-label">En Progreso</div><div class="gs-val">${prog}</div></div><div class="gs-item re"><div class="gs-label">Pendientes</div><div class="gs-val">${pend}</div></div>`;
+  $(id2).innerHTML=`<div class="gs-item"><div class="gs-label">Total</div><div class="gs-val">${tot}</div></div><div class="gs-item or"><div class="gs-label">Costo MP</div><div class="gs-val">$${mp.toLocaleString()}</div></div><div class="gs-item re"><div class="gs-label">Costo MC</div><div class="gs-val">$${mc.toLocaleString()}</div></div>`;
+}
+
+function renderSemanal(d,cid){
+  const m={};d.forEach(r=>{const s=parseInt(v(r,'SEMANA'));if(s>0)m[s]=(m[s]||0)+1});
+  const semanas=Object.keys(m).map(Number).sort((a,b)=>a-b);const counts=semanas.map(s=>m[s]);
+  const max=Math.max(...counts)||1;
+  const ctx=$(cid).getContext('2d');if(charts[cid])charts[cid].destroy();
+  charts[cid]=new Chart(ctx,{type:'bar',data:{labels:semanas.map(s=>'S'+s),datasets:[{label:'Mant.',data:counts,backgroundColor:counts.map(c=>c===max?'#3fb950':'rgba(63,185,80,.25)'),borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#161b22',borderColor:'#30363d',borderWidth:1,padding:8}},scales:{x:{grid:{display:false},ticks:{color:'#484f58',font:{size:9,family:'Barlow'},maxTicksLimit:16}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#484f58',font:{size:9,family:'Barlow'},precision:0},beginAtZero:true}}}});
+}
+
+function renderGantt(d,elId){
+  const meses=['Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const mIdx=[2,3,4,5,6,7,8,9,10,11,12];
+  const mesActual=new Date().getMonth()+1;
+  const tipos=[...new Set(d.map(r=>v(r,'TIPO DE MAQUINA')).filter(Boolean))].slice(0,12);
+  let html=`<table class="gantt-table"><thead><tr><th class="l" style="min-width:150px">Tipo Máquina</th>${meses.map(m=>`<th>${m}</th>`).join('')}</tr></thead><tbody>`;
+  tipos.forEach(tipo=>{
+    const rows=d.filter(r=>v(r,'TIPO DE MAQUINA')===tipo);
+    html+=`<tr><td><div class="g-name">${tipo}</div><div class="g-sub">${rows.length} máq.</div></td>`;
+    mIdx.forEach(mi=>{
+      const inM=rows.filter(r=>parseInt(v(r,'Mes'))===mi);
+      const dn=inM.filter(r=>v(r,'Final Actividad')).length;
+      const tot=inM.length;
+      if(mi>mesActual)html+=`<td><div class="mb mf">${tot||'—'}</div></td>`;
+      else if(!tot)html+=`<td><div class="mb mz">—</div></td>`;
+      else if(dn===tot)html+=`<td><div class="mb md">${dn}<br>✓</div></td>`;
+      else if(dn>0)html+=`<td><div class="mb mp">${dn}/${tot}</div></td>`;
+      else html+=`<td><div class="mb ml">${tot}<br>!</div></td>`;
+    });
+    html+=`</tr>`;
+  });
+  html+=`</tbody></table>`;
+  $(elId).innerHTML=html;
+}
+
+function renderAvanceTipos(d,tbodyId){
+  const m={};
+  d.forEach(r=>{const t=v(r,'TIPO DE MAQUINA')||'Sin clasificar';if(!m[t])m[t]={tot:0,done:0};m[t].tot++;if(v(r,'Final Actividad'))m[t].done++});
+  const sorted=Object.entries(m).sort((a,b)=>b[1].tot-a[1].tot);
+  const tTot=sorted.reduce((s,[,x])=>s+x.tot,0);
+  const tDone=sorted.reduce((s,[,x])=>s+x.done,0);
+  $(tbodyId).innerHTML=sorted.map(([name,{tot,done}])=>{
+    const pend=tot-done;const pct=tot>0?Math.round(done/tot*100):0;
+    const col=pct>=80?'#3fb950':pct>=40?'#d29922':'#f85149';
+    return`<tr><td><span class="maq-nm">${name}</span></td><td class="r"><span class="v-real">${done}</span></td><td class="r">${tot}</td><td class="r"><span class="v-pend">${pend}</span></td><td class="r"><span class="v-pct" style="color:${col}">${pct}%</span></td><td><div class="prog-w"><div class="prog-b"><div class="prog-f" style="width:${pct}%;background:${col}"></div></div></div></td></tr>`;
+  }).concat([`<tr class="total-row"><td><span class="maq-nm">TOTAL</span></td><td class="r"><span class="v-real">${tDone}</span></td><td class="r">${tTot}</td><td class="r"><span class="v-pend">${tTot-tDone}</span></td><td class="r"><span class="v-pct" style="color:#3fb950">${tTot>0?Math.round(tDone/tTot*100):0}%</span></td><td></td></tr>`]).join('');
+}
+
+function renderGroupTable(data,groupFilter,kpiId,tiposId){
+  const group=data.filter(r=>(v(r,'GRUPO DE MAQUINA')||'').toUpperCase().includes(groupFilter.toUpperCase()));
+  const tot=group.length,done=group.filter(r=>v(r,'Final Actividad')).length,pend=tot-done;
+  $(kpiId).innerHTML=`<div class="group-kpi"><div class="group-kpi-lbl">Total</div><div class="group-kpi-val">${tot}</div></div><div class="group-kpi"><div class="group-kpi-lbl">Realizados</div><div class="group-kpi-val" style="color:#3fb950">${done}</div></div><div class="group-kpi"><div class="group-kpi-lbl">Pendientes</div><div class="group-kpi-val" style="color:#f85149">${pend}</div></div>`;
+  const m={};group.forEach(r=>{const t=v(r,'TIPO DE MAQUINA')||'Sin datos';if(!m[t])m[t]={tot:0,done:0};m[t].tot++;if(v(r,'Final Actividad'))m[t].done++});
+  $(tiposId).innerHTML=Object.entries(m).sort((a,b)=>b[1].tot-a[1].tot).map(([n,{tot:t,done:dn}])=>{
+    const pct=t>0?Math.round(dn/t*100):0;
+    return`<tr><td>${n}</td><td class="r" style="color:#3fb950">${dn}</td><td class="r">${t}</td><td class="r" style="color:${pct>=80?'#3fb950':pct>=40?'#d29922':'#f85149'}">${pct}%</td></tr>`;
+  }).join('');
+}
+
+function renderCosturaSection(cd){
+  const tot=cd.length,done=cd.filter(r=>v(r,'Final Actividad')).length;
+  const prog=cd.filter(r=>v(r,'Inicio Actividad')&&!v(r,'Final Actividad')).length;
+  const pend=tot-done-prog,pct=tot>0?(done/tot*100):0;
+  const mp=Math.round(sm(cd,'COSTO MP')),mc=Math.round(sm(cd,'COSTO MC'));
+  $('costura-sub').textContent=`Área Costura · ${tot} registros · 2026`;
+  renderGauge('costura-gauge-arc','costura-gauge-pct',pct,'#3fb950');
+  renderGaugeStats('costura-gauge-stats','costura-gauge-stats2',tot,done,prog,pend,mp,mc);
+  const semRest=Math.max(1,Math.ceil((new Date(new Date().getFullYear(),11,31)-new Date())/604800000));
+  const ritmo=Math.ceil(pend/semRest);
+  $('costura-plan-alert').innerHTML=`<strong>⚠ Plan de Recuperación:</strong> Quedan <strong>${pend}</strong> máquinas pendientes · Semanas restantes: <strong>${semRest}</strong> · Ritmo necesario: <strong>${ritmo} máq/semana</strong>`;
+  renderSemanal(cd,'costura-chart-semanal');
+  renderChartMeses(cd,'costura-chart-mensual');
+  renderGantt(cd,'costura-gantt');
+  renderGroupTable(cd,'STEAM BOILER','costura-steam-kpis','costura-steam-tipos');
+  renderGroupTable(cd,'HEAT TRANSFER','costura-heat-kpis','costura-heat-tipos');
+  renderAvanceTipos(cd,'costura-avance-tipos');
+}
+
+function renderPDSection(pd){
+  const tot=pd.length,done=pd.filter(r=>v(r,'Final Actividad')).length;
+  const prog=pd.filter(r=>v(r,'Inicio Actividad')&&!v(r,'Final Actividad')).length;
+  const pend=tot-done-prog,pct=tot>0?(done/tot*100):0;
+  const mp=Math.round(sm(pd,'COSTO MP')),mc=Math.round(sm(pd,'COSTO MC'));
+  $('pd-sub').textContent=`Área PD · ${tot} registros · 2026`;
+  renderGauge('pd-gauge-arc','pd-gauge-pct',pct,'#2563eb');
+  renderGaugeStats('pd-gauge-stats','pd-gauge-stats2',tot,done,prog,pend,mp,mc);
+  renderAvanceTipos(pd,'pd-avance-tipos');
+}
+
+window.addEventListener('DOMContentLoaded',()=>{$('app').style.display='block';setTimeout(loadData,600)});
+window.filterArea=filterArea;
 </script>
-
 </body>
 </html>
