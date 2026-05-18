@@ -300,17 +300,20 @@ footer strong{color:#58a6ff}
   </div>
   <div class="plan-alert" id="costura-plan-alert"></div>
   <div class="cs-charts">
-    <div class="cs-chart-card"><div class="cs-chart-title">Actividad Semanal</div><div class="cs-chart-wrap"><canvas id="costura-chart-semanal"></canvas></div></div>
-    <div class="cs-chart-card"><div class="cs-chart-title">Actividad Mensual</div><div class="cs-chart-wrap"><canvas id="costura-chart-mensual"></canvas></div></div>
-  </div>
-  <div class="gantt-wrap">
-    <div class="gantt-head"><h3>PLAN DE MANTENIMIENTO — GANTT MENSUAL 2026</h3><p>Comparativo Real vs Meta · Feb → Dic</p></div>
-    <div class="gantt-scroll"><div id="costura-gantt"></div></div>
-    <div class="gantt-legend">
-      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(63,185,80,.3)"></div>Completado</div>
-      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(210,153,34,.3)"></div>En Progreso</div>
-      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(248,81,73,.3)"></div>Atrasado</div>
-      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:#161b22;border:1px dashed #30363d"></div>Futuro</div>
+    <div class="cs-chart-card" style="display:flex;flex-direction:column;height:280px;">
+      <div class="cs-chart-title">Avance Semanal — Meta (30) vs Real</div>
+      <div style="display:flex;align-items:center;gap:8px;padding:6px 16px 2px;">
+        <button onclick="document.getElementById('cws').scrollLeft-=150" style="flex-shrink:0;width:28px;height:28px;background:#0067B8;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:13px;">◀</button>
+        <input type="range" min="0" max="100" value="0" style="flex:1;accent-color:#0067B8;cursor:pointer;height:4px;" oninput="const s=document.getElementById('cws');s.scrollLeft=(s.scrollWidth-s.clientWidth)*this.value/100;">
+        <button onclick="document.getElementById('cws').scrollLeft+=150" style="flex-shrink:0;width:28px;height:28px;background:#0067B8;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:13px;">▶</button>
+      </div>
+      <div id="cws" style="overflow-x:auto;flex:1;scrollbar-width:thin;scrollbar-color:#0067B8 #21262d;padding:0 8px 10px;">
+        <div style="position:relative;height:190px;min-width:800px;"><canvas id="costura-chart-semanal"></canvas></div>
+      </div>
+    </div>
+    <div class="cs-chart-card" style="height:280px;display:flex;flex-direction:column;">
+      <div class="cs-chart-title">Avance Mensual — Real vs Meta</div>
+      <div style="position:relative;flex:1;padding:8px 16px 14px;"><canvas id="costura-chart-mensual"></canvas></div>
     </div>
   </div>
   <div class="group-grid">
@@ -323,6 +326,16 @@ footer strong{color:#58a6ff}
       <div class="group-card-head"><h3>♨ Heat Transfer</h3></div>
       <div class="group-kpis" id="costura-heat-kpis"></div>
       <div class="group-tipos"><table><thead><tr><th>Tipo Máquina</th><th class="r">Real</th><th class="r">Total</th><th class="r">%</th></tr></thead><tbody id="costura-heat-tipos"></tbody></table></div>
+    </div>
+  </div>
+  <div class="gantt-wrap">
+    <div class="gantt-head"><h3>PLAN DE MANTENIMIENTO — GANTT MENSUAL 2026</h3><p>Comparativo Real vs Meta · Feb → Dic</p></div>
+    <div class="gantt-scroll"><div id="costura-gantt"></div></div>
+    <div class="gantt-legend">
+      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(63,185,80,.3)"></div>Completado</div>
+      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(210,153,34,.3)"></div>En Progreso</div>
+      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(248,81,73,.3)"></div>Atrasado</div>
+      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:#161b22;border:1px dashed #30363d"></div>Futuro</div>
     </div>
   </div>
   <!-- Avance tipos AL FINAL -->
@@ -473,12 +486,127 @@ function renderGaugeStats(id1,id2,tot,done,prog,pend,mp,mc){
   $(id2).innerHTML=`<div class="gs-item"><div class="gs-label">Total</div><div class="gs-val">${tot}</div></div><div class="gs-item or"><div class="gs-label">Costo MP</div><div class="gs-val">$${mp.toLocaleString()}</div></div><div class="gs-item re"><div class="gs-label">Costo MC</div><div class="gs-val">$${mc.toLocaleString()}</div></div>`;
 }
 
+// ── PLAN CONSTANTS ───────────────────────────────────────────────
+const PLAN_START   = new Date(2026,1,2);   // Feb 2, 2026
+const PLAN_END     = new Date(2026,11,5);  // Dec 5, 2026
+const META_SEMANAL = 30;
+const TOTAL_SEMANAS = 43;
+// Meta mensual: Feb→Dic distribuida en 43 semanas de 30 máq/sem
+const META_MENSUAL_PLAN = {2:120,3:120,4:120,5:120,6:120,7:150,8:120,9:120,10:150,11:120,12:37};
+
+function parseFinalDate(s){
+  if(!s||!s.trim())return null;
+  // Handles formats: M/D/YY H:MM, YYYY-MM-DD, DD/MM/YYYY, etc.
+  const d=new Date(s);
+  if(!isNaN(d)&&d.getFullYear()>=2020)return d;
+  // Try M/D/YY
+  const m1=s.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if(m1){const yr=parseInt(m1[3])<100?2000+parseInt(m1[3]):parseInt(m1[3]);return new Date(yr,parseInt(m1[1])-1,parseInt(m1[2]))}
+  return null;
+}
+
 function renderSemanal(d,cid){
-  const m={};d.forEach(r=>{const s=parseInt(v(r,'SEMANA'));if(s>0)m[s]=(m[s]||0)+1});
-  const semanas=Object.keys(m).map(Number).sort((a,b)=>a-b);const counts=semanas.map(s=>m[s]);
-  const max=Math.max(...counts)||1;
-  const ctx=$(cid).getContext('2d');if(charts[cid])charts[cid].destroy();
-  charts[cid]=new Chart(ctx,{type:'bar',data:{labels:semanas.map(s=>'S'+s),datasets:[{label:'Mant.',data:counts,backgroundColor:counts.map(c=>c===max?'#3fb950':'rgba(63,185,80,.25)'),borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#161b22',borderColor:'#30363d',borderWidth:1,padding:8}},scales:{x:{grid:{display:false},ticks:{color:'#484f58',font:{size:9,family:'Barlow'},maxTicksLimit:16}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#484f58',font:{size:9,family:'Barlow'},precision:0},beginAtZero:true}}}});
+  // Count real completions per week of plan (week 1 = Feb 2)
+  const wReal=new Array(TOTAL_SEMANAS).fill(0);
+  d.forEach(r=>{
+    const fd=parseFinalDate(v(r,'Final Actividad'));
+    if(!fd)return;
+    const diff=fd-PLAN_START;
+    if(diff<0)return;
+    const w=Math.floor(diff/(7*24*3600*1000));
+    if(w>=0&&w<TOTAL_SEMANAS)wReal[w]++;
+  });
+
+  const hoy=new Date();
+  const semActual=Math.min(TOTAL_SEMANAS-1,Math.max(-1,Math.floor((hoy-PLAN_START)/(7*24*3600*1000))));
+  const labels=Array.from({length:TOTAL_SEMANAS},(_,i)=>`S${i+1}`);
+  const metaLine=new Array(TOTAL_SEMANAS).fill(META_SEMANAL);
+  // Real bars: green if ≥ meta, red if below, gray for future
+  const barColors=wReal.map((c,i)=>
+    i>semActual ? 'rgba(125,133,144,.15)' :
+    c>=META_SEMANAL ? 'rgba(63,185,80,.8)' : 'rgba(248,81,73,.75)'
+  );
+
+  const ctx=$(cid).getContext('2d');
+  if(charts[cid])charts[cid].destroy();
+  charts[cid]=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        {label:'Real',data:wReal,backgroundColor:barColors,borderRadius:3,borderSkipped:false,order:2},
+        {label:'Meta (30/sem)',data:metaLine,type:'line',borderColor:'#0067B8',borderWidth:2,pointRadius:0,tension:0,fill:false,order:1},
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{labels:{color:'#7d8590',font:{size:9,family:'Barlow'},boxWidth:10}},
+        tooltip:{
+          backgroundColor:'#161b22',borderColor:'#30363d',borderWidth:1,padding:8,
+          titleColor:'#8b949e',bodyColor:'#e6edf3',
+          callbacks:{
+            afterBody:items=>{
+              if(items[0].datasetIndex===0){
+                const diff=items[0].parsed.y-META_SEMANAL;
+                return diff>=0?`+${diff} sobre meta`:`${diff} bajo meta`;
+              }
+              return '';
+            }
+          }
+        }
+      },
+      scales:{
+        x:{grid:{display:false},ticks:{color:'#484f58',font:{size:8,family:'Barlow'},maxRotation:0}},
+        y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#484f58',font:{size:9,family:'Barlow'},precision:0},beginAtZero:true,suggestedMax:50},
+      }
+    }
+  });
+}
+
+function renderMensualPlan(d,cid){
+  // Real completions by month (from Final Actividad date)
+  const realPorMes={2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:0,10:0,11:0,12:0};
+  d.forEach(r=>{
+    const fd=parseFinalDate(v(r,'Final Actividad'));
+    if(!fd||fd.getFullYear()!==2026)return;
+    const mes=fd.getMonth()+1;
+    if(mes>=2&&mes<=12)realPorMes[mes]++;
+  });
+
+  const mesesIdx=[2,3,4,5,6,7,8,9,10,11,12];
+  const labels=['Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const metaVals=mesesIdx.map(m=>META_MENSUAL_PLAN[m]||0);
+  const realVals=mesesIdx.map(m=>realPorMes[m]||0);
+  const mesActual=new Date().getMonth()+1;
+  const realColors=mesesIdx.map((m,i)=>
+    m>mesActual ? 'rgba(125,133,144,.15)' :
+    realVals[i]>=metaVals[i] ? 'rgba(63,185,80,.8)' : 'rgba(248,81,73,.75)'
+  );
+
+  const ctx=$(cid).getContext('2d');
+  if(charts[cid])charts[cid].destroy();
+  charts[cid]=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        {label:'Meta',data:metaVals,backgroundColor:'rgba(0,103,184,.35)',borderColor:'#0067B8',borderWidth:1,borderRadius:3,borderSkipped:false,order:2},
+        {label:'Real',data:realVals,backgroundColor:realColors,borderRadius:3,borderSkipped:false,order:1},
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{labels:{color:'#7d8590',font:{size:9,family:'Barlow'},boxWidth:10}},
+        tooltip:{backgroundColor:'#161b22',borderColor:'#30363d',borderWidth:1,padding:8,titleColor:'#8b949e',bodyColor:'#e6edf3'},
+      },
+      scales:{
+        x:{grid:{display:false},ticks:{color:'#484f58',font:{size:10,family:'Barlow'}}},
+        y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#484f58',font:{size:9,family:'Barlow'},precision:0},beginAtZero:true},
+      }
+    }
+  });
 }
 
 function renderGantt(d,elId){
@@ -538,11 +666,11 @@ function renderCosturaSection(cd){
   $('costura-sub').textContent=`Área Costura · ${tot} registros · 2026`;
   renderGauge('costura-gauge-arc','costura-gauge-pct',pct,'#3fb950');
   renderGaugeStats('costura-gauge-stats','costura-gauge-stats2',tot,done,prog,pend,mp,mc);
-  const semRest=Math.max(1,Math.ceil((new Date(new Date().getFullYear(),11,31)-new Date())/604800000));
+  const semRest=Math.max(1,Math.ceil((PLAN_END-new Date())/(7*24*3600*1000)));
   const ritmo=Math.ceil(pend/semRest);
-  $('costura-plan-alert').innerHTML=`<strong>⚠ Plan de Recuperación:</strong> Quedan <strong>${pend}</strong> máquinas pendientes · Semanas restantes: <strong>${semRest}</strong> · Ritmo necesario: <strong>${ritmo} máq/semana</strong>`;
+  $('costura-plan-alert').innerHTML=`<strong>📋 Plan 2026:</strong> Feb 2 → Dic 5 · Total: <strong>${tot}</strong> máq. · Ejecutadas: <strong>${done}</strong> (${pct.toFixed(1)}%) · Pendientes: <strong>${pend}</strong> · Semanas restantes: <strong>${semRest}</strong> · Meta: <strong>30 máq/sem</strong> · Ritmo actual necesario: <strong>${ritmo} máq/sem</strong>`;
   renderSemanal(cd,'costura-chart-semanal');
-  renderChartMeses(cd,'costura-chart-mensual');
+  renderMensualPlan(cd,'costura-chart-mensual');
   renderGantt(cd,'costura-gantt');
   renderGroupTable(cd,'STEAM BOILER','costura-steam-kpis','costura-steam-tipos');
   renderGroupTable(cd,'HEAT TRANSFER','costura-heat-kpis','costura-heat-tipos');
