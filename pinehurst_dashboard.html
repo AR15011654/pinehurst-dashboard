@@ -572,7 +572,7 @@ function renderSemanal(d,cid){
 }
 
 function renderMensualPlan(d,cid){
-  // Real completions by month (from Final Actividad date)
+  // Real completions — sumatoria 3 grupos desde Final Actividad
   const realPorMes={2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:0,10:0,11:0,12:0};
   d.forEach(r=>{
     const fd=parseFinalDate(v(r,'Final Actividad'));
@@ -580,33 +580,40 @@ function renderMensualPlan(d,cid){
     const mes=fd.getMonth()+1;
     if(mes>=2&&mes<=12)realPorMes[mes]++;
   });
-
   const mesesIdx=[2,3,4,5,6,7,8,9,10,11,12];
   const labels=['Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  const metaVals=mesesIdx.map(m=>META_MENSUAL_PLAN[m]||0);
-  const realVals=mesesIdx.map(m=>realPorMes[m]||0);
   const mesActual=new Date().getMonth()+1;
+  // Meta futura: suma Gantt de los 3 grupos (calculada en renderGantt)
+  const dynMeta=window._metaMensualFutura||{};
+  const metaVals=mesesIdx.map(m=> m<=mesActual ? (realPorMes[m]||0) : (dynMeta[m]||0));
+  const realVals=mesesIdx.map(m=>realPorMes[m]||0);
   const realColors=mesesIdx.map((m,i)=>
-    m>mesActual ? 'rgba(125,133,144,.15)' :
+    m>mesActual  ? 'rgba(125,133,144,.15)' :
     realVals[i]>=metaVals[i] ? 'rgba(63,185,80,.8)' : 'rgba(248,81,73,.75)'
   );
-
+  const metaColors=mesesIdx.map(m=> m>mesActual?'rgba(0,103,184,.45)':'rgba(0,103,184,.15)');
   const ctx=$(cid).getContext('2d');
   if(charts[cid])charts[cid].destroy();
   charts[cid]=new Chart(ctx,{
     type:'bar',
-    data:{
-      labels,
-      datasets:[
-        {label:'Meta',data:metaVals,backgroundColor:'rgba(0,103,184,.35)',borderColor:'#0067B8',borderWidth:1,borderRadius:3,borderSkipped:false,order:2},
-        {label:'Real',data:realVals,backgroundColor:realColors,borderRadius:3,borderSkipped:false,order:1},
-      ]
-    },
+    data:{labels,datasets:[
+      {label:'Meta',data:metaVals,backgroundColor:metaColors,borderColor:'#0067B8',borderWidth:1,borderRadius:3,borderSkipped:false,order:2},
+      {label:'Real',data:realVals,backgroundColor:realColors,borderRadius:3,borderSkipped:false,order:1},
+    ]},
     options:{
       responsive:true,maintainAspectRatio:false,
       plugins:{
         legend:{labels:{color:'#7d8590',font:{size:9,family:'Barlow'},boxWidth:10}},
-        tooltip:{backgroundColor:'#161b22',borderColor:'#30363d',borderWidth:1,padding:8,titleColor:'#8b949e',bodyColor:'#e6edf3'},
+        tooltip:{
+          backgroundColor:'#161b22',borderColor:'#30363d',borderWidth:1,padding:8,
+          titleColor:'#8b949e',bodyColor:'#e6edf3',
+          callbacks:{afterBody:items=>{
+            const i=items[0].dataIndex,m=mesesIdx[i];
+            if(m>mesActual)return`Plan: ${metaVals[i]} máq (suma 3 grupos)`;
+            const diff=realVals[i]-metaVals[i];
+            return diff>=0?`+${diff} sobre plan`:`${diff} bajo plan`;
+          }}
+        },
       },
       scales:{
         x:{grid:{display:false},ticks:{color:'#484f58',font:{size:10,family:'Barlow'}}},
@@ -616,16 +623,6 @@ function renderMensualPlan(d,cid){
   });
 }
 
-function getWorkingDays(year, month, endDay){
-  // Count Mon-Fri days in a month (or up to endDay)
-  const lastDay = endDay || new Date(year, month, 0).getDate();
-  let count = 0;
-  for(let d=1; d<=lastDay; d++){
-    const day = new Date(year, month-1, d).getDay();
-    if(day!==0 && day!==6) count++;
-  }
-  return count;
-}
 
 function renderGantt(cd){
   const MESES_SHOW=['FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
@@ -691,10 +688,19 @@ function renderGantt(cd){
     });
   });
 
-  // ── 6. Meta semanal dinámica (todas las pendientes / semanas hábiles restantes) ──
+  // ── 6. Meta semanal + mensual dinámica (sumatoria 3 grupos) ──
   const totalPendientes=GRUPOS.reduce((s,g)=>s+Math.max(0,(grupoTot[g]||0)-realPasado[g]),0);
   const semanasRestantes=Math.round(totalDiasHabiles/5);
   window._metaSemanalDinamica = semanasRestantes>0 ? Math.ceil(totalPendientes/semanasRestantes) : 30;
+
+  // Meta mensual futura = suma de los 3 grupos por mes
+  window._metaMensualFutura = {};
+  mesesFuturos.forEach(mi=>{ window._metaMensualFutura[mi]=0; });
+  GRUPOS.forEach(g=>{
+    mesesFuturos.forEach(mi=>{
+      window._metaMensualFutura[mi]+=(metaFutura[g][mi]||0);
+    });
+  });
 
   // ── 7. Render ───────────────────────────────────────────────────
   $('costura-gantt-head').innerHTML=`<tr>
@@ -789,9 +795,9 @@ function renderCosturaSection(cd){
   const ritmo=window._metaSemanalDinamica||Math.ceil(pend/Math.max(1,Math.ceil((PLAN_END-new Date())/(7*24*3600*1000))));
   const semHabilesRest=Math.round((PLAN_END-new Date())/(7*24*3600*1000*5/7))||1;
   $('costura-plan-alert').innerHTML=`<strong>📋 Plan 2026:</strong> Feb → Dic 5 · Total Costura: <strong>${tot}</strong> · Ejecutadas: <strong>${done}</strong> (${pct.toFixed(1)}%) · Pendientes: <strong>${pend}</strong> · Meta actualizada (L-V): <strong style="color:#3fb950">${ritmo} máq/sem</strong>`;
+  renderGantt(cd);   // primero — calcula _metaMensualFutura y _metaSemanalDinamica
   renderSemanal(cd,'costura-chart-semanal');
   renderMensualPlan(cd,'costura-chart-mensual');
-  renderGantt(cd);
   renderGroupTable(cd,'STEAM BOILER','costura-steam-kpis','costura-steam-tipos');
   renderGroupTable(cd,'HEAT TRANSFER','costura-heat-kpis','costura-heat-tipos');
   renderAvanceTipos(cd,'costura-avance-tipos');
