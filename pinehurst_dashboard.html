@@ -329,12 +329,17 @@ footer strong{color:#58a6ff}
     </div>
   </div>
   <div class="gantt-wrap">
-    <div class="gantt-head"><h3>PLAN DE MANTENIMIENTO — GANTT MENSUAL 2026</h3><p>Comparativo Real vs Meta · Feb → Dic</p></div>
-    <div class="gantt-scroll"><div id="costura-gantt"></div></div>
+    <div class="gantt-head"><h3>PLAN DE MANTENIMIENTO — GANTT MENSUAL 2026</h3><p>Real vs Meta proporcional · SEWING MACHINE · STEAM BOILER · HEAT TRANSFER</p></div>
+    <div class="gantt-scroll">
+      <table class="gantt-table" style="min-width:600px">
+        <thead id="costura-gantt-head"></thead>
+        <tbody id="costura-gantt-body"></tbody>
+      </table>
+    </div>
     <div class="gantt-legend">
-      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(63,185,80,.3)"></div>Completado</div>
-      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(210,153,34,.3)"></div>En Progreso</div>
-      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(248,81,73,.3)"></div>Atrasado</div>
+      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(63,185,80,.35)"></div>≥100% meta</div>
+      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(210,153,34,.35)"></div>50–99%</div>
+      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(248,81,73,.35)"></div>&lt;50%</div>
       <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:#161b22;border:1px dashed #30363d"></div>Futuro</div>
     </div>
   </div>
@@ -609,29 +614,78 @@ function renderMensualPlan(d,cid){
   });
 }
 
-function renderGantt(d,elId){
-  const meses=['Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  const mIdx=[2,3,4,5,6,7,8,9,10,11,12];
-  const mesActual=new Date().getMonth()+1;
-  const tipos=[...new Set(d.map(r=>v(r,'TIPO DE MAQUINA')).filter(Boolean))].slice(0,12);
-  let html=`<table class="gantt-table"><thead><tr><th class="l" style="min-width:150px">Tipo Máquina</th>${meses.map(m=>`<th>${m}</th>`).join('')}</tr></thead><tbody>`;
-  tipos.forEach(tipo=>{
-    const rows=d.filter(r=>v(r,'TIPO DE MAQUINA')===tipo);
-    html+=`<tr><td><div class="g-name">${tipo}</div><div class="g-sub">${rows.length} máq.</div></td>`;
-    mIdx.forEach(mi=>{
-      const inM=rows.filter(r=>parseInt(v(r,'Mes'))===mi);
-      const dn=inM.filter(r=>v(r,'Final Actividad')).length;
-      const tot=inM.length;
-      if(mi>mesActual)html+=`<td><div class="mb mf">${tot||'—'}</div></td>`;
-      else if(!tot)html+=`<td><div class="mb mz">—</div></td>`;
-      else if(dn===tot)html+=`<td><div class="mb md">${dn}<br>✓</div></td>`;
-      else if(dn>0)html+=`<td><div class="mb mp">${dn}/${tot}</div></td>`;
-      else html+=`<td><div class="mb ml">${tot}<br>!</div></td>`;
-    });
-    html+=`</tr>`;
+function renderGantt(cd){
+  const MESES_SHOW=['FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+  const MESES_IDX =[  2,    3,    4,    5,    6,    7,    8,    9,   10,   11,   12];
+  const GRUPOS=['SEWING MACHINE','STEAM BOILER','HEAT TRANSFER'];
+  const LABELS =['Sewing Machine','Steam Boiler','Heat Transfer'];
+  const today=new Date();
+  const mesActual=today.getMonth()+1; // 1-12
+
+  // Count real executions per grupo per month from Final Actividad
+  const counts={};
+  GRUPOS.forEach(g=>{counts[g]={};MESES_IDX.forEach(m=>{counts[g][m]=0})});
+  cd.forEach(r=>{
+    const grupo=(v(r,'GRUPO DE MAQUINA')||'').toUpperCase().trim();
+    const fd=parseFinalDate(v(r,'Final Actividad'));
+    if(!fd||fd.getFullYear()!==2026)return;
+    const mes=fd.getMonth()+1;
+    if(mes<2||mes>12)return;
+    GRUPOS.forEach(g=>{if(grupo.includes(g.split(' ')[0]))counts[g][mes]++});
   });
-  html+=`</tbody></table>`;
-  $(elId).innerHTML=html;
+
+  // Total per grupo
+  const grupoTot={};
+  GRUPOS.forEach(g=>{grupoTot[g]=cd.filter(r=>(v(r,'GRUPO DE MAQUINA')||'').toUpperCase().includes(g.split(' ')[0])).length});
+  const totalCD=Object.values(grupoTot).reduce((s,n)=>s+n,0)||1;
+
+  // Meta base por mes (Feb→Dic)
+  const META_BASE={2:120,3:120,4:120,5:120,6:120,7:150,8:120,9:120,10:150,11:120,12:37};
+
+  // Render header
+  $('costura-gantt-head').innerHTML=`<tr>
+    <th style="padding:8px 12px;font-size:.62rem;text-transform:uppercase;letter-spacing:.08em;color:#7d8590;text-align:left;border-bottom:2px solid #30363d;min-width:130px;background:#0d1117;position:sticky;left:0">Grupo</th>
+    ${MESES_SHOW.map(m=>`<th style="padding:8px 6px;font-size:.62rem;text-transform:uppercase;color:#7d8590;text-align:center;border-bottom:2px solid #30363d;background:#0d1117;">${m}</th>`).join('')}
+  </tr>`;
+
+  // Render body
+  $('costura-gantt-body').innerHTML=GRUPOS.map((g,gi)=>{
+    const tot=grupoTot[g]||0;
+    const share=tot/totalCD;
+    const cells=MESES_IDX.map(mi=>{
+      const meta=Math.max(1,Math.round(META_BASE[mi]*share));
+      const real=counts[g][mi]||0;
+      const pct=Math.round(real/meta*100);
+      let bg,color,txt;
+      if(mi>mesActual){
+        bg='rgba(125,133,144,.08)';color='#484f58';
+        txt=`<span style="font-size:.6rem">${meta}</span>`;
+      } else if(real===0){
+        bg='rgba(248,81,73,.12)';color='#f85149';txt='0';
+      } else if(pct>=100){
+        bg='rgba(63,185,80,.2)';color='#3fb950';
+        txt=`${real}<br><span style="font-size:.58rem">${pct}%</span>`;
+      } else if(pct>=50){
+        bg='rgba(210,153,34,.18)';color='#d29922';
+        txt=`${real}<br><span style="font-size:.58rem">${pct}%</span>`;
+      } else {
+        bg='rgba(248,81,73,.15)';color='#f85149';
+        txt=`${real}<br><span style="font-size:.58rem">${pct}%</span>`;
+      }
+      return `<td style="padding:4px;border-top:1px solid #21262d;text-align:center;">
+        <div style="height:36px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;background:${bg};color:${color};line-height:1.2;">${txt}</div>
+      </td>`;
+    }).join('');
+    const totalReal=MESES_IDX.reduce((s,m)=>s+(counts[g][m]||0),0);
+    const pctTotal=tot>0?Math.round(totalReal/tot*100):0;
+    const metaSem=Math.max(1,Math.ceil(tot/43));
+    return `<tr>
+      <td style="padding:8px 12px;border-top:1px solid #21262d;background:#161b22;position:sticky;left:0">
+        <div style="font-weight:700;font-size:.78rem;color:#e6edf3">${LABELS[gi]}</div>
+        <div style="font-size:.62rem;color:#484f58;margin-top:2px">total: ${tot} · real: ${totalReal} · ${pctTotal}% · meta: ${metaSem}/sem</div>
+      </td>${cells}
+    </tr>`;
+  }).join('');
 }
 
 function renderAvanceTipos(d,tbodyId){
@@ -671,7 +725,7 @@ function renderCosturaSection(cd){
   $('costura-plan-alert').innerHTML=`<strong>📋 Plan 2026:</strong> Feb 2 → Dic 5 · Total: <strong>${tot}</strong> máq. · Ejecutadas: <strong>${done}</strong> (${pct.toFixed(1)}%) · Pendientes: <strong>${pend}</strong> · Semanas restantes: <strong>${semRest}</strong> · Meta: <strong>30 máq/sem</strong> · Ritmo actual necesario: <strong>${ritmo} máq/sem</strong>`;
   renderSemanal(cd,'costura-chart-semanal');
   renderMensualPlan(cd,'costura-chart-mensual');
-  renderGantt(cd,'costura-gantt');
+  renderGantt(cd);
   renderGroupTable(cd,'STEAM BOILER','costura-steam-kpis','costura-steam-tipos');
   renderGroupTable(cd,'HEAT TRANSFER','costura-heat-kpis','costura-heat-tipos');
   renderAvanceTipos(cd,'costura-avance-tipos');
