@@ -633,6 +633,16 @@ function renderMensualPlan(d,cid){
 }
 
 
+function getWorkingDays(year, month, endDay){
+  const last = endDay || new Date(year, month, 0).getDate();
+  let count = 0;
+  for(let d=1; d<=last; d++){
+    const day = new Date(year, month-1, d).getDay();
+    if(day!==0 && day!==6) count++;
+  }
+  return count;
+}
+
 function renderGantt(cd){
   const MESES_SHOW=['FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
   const MESES_IDX =[  2,    3,    4,    5,    6,    7,    8,    9,   10,   11,   12];
