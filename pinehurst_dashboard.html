@@ -535,11 +535,15 @@ function filterArea(area,btn){
 
 async function loadData(){
   document.getElementById('status-text').textContent='Actualizando...';
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),15000);
   try{
-    const res=await fetch(CSV+'&t='+Date.now());
+    const res=await fetch(CSV+'&t='+Date.now(),{signal:controller.signal});
+    clearTimeout(timeout);
     const text=await res.text();
     const parsed=Papa.parse(text,{header:true,skipEmptyLines:true});
     allData=parsed.data.filter(r=>r['Asset ID']||r['TIPO DE MAQUINA']);
+    if(allData.length===0)throw new Error('Sin datos');
     renderTabs(allData);
     filterArea(currentArea,null);
     const now=new Date().toLocaleString('es',{dateStyle:'short',timeStyle:'short'});
@@ -548,8 +552,16 @@ async function loadData(){
     document.getElementById('loading').style.display='none';
     document.getElementById('app').style.display='block';
   }catch(e){
-    document.getElementById('status-text').textContent='Error de conexión';
-    document.getElementById('loading').innerHTML='<p style="color:#f85149">Error al cargar datos. <button onclick="loadData()" style="color:#58a6ff;background:none;border:none;cursor:pointer;text-decoration:underline;">Reintentar</button></p>';
+    clearTimeout(timeout);
+    const msg=e.name==='AbortError'?'Tiempo de espera agotado':'Error de conexión';
+    document.getElementById('status-text').textContent=msg;
+    document.getElementById('loading').innerHTML=`
+      <div style="text-align:center;padding:2rem;">
+        <div style="font-size:2rem;margin-bottom:1rem;">⚠️</div>
+        <p style="color:#f85149;margin-bottom:.5rem;font-weight:600;">${msg}</p>
+        <p style="color:#484f58;font-size:.85rem;margin-bottom:1.5rem;">Verifica que el Google Sheet esté publicado como CSV</p>
+        <button onclick="loadData()" style="padding:.5rem 1.5rem;background:#0067B8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:.9rem;">🔄 Reintentar</button>
+      </div>`;
     console.error(e);
   }
 }
