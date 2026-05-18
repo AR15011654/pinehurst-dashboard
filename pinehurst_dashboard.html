@@ -639,8 +639,26 @@ function renderGantt(cd){
   GRUPOS.forEach(g=>{grupoTot[g]=cd.filter(r=>(v(r,'GRUPO DE MAQUINA')||'').toUpperCase().includes(g.split(' ')[0])).length});
   const totalCD=Object.values(grupoTot).reduce((s,n)=>s+n,0)||1;
 
-  // Meta base por mes (Feb→Dic)
-  const META_BASE={2:120,3:120,4:120,5:120,6:120,7:150,8:120,9:120,10:150,11:120,12:37};
+  // Meta base — pesos relativos por mes (Feb→Dic)
+  const META_PESOS={2:120,3:120,4:120,5:120,6:120,7:150,8:120,9:120,10:150,11:120,12:37};
+  const META_SUM=Object.values(META_PESOS).reduce((s,n)=>s+n,0); // 1277
+
+  // Calcular meta EXACTA por grupo/mes para que sumen = total del grupo
+  const grupoMetaExacta={};
+  GRUPOS.forEach(g=>{
+    const tot=grupoTot[g]||0;
+    let acum=0;
+    grupoMetaExacta[g]={};
+    MESES_IDX.forEach((mi,i)=>{
+      if(i===MESES_IDX.length-1){
+        grupoMetaExacta[g][mi]=Math.max(0,tot-acum); // último mes = lo que falte
+      } else {
+        const m=Math.round(tot*META_PESOS[mi]/META_SUM);
+        grupoMetaExacta[g][mi]=m;
+        acum+=m;
+      }
+    });
+  });
 
   // Render header
   $('costura-gantt-head').innerHTML=`<tr>
@@ -651,9 +669,8 @@ function renderGantt(cd){
   // Render body
   $('costura-gantt-body').innerHTML=GRUPOS.map((g,gi)=>{
     const tot=grupoTot[g]||0;
-    const share=tot/totalCD;
     const cells=MESES_IDX.map(mi=>{
-      const meta=Math.max(1,Math.round(META_BASE[mi]*share));
+      const meta=grupoMetaExacta[g][mi]||0;
       const real=counts[g][mi]||0;
       const pct=Math.round(real/meta*100);
       let bg,color,txt;
@@ -677,12 +694,14 @@ function renderGantt(cd){
       </td>`;
     }).join('');
     const totalReal=MESES_IDX.reduce((s,m)=>s+(counts[g][m]||0),0);
+    const sumMeta=MESES_IDX.reduce((s,mi)=>s+(grupoMetaExacta[g][mi]||0),0);
     const pctTotal=tot>0?Math.round(totalReal/tot*100):0;
     const metaSem=Math.max(1,Math.ceil(tot/43));
     return `<tr>
       <td style="padding:8px 12px;border-top:1px solid #21262d;background:#161b22;position:sticky;left:0">
         <div style="font-weight:700;font-size:.78rem;color:#e6edf3">${LABELS[gi]}</div>
-        <div style="font-size:.62rem;color:#484f58;margin-top:2px">total: ${tot} · real: ${totalReal} · ${pctTotal}% · meta: ${metaSem}/sem</div>
+        <div style="font-size:.62rem;color:#484f58;margin-top:2px">total: ${tot} · ejecutado: ${totalReal} (${pctTotal}%) · meta/sem: ${metaSem}</div>
+        <div style="font-size:.58rem;color:${sumMeta===tot?'#3fb950':'#f85149'};margin-top:1px">∑ meses = ${sumMeta}</div>
       </td>${cells}
     </tr>`;
   }).join('');
