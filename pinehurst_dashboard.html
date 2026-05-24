@@ -86,6 +86,22 @@ body{font-family:'Barlow',sans-serif;background:#0d1117;color:#e6edf3;min-height
 .bar-fill{height:100%;border-radius:3px;transition:width .8s ease}
 .bar-fill.blue{background:#0067B8}.bar-fill.green{background:#3fb950}
 
+/* AREA SUMMARY (Realizado vs Faltante) */
+.area-summary-wrap{display:grid;grid-template-columns:1.35fr 1fr;gap:10px;margin-bottom:16px}
+.area-cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:10px;align-content:start}
+.area-card{background:#161b22;border:1px solid #30363d;border-left:3px solid #3fb950;border-radius:10px;padding:12px 14px;position:relative;transition:transform .15s ease,border-color .15s}
+.area-card:hover{transform:translateY(-1px);border-color:#58a6ff}
+.area-card-pct{position:absolute;top:10px;right:14px;font-family:'Barlow Condensed',sans-serif;font-size:1.5rem;font-weight:800;line-height:1}
+.area-card-name{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.92rem;color:#e6edf3;text-transform:uppercase;letter-spacing:.04em;margin-bottom:9px;padding-right:55px;line-height:1.15;min-height:1.15em}
+.area-card-row{display:flex;gap:6px;margin-bottom:8px}
+.area-card-mini{flex:1;background:#0d1117;border:1px solid #21262d;border-radius:6px;padding:5px 7px;min-width:0}
+.area-card-mini-lbl{font-size:8px;text-transform:uppercase;letter-spacing:.06em;color:#7d8590;font-weight:600;line-height:1}
+.area-card-mini-val{font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;line-height:1.15;margin-top:2px}
+.area-card-bar{height:5px;background:#21262d;border-radius:3px;overflow:hidden}
+.area-card-bar-fill{height:100%;border-radius:3px;transition:width .8s ease}
+.area-chart-card{background:#161b22;border:1px solid #30363d;border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
+.area-chart-wrap{padding:8px 12px 12px;position:relative;flex:1;min-height:260px}
+
 /* TABLE */
 .table-card{background:#161b22;border:1px solid #30363d;border-radius:10px;overflow:hidden;margin-bottom:10px}
 .table-head{padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #21262d}
@@ -197,7 +213,7 @@ footer strong{color:#58a6ff}
 
 /* RESPONSIVE */
 @media(max-width:900px){
-  .charts-row,.bottom-row,.cs-charts,.gauge-row,.group-grid{grid-template-columns:1fr}
+  .charts-row,.bottom-row,.cs-charts,.gauge-row,.group-grid,.area-summary-wrap{grid-template-columns:1fr}
   .main,.sec-wrap{padding-left:14px;padding-right:14px}
   .area-tabs,.topbar{padding-left:14px;padding-right:14px}
 }
@@ -262,6 +278,14 @@ footer strong{color:#58a6ff}
     <div class="chart-card">
       <div class="chart-card-title">Top Mecánicos</div>
       <div class="bar-list" id="bar-mecanicos"></div>
+    </div>
+  </div>
+  <div class="section-lbl" id="area-summary-label" style="display:none">Realizado vs Faltante por Área</div>
+  <div class="area-summary-wrap" id="area-summary-wrap" style="display:none">
+    <div class="area-cards-grid" id="area-cards-grid"></div>
+    <div class="area-chart-card">
+      <div class="chart-card-title">Comparativo · Realizado vs Faltante</div>
+      <div class="area-chart-wrap"><canvas id="chart-areas-progress"></canvas></div>
     </div>
   </div>
   <div class="table-card">
@@ -478,6 +502,7 @@ function renderMain(d){
   renderChartTipos(d,'chart-tipos');
   renderBars('bar-areas',cnt(d,'AREA DUEÑA'));
   renderBars('bar-mecanicos',cnt(d,'MECANICO'),'green');
+  renderAreaSummary(d);
   renderTable(d);
 }
 
@@ -500,6 +525,99 @@ function renderChartTipos(d,cid){
 function renderBars(id,entries,cls='blue'){
   const max=entries[0]?.[1]||1;
   $(id).innerHTML=entries.map(([n,c])=>`<div class="bar-item"><div class="bar-name">${n}<span>${c}</span></div><div class="bar-track"><div class="bar-fill ${cls}" style="width:${Math.round(c/max*100)}%"></div></div></div>`).join('');
+}
+
+function renderAreaSummary(d){
+  const lbl=$('area-summary-label'),wrap=$('area-summary-wrap');
+  // Sólo se muestra cuando estás en TODAS LAS ÁREAS
+  if(activeArea!=='TODAS'){
+    if(lbl)lbl.style.display='none';
+    if(wrap)wrap.style.display='none';
+    if(charts['chart-areas-progress']){charts['chart-areas-progress'].destroy();delete charts['chart-areas-progress']}
+    return;
+  }
+  // Agrupar por área: total, realizado (Final Actividad), faltante
+  const map={};
+  d.forEach(r=>{
+    const a=getArea(r);
+    if(!a||a==='Sin área')return;
+    if(!map[a])map[a]={tot:0,done:0};
+    map[a].tot++;
+    if(v(r,'Final Actividad'))map[a].done++;
+  });
+  const sorted=Object.entries(map).sort((a,b)=>b[1].tot-a[1].tot);
+  if(!sorted.length){
+    if(lbl)lbl.style.display='none';
+    if(wrap)wrap.style.display='none';
+    return;
+  }
+  if(lbl)lbl.style.display='flex';
+  if(wrap)wrap.style.display='grid';
+
+  // Tarjetas
+  $('area-cards-grid').innerHTML=sorted.map(([name,{tot,done}])=>{
+    const pend=tot-done;
+    const pct=tot>0?Math.round(done/tot*100):0;
+    const col=pct>=80?'#3fb950':pct>=50?'#d29922':'#f85149';
+    return `<div class="area-card" style="border-left-color:${col}">
+      <div class="area-card-pct" style="color:${col}">${pct}%</div>
+      <div class="area-card-name">${name}</div>
+      <div class="area-card-row">
+        <div class="area-card-mini"><div class="area-card-mini-lbl">Realizado</div><div class="area-card-mini-val" style="color:#3fb950">${done.toLocaleString()}</div></div>
+        <div class="area-card-mini"><div class="area-card-mini-lbl">Faltante</div><div class="area-card-mini-val" style="color:#f85149">${pend.toLocaleString()}</div></div>
+        <div class="area-card-mini"><div class="area-card-mini-lbl">Total</div><div class="area-card-mini-val" style="color:#c9d1d9">${tot.toLocaleString()}</div></div>
+      </div>
+      <div class="area-card-bar"><div class="area-card-bar-fill" style="width:${pct}%;background:${col}"></div></div>
+    </div>`;
+  }).join('');
+
+  // Gráfico de barras horizontales apiladas
+  const wrapEl=document.querySelector('.area-chart-wrap');
+  if(wrapEl)wrapEl.style.height=Math.max(260,sorted.length*36+40)+'px';
+  renderAreaProgressChart(sorted,'chart-areas-progress');
+}
+
+function renderAreaProgressChart(sorted,cid){
+  const labels=sorted.map(([n])=>n.length>22?n.slice(0,21)+'…':n);
+  const done=sorted.map(([,d])=>d.done);
+  const pend=sorted.map(([,d])=>d.tot-d.done);
+  const tots=sorted.map(([,d])=>d.tot);
+  const ctx=$(cid).getContext('2d');
+  if(charts[cid])charts[cid].destroy();
+  charts[cid]=new Chart(ctx,{
+    type:'bar',
+    data:{labels,datasets:[
+      {label:'Realizado',data:done,backgroundColor:'#3fb950',borderRadius:{topRight:0,bottomRight:0,topLeft:3,bottomLeft:3},borderSkipped:false,stack:'s'},
+      {label:'Faltante',data:pend,backgroundColor:'rgba(248,81,73,.75)',borderRadius:{topRight:3,bottomRight:3,topLeft:0,bottomLeft:0},borderSkipped:false,stack:'s'},
+    ]},
+    options:{
+      indexAxis:'y',
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'top',align:'end',labels:{color:'#7d8590',font:{size:10,family:'Barlow'},boxWidth:10,padding:8}},
+        tooltip:{
+          backgroundColor:'#161b22',borderColor:'#30363d',borderWidth:1,padding:9,
+          titleColor:'#e6edf3',bodyColor:'#c9d1d9',
+          callbacks:{
+            title:items=>sorted[items[0].dataIndex][0],
+            label:c=>{
+              const t=tots[c.dataIndex];
+              const pct=t>0?Math.round(c.parsed.x/t*100):0;
+              return ` ${c.dataset.label}: ${c.parsed.x.toLocaleString()} (${pct}%)`;
+            },
+            afterBody:items=>{
+              const i=items[0].dataIndex;
+              return `Total: ${tots[i].toLocaleString()}`;
+            }
+          }
+        }
+      },
+      scales:{
+        x:{stacked:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#484f58',font:{size:9,family:'Barlow'},precision:0},beginAtZero:true},
+        y:{stacked:true,grid:{display:false},ticks:{color:'#c9d1d9',font:{size:10,family:'Barlow',weight:'600'},autoSkip:false}}
+      }
+    }
+  });
 }
 
 function renderTable(d){
