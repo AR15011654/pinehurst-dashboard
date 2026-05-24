@@ -102,6 +102,23 @@ body{font-family:'Barlow',sans-serif;background:#0d1117;color:#e6edf3;min-height
 .area-chart-card{background:#161b22;border:1px solid #30363d;border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
 .area-chart-wrap{padding:8px 12px 12px;position:relative;flex:1;min-height:260px}
 
+/* AREA GANTT (en TODAS LAS ÁREAS) */
+.area-gantt-card{background:#161b22;border:1px solid #30363d;border-radius:10px;overflow:hidden}
+.area-gantt-card[open] .area-gantt-summary{border-bottom:1px solid #21262d}
+.area-gantt-summary{padding:12px 16px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:14px;list-style:none;user-select:none;background:#0d1117;transition:background .15s}
+.area-gantt-summary::-webkit-details-marker{display:none}
+.area-gantt-summary:hover{background:#161b22}
+.ags-left{display:flex;align-items:center;gap:10px;min-width:0}
+.ags-chevron{display:inline-block;width:18px;color:#7d8590;font-size:.7rem;transition:transform .2s;flex-shrink:0}
+.area-gantt-card[open] .ags-chevron{transform:rotate(90deg);color:#58a6ff}
+.ags-title{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.05rem;letter-spacing:.05em;color:#e6edf3;text-transform:uppercase;line-height:1}
+.ags-sub{font-size:.62rem;color:#484f58;text-transform:uppercase;letter-spacing:.08em;margin-top:2px}
+.ags-stats{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.ags-pill{background:#0d1117;border:1px solid #21262d;border-radius:6px;padding:4px 9px;font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:#7d8590;font-weight:600;white-space:nowrap}
+.ags-pill b{font-family:'Barlow Condensed',sans-serif;font-size:.92rem;font-weight:800;margin-left:5px;letter-spacing:0}
+.ags-pill.done b{color:#3fb950}.ags-pill.pend b{color:#f85149}.ags-pill.tot b{color:#e6edf3}
+.ags-pct{font-family:'Barlow Condensed',sans-serif;font-size:1.5rem;font-weight:800;line-height:1;padding-left:4px}
+
 /* TABLE */
 .table-card{background:#161b22;border:1px solid #30363d;border-radius:10px;overflow:hidden;margin-bottom:10px}
 .table-head{padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #21262d}
@@ -260,24 +277,10 @@ footer strong{color:#58a6ff}
 <div class="main" id="main-section">
   <div class="section-lbl">Resumen General</div>
   <div class="kpi-row" id="kpi-row"></div>
-  <div class="charts-row">
-    <div class="chart-card">
-      <div class="chart-card-title">Actividad Mensual</div>
-      <div class="chart-wrap"><canvas id="chart-meses"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-card-title">Tipo de Mantenimiento</div>
-      <div class="chart-wrap"><canvas id="chart-tipos"></canvas></div>
-    </div>
-  </div>
-  <div class="bottom-row">
+  <div class="bottom-row" style="grid-template-columns:1fr">
     <div class="chart-card">
       <div class="chart-card-title">Top Áreas por Volumen</div>
       <div class="bar-list" id="bar-areas"></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-card-title">Top Mecánicos</div>
-      <div class="bar-list" id="bar-mecanicos"></div>
     </div>
   </div>
   <div class="section-lbl" id="area-summary-label" style="display:none">Realizado vs Faltante por Área</div>
@@ -288,22 +291,8 @@ footer strong{color:#58a6ff}
       <div class="area-chart-wrap"><canvas id="chart-areas-progress"></canvas></div>
     </div>
   </div>
-  <div class="table-card">
-    <div class="table-head">
-      <span class="table-head-title">Registros Recientes</span>
-      <span class="table-count" id="table-count">—</span>
-    </div>
-    <div class="tbl-wrap">
-      <table>
-        <thead><tr>
-          <th>Asset ID</th><th>Tipo Máquina</th><th>Área Dueña</th>
-          <th>Mecánico</th><th>Tipo Mant.</th><th>Inicio</th><th>Final</th>
-          <th>Costo MP</th><th>Costo MC</th>
-        </tr></thead>
-        <tbody id="tbody"></tbody>
-      </table>
-    </div>
-  </div>
+  <div class="section-lbl" id="area-gantts-label" style="display:none">Plan de Mantenimiento por Área — Gantt Mensual 2026</div>
+  <div id="area-gantts-container" style="display:none;flex-direction:column;gap:12px"></div>
 </div>
 
 <!-- COSTURA -->
@@ -490,20 +479,14 @@ function renderMain(d){
   const tot=d.length;
   const areas=new Set(d.map(r=>getArea(r)).filter(a=>a&&a!=='Sin área')).size;
   const conFinal=d.filter(r=>v(r,'Final Actividad')).length;
-  const mp=Math.round(sm(d,'COSTO MP'));const mc=Math.round(sm(d,'COSTO MC'));
   const pct=n=>tot>0?Math.round(n/tot*100):0;
   $('kpi-row').innerHTML=`
     <div class="kpi bl"><div class="kpi-label">Total Registros</div><div class="kpi-val">${tot.toLocaleString()}</div><div class="kpi-sub">mantenimientos en base</div><div class="kpi-bar"><div class="kpi-bar-fill" style="width:100%"></div></div></div>
     <div class="kpi gr"><div class="kpi-label">Áreas Activas</div><div class="kpi-val">${areas}</div><div class="kpi-sub">en seguimiento</div><div class="kpi-bar"><div class="kpi-bar-fill" style="width:70%"></div></div></div>
-    <div class="kpi or"><div class="kpi-label">Con Fecha Final</div><div class="kpi-val">${conFinal.toLocaleString()}</div><div class="kpi-sub">${pct(conFinal)}% completados</div><div class="kpi-bar"><div class="kpi-bar-fill" style="width:${pct(conFinal)}%"></div></div></div>
-    <div class="kpi re"><div class="kpi-label">Costo MP</div><div class="kpi-val">$${mp.toLocaleString()}</div><div class="kpi-sub">mantenimiento preventivo</div><div class="kpi-bar"><div class="kpi-bar-fill" style="width:60%"></div></div></div>
-    <div class="kpi gy"><div class="kpi-label">Costo MC</div><div class="kpi-val">$${mc.toLocaleString()}</div><div class="kpi-sub">mantenimiento correctivo</div><div class="kpi-bar"><div class="kpi-bar-fill" style="width:40%"></div></div></div>`;
-  renderChartMeses(d,'chart-meses');
-  renderChartTipos(d,'chart-tipos');
+    <div class="kpi or"><div class="kpi-label">Realizados</div><div class="kpi-val">${conFinal.toLocaleString()}</div><div class="kpi-sub">${pct(conFinal)}% completados</div><div class="kpi-bar"><div class="kpi-bar-fill" style="width:${pct(conFinal)}%"></div></div></div>`;
   renderBars('bar-areas',cnt(d,'AREA DUEÑA'));
-  renderBars('bar-mecanicos',cnt(d,'MECANICO'),'green');
   renderAreaSummary(d);
-  renderTable(d);
+  renderAreaGantts(d);
 }
 
 const MESES=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
@@ -618,6 +601,170 @@ function renderAreaProgressChart(sorted,cid){
       }
     }
   });
+}
+
+// ── GANTT POR ÁREA (vista TODAS LAS ÁREAS) ─────────────────────────
+const AREA_COLOR_MAP={'COSTURA':'#3fb950','PD':'#2563eb','EMPAQUE':'#d29922','LAVADO':'#58a6ff','CORTE':'#bc8cff','BORDADO':'#39c5cf','SERIGRAFIA':'#e16e00'};
+const AREA_FALLBACK_COLORS=['#0067B8','#3fb950','#d29922','#f85149','#58a6ff','#bc8cff','#39c5cf','#e16e00'];
+
+function renderAreaGantts(d){
+  const lbl=$('area-gantts-label'),cont=$('area-gantts-container');
+  if(activeArea!=='TODAS'){
+    if(lbl)lbl.style.display='none';
+    if(cont)cont.style.display='none';
+    return;
+  }
+  // Áreas únicas ordenadas por volumen desc
+  const map={};
+  d.forEach(r=>{const a=getArea(r);if(!a||a==='Sin área')return;if(!map[a])map[a]={tot:0,done:0};map[a].tot++;if(v(r,'Final Actividad'))map[a].done++});
+  const areas=Object.entries(map).sort((a,b)=>b[1].tot-a[1].tot).map(([n])=>n);
+  if(!areas.length){if(lbl)lbl.style.display='none';if(cont)cont.style.display='none';return}
+  lbl.style.display='flex';
+  cont.style.display='flex';
+  // Pintar
+  cont.innerHTML=areas.map((area,ai)=>{
+    const {tot,done}=map[area];
+    const pend=tot-done;
+    const pct=tot>0?Math.round(done/tot*100):0;
+    const col=AREA_COLOR_MAP[area.toUpperCase()]||AREA_FALLBACK_COLORS[ai%AREA_FALLBACK_COLORS.length];
+    const pctCol=pct>=80?'#3fb950':pct>=50?'#d29922':'#f85149';
+    const safeId='ag-'+area.toLowerCase().replace(/[^a-z0-9]/g,'_');
+    // Sólo el primero abierto por defecto
+    const openAttr=ai===0?' open':'';
+    return `<details class="area-gantt-card"${openAttr}>
+      <summary class="area-gantt-summary">
+        <div class="ags-left">
+          <span class="ags-chevron">▶</span>
+          <div>
+            <div class="ags-title" style="border-left:3px solid ${col};padding-left:8px">${area}</div>
+            <div class="ags-sub" style="padding-left:11px">Plan 2026 · ${tot} registros</div>
+          </div>
+        </div>
+        <div class="ags-stats">
+          <span class="ags-pill done">Realizado <b>${done.toLocaleString()}</b></span>
+          <span class="ags-pill pend">Faltante <b>${pend.toLocaleString()}</b></span>
+          <span class="ags-pill tot">Total <b>${tot.toLocaleString()}</b></span>
+          <span class="ags-pct" style="color:${pctCol}">${pct}%</span>
+        </div>
+      </summary>
+      <div class="gantt-scroll">
+        <table class="gantt-table" style="min-width:600px">
+          <thead id="${safeId}-head"></thead>
+          <tbody id="${safeId}-body"></tbody>
+        </table>
+      </div>
+      <div class="gantt-legend">
+        <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(63,185,80,.35)"></div>≥100% meta</div>
+        <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(210,153,34,.35)"></div>50–99%</div>
+        <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(248,81,73,.35)"></div>&lt;50%</div>
+        <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:#161b22;border:1px dashed #30363d"></div>Futuro</div>
+      </div>
+    </details>`;
+  }).join('');
+  // Render cada Gantt con datos filtrados de su área
+  areas.forEach(area=>{
+    const safeId='ag-'+area.toLowerCase().replace(/[^a-z0-9]/g,'_');
+    const areaData=d.filter(r=>getArea(r)===area);
+    const col=AREA_COLOR_MAP[area.toUpperCase()]||'#e6edf3';
+    renderGanttGeneric(areaData,`${safeId}-head`,`${safeId}-body`,col);
+  });
+}
+
+function renderGanttGeneric(data,headId,bodyId,accentColor){
+  const MESES_SHOW=['FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+  const MESES_IDX=[2,3,4,5,6,7,8,9,10,11,12];
+  const today=new Date(),mesActual=today.getMonth()+1;
+  const PLAN_END_DIA=4;
+
+  // Detectar grupos en los datos (match exacto)
+  const grupos=[...new Set(data.map(r=>(v(r,'GRUPO DE MAQUINA')||'').toUpperCase().trim()).filter(Boolean))].sort();
+  if(!grupos.length){
+    $(headId).innerHTML='';
+    $(bodyId).innerHTML=`<tr><td colspan="12" style="padding:18px;color:#7d8590;font-size:.72rem;text-align:center;background:#161b22">Sin clasificación por grupo de máquina en esta área</td></tr>`;
+    return;
+  }
+
+  // 1. Real por grupo/mes
+  const counts={};
+  grupos.forEach(g=>{counts[g]={};MESES_IDX.forEach(m=>{counts[g][m]=0})});
+  data.forEach(r=>{
+    const grupo=(v(r,'GRUPO DE MAQUINA')||'').toUpperCase().trim();
+    const fd=parseFinalDate(v(r,'Final Actividad'));
+    if(!fd||fd.getFullYear()!==2026)return;
+    const mes=fd.getMonth()+1;
+    if(mes>=2&&mes<=12&&counts[grupo])counts[grupo][mes]++;
+  });
+
+  // 2. Total por grupo
+  const grupoTot={};
+  grupos.forEach(g=>{grupoTot[g]=data.filter(r=>(v(r,'GRUPO DE MAQUINA')||'').toUpperCase().trim()===g).length});
+
+  // 3. Real acumulado pasado
+  const realPasado={};
+  grupos.forEach(g=>{realPasado[g]=MESES_IDX.filter(m=>m<=mesActual).reduce((s,m)=>s+(counts[g][m]||0),0)});
+
+  // 4. Días hábiles futuros
+  const mesesFuturos=MESES_IDX.filter(m=>m>mesActual);
+  const diasHab={};
+  mesesFuturos.forEach(mi=>{diasHab[mi]=(mi===12)?getWorkingDays(2026,12,PLAN_END_DIA):getWorkingDays(2026,mi)});
+  const totalDias=mesesFuturos.reduce((s,m)=>s+diasHab[m],0)||1;
+
+  // 5. Meta futura proporcional
+  const metaFut={};
+  grupos.forEach(g=>{
+    const pend=Math.max(0,(grupoTot[g]||0)-realPasado[g]);
+    let acum=0;metaFut[g]={};
+    mesesFuturos.forEach((mi,i)=>{
+      if(i===mesesFuturos.length-1){metaFut[g][mi]=Math.max(0,pend-acum)}
+      else{const m=Math.round(pend*diasHab[mi]/totalDias);metaFut[g][mi]=m;acum+=m}
+    });
+    MESES_IDX.filter(m=>m<=mesActual).forEach(mi=>{metaFut[g][mi]=counts[g][mi]||0});
+  });
+  const semRest=Math.round(totalDias/5);
+
+  // 6. Render head
+  $(headId).innerHTML=`<tr>
+    <th style="padding:8px 12px;font-size:.62rem;text-transform:uppercase;color:#7d8590;text-align:left;border-bottom:2px solid #30363d;min-width:160px;background:#0d1117;position:sticky;left:0">Grupo de Máquina</th>
+    ${MESES_SHOW.map(m=>`<th style="padding:8px 6px;font-size:.62rem;text-transform:uppercase;color:#7d8590;text-align:center;border-bottom:2px solid #30363d;background:#0d1117;">${m}</th>`).join('')}
+  </tr>`;
+
+  // 7. Render body
+  $(bodyId).innerHTML=grupos.map(g=>{
+    const tot=grupoTot[g]||0;
+    const totalReal=MESES_IDX.reduce((s,m)=>s+(counts[g][m]||0),0);
+    const pendG=Math.max(0,tot-totalReal);
+    const pctG=tot>0?Math.round(totalReal/tot*100):0;
+    const metaS=semRest>0?Math.ceil(pendG/semRest):0;
+    const label=g.length>22?g.slice(0,22)+'…':g;
+
+    const cells=MESES_IDX.map(mi=>{
+      const esFut=mi>mesActual;
+      const real=counts[g][mi]||0;
+      const meta=metaFut[g][mi]||0;
+      let bg,color,txt;
+      if(esFut){
+        bg='rgba(125,133,144,.08)';color='#7d8590';
+        txt=`<span style="font-size:.65rem;font-weight:700">${meta}</span>`;
+      } else if(meta===0&&real===0){
+        bg='rgba(125,133,144,.06)';color='#484f58';txt='—';
+      } else {
+        const pct=meta>0?Math.round(real/meta*100):100;
+        if(pct>=100){bg='rgba(63,185,80,.2)';color='#3fb950';txt=`${real}<br><span style="font-size:.56rem">${pct}%</span>`;}
+        else if(pct>=50){bg='rgba(210,153,34,.18)';color='#d29922';txt=`${real}<br><span style="font-size:.56rem">${pct}%</span>`;}
+        else{bg='rgba(248,81,73,.15)';color='#f85149';txt=`${real||'0'}<br><span style="font-size:.56rem">${pct}%</span>`;}
+      }
+      return `<td style="padding:4px;border-top:1px solid #21262d;text-align:center;">
+        <div style="height:36px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;background:${bg};color:${color};line-height:1.2;">${txt}</div>
+      </td>`;
+    }).join('');
+
+    return `<tr>
+      <td style="padding:8px 12px;border-top:1px solid #21262d;background:#161b22;position:sticky;left:0">
+        <div style="font-weight:700;font-size:.76rem;color:${accentColor||'#e6edf3'}" title="${g}">${label}</div>
+        <div style="font-size:.6rem;color:#484f58;margin-top:1px">total: ${tot} · ejec: ${totalReal} (${pctG}%) · pend: ${pendG} · meta: ${metaS}/sem</div>
+      </td>${cells}
+    </tr>`;
+  }).join('');
 }
 
 function renderTable(d){
