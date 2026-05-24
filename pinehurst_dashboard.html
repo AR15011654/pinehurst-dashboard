@@ -666,18 +666,26 @@ function renderAreaGantts(d){
     const safeId='ag-'+area.toLowerCase().replace(/[^a-z0-9]/g,'_');
     const areaData=d.filter(r=>getArea(r)===area);
     const col=AREA_COLOR_MAP[area.toUpperCase()]||'#e6edf3';
-    renderGanttGeneric(areaData,`${safeId}-head`,`${safeId}-body`,col);
+    // Costura: restringir grupos a SEWING / STEAM / HEAT (excluye datos mal clasificados)
+    const allowed=area.toUpperCase().includes('COSTURA')?['SEWING','STEAM','HEAT']:null;
+    renderGanttGeneric(areaData,`${safeId}-head`,`${safeId}-body`,col,allowed);
   });
 }
 
-function renderGanttGeneric(data,headId,bodyId,accentColor){
+function renderGanttGeneric(data,headId,bodyId,accentColor,allowedKeywords){
   const MESES_SHOW=['FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
   const MESES_IDX=[2,3,4,5,6,7,8,9,10,11,12];
   const today=new Date(),mesActual=today.getMonth()+1;
   const PLAN_END_DIA=4;
 
   // Detectar grupos en los datos (match exacto)
-  const grupos=[...new Set(data.map(r=>(v(r,'GRUPO DE MAQUINA')||'').toUpperCase().trim()).filter(Boolean))].sort();
+  let grupos=[...new Set(data.map(r=>(v(r,'GRUPO DE MAQUINA')||'').toUpperCase().trim()).filter(Boolean))].sort();
+  // Filtro general: excluir nombres claramente inválidos (vacíos, sólo dígitos, 1 carácter)
+  grupos=grupos.filter(g=>g.length>1 && !/^\d+$/.test(g));
+  // Filtro por palabras clave permitidas (ej. COSTURA → SEWING/STEAM/HEAT)
+  if(allowedKeywords && allowedKeywords.length){
+    grupos=grupos.filter(g=>allowedKeywords.some(k=>g.includes(k)));
+  }
   if(!grupos.length){
     $(headId).innerHTML='';
     $(bodyId).innerHTML=`<tr><td colspan="12" style="padding:18px;color:#7d8590;font-size:.72rem;text-align:center;background:#161b22">Sin clasificación por grupo de máquina en esta área</td></tr>`;
