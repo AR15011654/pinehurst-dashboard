@@ -313,7 +313,7 @@ footer strong{color:#58a6ff}
   <div class="plan-alert" id="costura-plan-alert"></div>
   <div class="cs-charts">
     <div class="cs-chart-card" style="display:flex;flex-direction:column;height:280px;">
-      <div class="cs-chart-title">Avance Semanal — Meta (30) vs Real</div>
+      <div class="cs-chart-title">Avance Semanal — Meta vs Real</div>
       <div style="display:flex;align-items:center;gap:8px;padding:6px 16px 2px;">
         <button onclick="document.getElementById('cws').scrollLeft-=150" style="flex-shrink:0;width:28px;height:28px;background:#0067B8;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:13px;">◀</button>
         <input type="range" min="0" max="100" value="0" style="flex:1;accent-color:#0067B8;cursor:pointer;height:4px;" oninput="const s=document.getElementById('cws');s.scrollLeft=(s.scrollWidth-s.clientWidth)*this.value/100;">
@@ -444,11 +444,20 @@ async function loadData(){
   const result=Papa.parse(text,{header:true,skipEmptyLines:true,transformHeader:h=>h.trim()});
   allData=result.data.filter(r=>Object.values(r).some(v2=>v2&&v2.toString().trim()));
   if(!allData.length){$('error-panel').style.display='block';$('error-msg').textContent='CSV cargado pero sin datos. Verifica la hoja REGISTRO.';setStatus('Sin datos',false);return}
+  // Detectar el formato de fecha dominante (US vs Latino) ANTES de procesar nada
+  const dord=detectDateOrder(allData,['Final Actividad','Inicio Actividad']);
   renderTabs();
-  const activeBtn=document.querySelector('.area-tab.active');
+  const tabs=[...document.querySelectorAll('.area-tab')];
+  const activeBtn=tabs.find(b=>b.textContent.trim().toUpperCase()===activeArea.toUpperCase())||tabs[0];
   filterArea(activeArea,activeBtn);
   const now=new Date().toLocaleString('es-MX',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'short'});
-  $('last-update').textContent=now;$('footer-ts').textContent=now;
+  $('last-update').textContent=now;
+  const fmtTxt = DATE_ORDER!=='AUTO'
+    ? (DATE_ORDER==='DMY'?'D/M/A (forzado)':'M/D/A (forzado)')
+    : dord.detected==='DMY' ? 'Latino D/M/A (auto)'
+    : dord.detected==='MDY' ? 'US M/D/A (auto)'
+    : 'sin señal → US por defecto';
+  $('footer-ts').textContent=`${now} · Fechas: ${fmtTxt}`;
   setStatus('En línea');
   $('app').style.display='block';
   const ls=$('loading');ls.classList.add('fade');setTimeout(()=>ls.style.display='none',600);
@@ -775,16 +784,6 @@ function renderGanttGeneric(data,headId,bodyId,accentColor,allowedKeywords){
   }).join('');
 }
 
-function renderTable(d){
-  $('table-count').textContent=`${d.length} registros`;
-  $('tbody').innerHTML=[...d].reverse().slice(0,120).map(r=>{
-    const t=v(r,'Tipo de Mantenimiento');
-    const hf=!!v(r,'Final Actividad');
-    const bc=hf?'badge-done':t.toLowerCase().includes('prev')?'badge-pm':t.toLowerCase().includes('corr')?'badge-cm':'badge-pend';
-    return`<tr><td>${v(r,'Asset ID')||'—'}</td><td>${v(r,'TIPO DE MAQUINA')||'—'}</td><td>${getArea(r)}</td><td>${v(r,'MECANICO')||'—'}</td><td><span class="badge ${bc}">${t||'—'}</span></td><td>${fmtDate(v(r,'Inicio Actividad'))}</td><td>${fmtDate(v(r,'Final Actividad'))}</td><td>${fmtCost(v(r,'COSTO MP'))}</td><td>${fmtCost(v(r,'COSTO MC'))}</td></tr>`;
-  }).join('');
-}
-
 function renderGauge(arcId,pctId,pct,color){
   const el=$(arcId);if(el){el.setAttribute('stroke',color);el.setAttribute('stroke-dasharray',`${Math.round(pct/100*173)},173`)}
   const pe=$(pctId);if(pe)pe.textContent=pct.toFixed(1)+'%';
@@ -814,36 +813,84 @@ const TOTAL_SEMANAS = 43;
 // Meta mensual: Feb→Dic distribuida en 43 semanas de 30 máq/sem
 const META_MENSUAL_PLAN = {2:120,3:120,4:120,5:120,6:120,7:150,8:120,9:120,10:150,11:120,12:37};
 
-function parseFinalDate(s){
-  if(!s||!s.trim())return null;
-  const raw=s.trim().split(' ')[0]; // strip time part if any
+// ── SISTEMA DE FECHAS — lee formato US (M/D/A) y Latino (D/M/A) sin errores ──
+//
+// Cómo funciona:
+//   1. Toda fecha donde un número sea > 12 se resuelve sola, sin ambigüedad
+//      (ese número solo puede ser el día). Funciona aunque los formatos vengan
+//      mezclados fila por fila desde distintos dispositivos.
+//   2. Las fechas verdaderamente ambiguas (ambos números ≤ 12, p. ej. 2/3/2026)
+//      no se pueden distinguir por sí solas, así que se usa el orden DOMINANTE
+//      detectado automáticamente al cargar los datos (detectDateOrder()).
+//   3. Cualquier valor inválido devuelve null y se ignora — nunca lanza error.
+//
+// DATE_ORDER: 'AUTO' (recomendado) detecta el formato; 'MDY' fuerza US;
+//             'DMY' fuerza Latino.
+let DATE_ORDER   = 'AUTO';
+let _detectedOrder = null;   // 'MDY' | 'DMY' | null  (resultado de la detección)
 
-  // 1. Try native parse (handles YYYY-MM-DD, M/D/YYYY US format)
-  const d=new Date(s);
-  if(!isNaN(d)&&d.getFullYear()>=2020&&d.getFullYear()<=2030)return d;
-
-  // 2. Extract numeric parts from D/M/YY, M/D/YY, D/M/YYYY, M/D/YYYY
-  const parts=raw.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
-  if(parts){
-    let p1=parseInt(parts[1]),p2=parseInt(parts[2]);
-    const yr=parseInt(parts[3])<100?2000+parseInt(parts[3]):parseInt(parts[3]);
-    if(yr<2020||yr>2030)return null;
-    // If first part > 12 → must be day (D/M/YYYY)
-    if(p1>12){return new Date(yr,p2-1,p1)}
-    // If second part > 12 → must be month first (M/D/YYYY) — but months don't go >12
-    // Default: try M/D first (US), if month invalid try D/M
-    if(p1>=1&&p1<=12&&p2>=1&&p2<=31){
-      // Ambiguous: use M/D (US) as primary since Sheets usually exports that way
-      const dUS=new Date(yr,p1-1,p2);
-      if(!isNaN(dUS))return dUS;
-    }
-    // Fallback: D/M
-    if(p2>=1&&p2<=12&&p1>=1&&p1<=31){
-      const dEU=new Date(yr,p2-1,p1);
-      if(!isNaN(dEU))return dEU;
-    }
+// Descompone una cadena en componentes numéricos. No decide día/mes todavía.
+function _dateParts(s){
+  if(s==null)return null;
+  const raw=s.toString().trim().split(/[ T]/)[0];   // descarta hora si la hay
+  if(!raw)return null;
+  // ISO inequívoco YYYY-MM-DD
+  const iso=raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if(iso){
+    const y=+iso[1],mo=+iso[2],da=+iso[3];
+    if(y>=2000&&y<=2100&&mo>=1&&mo<=12&&da>=1&&da<=31)return {iso:true,year:y,mo,da};
+    return null;
+  }
+  // D/M/A o M/D/A con separador / o -
+  const m=raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if(m){
+    let y=+m[3]; if(y<100)y+=2000;
+    if(y<2000||y>2100)return null;
+    return {iso:false,a:+m[1],b:+m[2],year:y};
   }
   return null;
+}
+
+function _mkDate(year,mo,da){
+  if(mo<1||mo>12||da<1||da>31)return null;
+  const d=new Date(year,mo-1,da);
+  return isNaN(d)?null:d;
+}
+
+// Orden a usar para fechas ambiguas: el forzado, o el detectado, o US por defecto.
+function _orderInUse(){
+  if(DATE_ORDER==='DMY'||DATE_ORDER==='MDY')return DATE_ORDER;
+  return _detectedOrder||'MDY';
+}
+
+// Analiza TODOS los datos una sola vez y deduce el formato dominante a partir
+// de las fechas que SÍ son inequívocas (algún número > 12).
+function detectDateOrder(rows,fields){
+  let dmy=0,mdy=0;
+  rows.forEach(r=>fields.forEach(f=>{
+    const p=_dateParts(v(r,f));
+    if(!p||p.iso)return;
+    if(p.a>12&&p.b<=12)dmy++;       // 1er número es día  → D/M/A (Latino)
+    else if(p.b>12&&p.a<=12)mdy++;  // 2º número es día   → M/D/A (US)
+  }));
+  _detectedOrder = dmy>mdy?'DMY':(mdy>dmy?'MDY':null);
+  return {dmy,mdy,detected:_detectedOrder};
+}
+
+function parseFinalDate(s){
+  const p=_dateParts(s);
+  if(!p){
+    // Último recurso: formatos con texto (p. ej. "Mar 15 2026")
+    if(s){const d=new Date(s);if(!isNaN(d)&&d.getFullYear()>=2000&&d.getFullYear()<=2100)return d;}
+    return null;
+  }
+  if(p.iso)return _mkDate(p.year,p.mo,p.da);
+  const {a,b,year}=p;
+  if(a>12&&b<=12)return _mkDate(year,b,a);   // inequívoco D/M
+  if(b>12&&a<=12)return _mkDate(year,a,b);   // inequívoco M/D
+  if(a>12&&b>12)return null;                 // imposible (ambos > 12)
+  // Ambiguo: usar el orden dominante detectado (o el forzado)
+  return _orderInUse()==='DMY' ? _mkDate(year,b,a) : _mkDate(year,a,b);
 }
 
 function renderSemanal(d,cid){
@@ -867,7 +914,7 @@ function renderSemanal(d,cid){
   // Real bars: green if ≥ meta, red if below, gray for future
   const barColors=wReal.map((c,i)=>
     i>semActual ? 'rgba(125,133,144,.15)' :
-    c>=META_SEMANAL ? 'rgba(63,185,80,.8)' : 'rgba(248,81,73,.75)'
+    c>=metaSem ? 'rgba(63,185,80,.8)' : 'rgba(248,81,73,.75)'
   );
 
   const ctx=$(cid).getContext('2d');
@@ -891,7 +938,7 @@ function renderSemanal(d,cid){
           callbacks:{
             afterBody:items=>{
               if(items[0].datasetIndex===0){
-                const diff=items[0].parsed.y-META_SEMANAL;
+                const diff=items[0].parsed.y-metaSem;
                 return diff>=0?`+${diff} sobre meta`:`${diff} bajo meta`;
               }
               return '';
