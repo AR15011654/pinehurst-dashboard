@@ -1604,21 +1604,23 @@ function renderSeriCharts(rows,filt){
 async function renderSerigrafia(){
   const cfg=$('seri-config'),body=$('seri-body');
   if(!SERI_GIDS.maquinas||!SERI_GIDS.mantto){cfg.style.display='block';body.style.display='none';$('seri-sub').textContent='Configura los enlaces de tus hojas para activar el panel.';return;}
-  if(!_seriLoaded){
-    $('seri-sub').textContent='Cargando datos de serigrafía…';
-    const [maquinas,frec,mantto]=await Promise.all([
-      fetchCSV(SERI_BASE+SERI_GIDS.maquinas),
-      SERI_GIDS.frecuencia?fetchCSV(SERI_BASE+SERI_GIDS.frecuencia):Promise.resolve([]),
-      fetchCSV(SERI_BASE+SERI_GIDS.mantto)
-    ]);
-    seriData={maquinas:maquinas.filter(r=>scol(r,SC.ubic).toUpperCase().includes(SERI_HOME_MATCH)),frec,mantto};_seriLoaded=true;
-  }
+  if(!seriData.maquinas.length)$('seri-sub').textContent='Cargando datos de serigrafía…';
+  const cb=u=>u+'&_t='+Date.now();   /* evita caché del navegador/proxy */
+  const [maquinas,frec,mantto]=await Promise.all([
+    fetchCSV(cb(SERI_BASE+SERI_GIDS.maquinas)),
+    SERI_GIDS.frecuencia?fetchCSV(cb(SERI_BASE+SERI_GIDS.frecuencia)):Promise.resolve([]),
+    fetchCSV(cb(SERI_BASE+SERI_GIDS.mantto))
+  ]);
+  const maqF=maquinas.filter(r=>scol(r,SC.ubic).toUpperCase().includes(SERI_HOME_MATCH));
+  if(maqF.length||mantto.length)seriData={maquinas:maqF,frec,mantto};   /* solo sustituye si llegó algo */
   if(!seriData.maquinas.length){cfg.style.display='block';body.style.display='none';$('seri-sub').textContent='No se encontraron máquinas de serigrafía. Revisa que la hoja MAQUINAS esté publicada y que la columna HOME LOCATION contenga "'+SERI_HOME_MATCH+'".';return;}
   cfg.style.display='none';body.style.display='block';
   _seriRows=computeSeri();
   const upd=new Date().toLocaleString('es-MX',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
   $('seri-sub').textContent=`${_seriRows.length} máquinas · ${seriData.mantto.length} mantenimientos registrados · actualizado ${upd}`;
+  const keep={};['sf-tipo','sf-ubic','sf-estado','sf-tec','sf-from','sf-to'].forEach(id=>{const el=$(id);if(el)keep[id]=el.value;});   /* conserva filtros activos */
   buildSeriFilters(_seriRows);
+  Object.keys(keep).forEach(id=>{const el=$(id);if(el)el.value=keep[id];});
   applySeriFilters();
 }
 /* =================== FIN SERIGRAFÍA · MP =================== */
