@@ -417,6 +417,28 @@ footer strong{color:#58a6ff}
   </div>
 </div>
 
+<div class="sec-wrap" id="serigrafia-section" style="display:none">
+  <div class="sec-title">SERIGRAFÍA · MANTENIMIENTO PREVENTIVO</div>
+  <div class="sec-sub" id="seri-sub"></div>
+  <div id="seri-config" style="display:none;background:#161b22;border:1px solid #30363d;border-left:3px solid #d29922;border-radius:8px;padding:16px 20px;color:#e6edf3;font-size:13px;line-height:1.6;margin-top:10px">
+    <strong style="color:#d29922">⚙️ Falta configurar las hojas de Serigrafía.</strong><br>
+    Publica en Google Sheets (<b>Archivo → Compartir → Publicar en la web</b>) las hojas <b>MAQUINAS</b>, <b>Frecuencia de MP Serigrafía</b> y <b>MANTTO. SERIGRAFIA</b>, y pega el <b>gid</b> de cada una en la constante <code style="color:#58a6ff">SERI_GIDS</code> al inicio del script.
+  </div>
+  <div id="seri-body" style="display:none">
+    <div id="seri-banner" style="margin:6px 0 14px"></div>
+    <div id="seri-kpis" style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px"></div>
+    <div id="seri-filters" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:14px"></div>
+    <div style="overflow:auto;max-height:420px;border:1px solid #30363d;border-radius:8px;margin-bottom:18px">
+      <table id="seri-table" style="width:100%;border-collapse:collapse;font-size:12px"></table>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">
+      <div class="cs-chart-card" style="display:flex;flex-direction:column;height:260px"><div class="cs-chart-title">Mantenimientos por tipo de máquina</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-tipo"></canvas></div></div>
+      <div class="cs-chart-card" style="display:flex;flex-direction:column;height:260px"><div class="cs-chart-title">Mantenimientos realizados por mes</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-mes"></canvas></div></div>
+      <div class="cs-chart-card" style="display:flex;flex-direction:column;height:260px"><div class="cs-chart-title">Máquinas por ubicación</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-ubic"></canvas></div></div>
+      <div class="cs-chart-card" style="display:flex;flex-direction:column;height:260px"><div class="cs-chart-title">Máquinas por estado de mantenimiento</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-estado"></canvas></div></div>
+    </div>
+  </div>
+</div>
 <footer><strong>PINEHURST MFG</strong> &nbsp;·&nbsp; Dashboard Mantenimiento &nbsp;·&nbsp; Datos en tiempo real · Auto-actualización cada 5 min &nbsp;·&nbsp; <span id="footer-ts">—</span></footer>
 </div>
 
@@ -469,6 +491,7 @@ function renderTabs(){
   const areas=[...new Set(allData.map(r=>getArea(r)).filter(a=>a&&a!=='Sin área'))].sort();
   const bar=$('area-tabs');
   bar.innerHTML='<button class="area-tab active" onclick="filterArea(\'TODAS\',this)">TODAS LAS ÁREAS</button>';
+  bar.innerHTML+='<button class="area-tab" onclick="filterArea(\'SERIGRAFÍA MP\',this)">🖨 SERIGRAFÍA MP</button>';
   areas.forEach(a=>{const btn=document.createElement('button');btn.className='area-tab';btn.textContent=a;btn.onclick=()=>filterArea(a,btn);bar.appendChild(btn)});
 }
 
@@ -479,9 +502,11 @@ function filterArea(area,btn){
   $('main-section').style.display='none';
   $('costura-section').style.display='none';
   $('pd-section').style.display='none';
+  $('serigrafia-section').style.display='none';
   const up=area.toUpperCase();
   if(up.includes('COSTURA')){$('costura-section').style.display='block';renderCosturaSection(allData.filter(r=>getArea(r).toUpperCase().includes('COSTURA')))}
   else if(up==='PD'){$('pd-section').style.display='block';renderPDSection(allData.filter(r=>getArea(r).toUpperCase()==='PD'))}
+  else if(up.includes('SERIGRAF')){$('serigrafia-section').style.display='block';renderSerigrafia()}
   else{$('main-section').style.display='block';renderMain(area==='TODAS'?allData:allData.filter(r=>getArea(r)===area))}
 }
 
@@ -1424,6 +1449,177 @@ function renderMensualPD(d,cid){
 
 window.addEventListener('DOMContentLoaded',()=>{$('app').style.display='block';setTimeout(loadData,600)});
 window.filterArea=filterArea;
+
+/* ===================== SERIGRAFÍA · MP ===================== */
+const SERI_BASE='https://docs.google.com/spreadsheets/d/e/2PACX-1vQvyJg610AkUuW2nmyhUKthxKwTcdmISAptd-oliRib55e5TXNndz7VyiTyK81O4V0OFF5d_RxrISKT/pub?single=true&output=csv&gid=';
+/* >>> Pega aquí el gid de cada hoja publicada <<< */
+const SERI_GIDS={ maquinas:'', frecuencia:'', mantto:'' };
+let seriData={maquinas:[],frec:[],mantto:[]},_seriLoaded=false,_seriRows=[];
+
+const SC={
+  serie:['Número de serie','Numero de serie','No. de serie','No de serie','Serie'],
+  tipo:['Tipo de máquina','Tipo de maquina','TIPO DE MAQUINA','Tipo'],
+  modelo:['Modelo'],fab:['Fabricante'],
+  ubic:['Ubicación','Ubicacion','home location','Home Location','HOME LOCATION'],
+  estado:['Estado'],
+  fecMP:['Fecha de mantenimiento','Fecha mantenimiento','Fecha de MP','Fecha'],
+  tec:['Técnico responsable','Tecnico responsable','Técnico','Tecnico'],
+  obs:['Observaciones'],
+  frecTxt:['Frecuencia de mantenimiento','Frecuencia'],
+  dias:['Días equivalentes','Dias equivalentes','Días','Dias'],
+  id:['ID','Id']
+};
+function scol(r,names){for(const n of names){for(const k in r){if(k.trim().toLowerCase()===n.toLowerCase())return (r[k]||'').toString().trim();}}return '';}
+
+function parseFechaSeri(s){
+  s=(s||'').toString().trim();if(!s)return null;
+  s=s.split(' ')[0].split('T')[0];let m;
+  if(m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))return new Date(+m[1],+m[2]-1,+m[3]);
+  if(m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/)){
+    let a=+m[1],b=+m[2],y=+m[3];if(y<100)y+=2000;
+    let d=a,mo=b;                       /* asume D/M/A (Latino) */
+    if(a>12&&b<=12){d=a;mo=b;}          /* a no puede ser mes */
+    else if(b>12&&a<=12){d=b;mo=a;}     /* b no puede ser mes -> a es mes */
+    return new Date(y,mo-1,d);
+  }
+  const dt=new Date(s);return isNaN(dt)?null:dt;
+}
+
+async function fetchCSV(url){
+  let text=null;
+  try{const r=await fetch(url,{cache:'no-cache'});if(r.ok){const t=await r.text();if(t&&t.includes(','))text=t;}}catch(e){}
+  if(!text){for(const pFn of PROXIES){try{const r=await fetch(pFn(url),{cache:'no-cache'});if(r.ok){const t=await r.text();if(t&&t.includes(','))text=t;break;}}catch(e){}}}
+  if(!text)return [];
+  return Papa.parse(text,{header:true,skipEmptyLines:true,transformHeader:h=>h.trim()}).data.filter(r=>Object.values(r).some(x=>x&&x.toString().trim()));
+}
+
+function computeSeri(){
+  const fmap={};
+  seriData.frec.forEach(r=>{const t=scol(r,SC.tipo).toUpperCase();if(t)fmap[t]={txt:scol(r,SC.frecTxt),dias:parseInt(scol(r,SC.dias))||0};});
+  const today=new Date();today.setHours(0,0,0,0);
+  return seriData.maquinas.map(r=>{
+    const serie=scol(r,SC.serie),tipo=scol(r,SC.tipo);
+    const recs=seriData.mantto.filter(x=>scol(x,SC.serie)===serie)
+      .map(x=>({f:parseFechaSeri(scol(x,SC.fecMP)),tec:scol(x,SC.tec)})).filter(x=>x.f)
+      .sort((a,b)=>b.f-a.f);
+    const ultimo=recs[0]?recs[0].f:null,tec=recs[0]?recs[0].tec:'';
+    const fr=fmap[tipo.toUpperCase()]||{txt:'Sin definir',dias:0};
+    let prox=null,dias=null,estado='Sin registro';
+    if(ultimo&&fr.dias>0){prox=new Date(ultimo);prox.setDate(prox.getDate()+fr.dias);dias=Math.round((prox-today)/86400000);estado=dias<0?'Vencido':dias<=7?'Próximo a vencer':'Al día';}
+    return {serie,tipo,modelo:scol(r,SC.modelo),fab:scol(r,SC.fab),ubic:scol(r,SC.ubic),estadoMaq:scol(r,SC.estado),frec:fr.txt,ultimo,prox,dias,estado,tec,nMant:recs.length};
+  });
+}
+
+function seriKpi(label,val,color){return `<div style="background:#161b22;border:1px solid #30363d;border-top:3px solid ${color};border-radius:10px;padding:14px 18px;min-width:140px;flex:1"><div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:#7d8590;font-weight:700;margin-bottom:4px">${label}</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:2.2rem;font-weight:800;color:${color};line-height:1">${val}</div></div>`;}
+function renderSeriKPIs(rows){
+  const tot=rows.length,ald=rows.filter(r=>r.estado==='Al día').length,prx=rows.filter(r=>r.estado==='Próximo a vencer').length,ven=rows.filter(r=>r.estado==='Vencido').length;
+  const cum=tot?Math.round(ald/tot*100):0;
+  $('seri-kpis').innerHTML=[seriKpi('Total de máquinas',tot,'#0067B8'),seriKpi('Al día',ald,'#3fb950'),seriKpi('Próximas a vencer (≤7d)',prx,'#d29922'),seriKpi('Vencidas',ven,'#f85149'),seriKpi('% Cumplimiento',cum+'%','#58a6ff')].join('');
+}
+
+function seriBadge(estado){const c=estado==='Al día'?'#3fb950':estado==='Próximo a vencer'?'#d29922':estado==='Vencido'?'#f85149':'#7d8590';return `<span style="display:inline-block;padding:2px 10px;border-radius:12px;background:${c}22;color:${c};font-weight:700;font-size:11px;white-space:nowrap">${estado}</span>`;}
+function fmtDSeri(d){return d?`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`:'—';}
+function renderSeriTable(rows){
+  rows=[...rows].sort((a,b)=>(a.dias==null?99999:a.dias)-(b.dias==null?99999:b.dias));
+  const cols=['Núm. de serie','Tipo de máquina','Ubicación','Último MP','Próximo MP','Días rest.','Estado','Técnico'];
+  const head=`<thead><tr>${cols.map(h=>`<th style="position:sticky;top:0;background:#0067B8;color:#fff;padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.04em">${h}</th>`).join('')}</tr></thead>`;
+  const body=rows.map(r=>{const dc=r.dias==null?'#7d8590':r.dias<0?'#f85149':r.dias<=7?'#d29922':'#e6edf3';
+    return `<tr style="border-top:1px solid #21262d">
+      <td style="padding:7px 10px;font-weight:700;color:#e6edf3">${r.serie}</td>
+      <td style="padding:7px 10px;color:#8b949e">${r.tipo||'—'}</td>
+      <td style="padding:7px 10px;color:#8b949e">${r.ubic||'—'}</td>
+      <td style="padding:7px 10px;color:#8b949e">${fmtDSeri(r.ultimo)}</td>
+      <td style="padding:7px 10px;color:#8b949e">${fmtDSeri(r.prox)}</td>
+      <td style="padding:7px 10px;font-weight:700;color:${dc}">${r.dias==null?'—':r.dias}</td>
+      <td style="padding:7px 10px">${seriBadge(r.estado)}</td>
+      <td style="padding:7px 10px;color:#8b949e">${r.tec||'—'}</td></tr>`;}).join('');
+  $('seri-table').innerHTML=head+'<tbody>'+(body||'<tr><td style="padding:14px;color:#7d8590">Sin resultados para los filtros aplicados.</td></tr>')+'</tbody>';
+}
+
+function renderSeriBanner(rows){
+  const ven=rows.filter(r=>r.estado==='Vencido'),prx=rows.filter(r=>r.estado==='Próximo a vencer');
+  let h='';
+  if(ven.length)h+=`<div style="background:#f8514922;border:1px solid #f85149;border-radius:8px;padding:10px 14px;color:#ffb4ae;font-size:12.5px;margin-bottom:8px">🔴 <b>${ven.length} máquina(s) con mantenimiento VENCIDO:</b> ${ven.slice(0,8).map(r=>r.serie).join(', ')}${ven.length>8?'…':''} — reprogramar de inmediato.</div>`;
+  if(prx.length)h+=`<div style="background:#d2992222;border:1px solid #d29922;border-radius:8px;padding:10px 14px;color:#ffd479;font-size:12.5px">🟡 <b>${prx.length} máquina(s) próximas a vencer (≤7 días):</b> ${prx.map(r=>`${r.serie} (${r.dias}d)`).join(', ')}.</div>`;
+  if(!h)h=`<div style="background:#3fb95022;border:1px solid #3fb950;border-radius:8px;padding:10px 14px;color:#7ee787;font-size:12.5px">🟢 Sin alertas: todas las máquinas filtradas están al día.</div>`;
+  $('seri-banner').innerHTML=h;
+}
+
+function seriUniq(arr){return [...new Set(arr.filter(Boolean))].sort();}
+function seriSel(id,label,opts){return `<div><label style="display:block;font-size:9px;text-transform:uppercase;color:#7d8590;font-weight:700;margin-bottom:3px">${label}</label><select id="${id}" onchange="applySeriFilters()" style="background:#161b22;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:6px 8px;font-size:12px;min-width:130px"><option value="">Todos</option>${opts.map(o=>`<option>${o}</option>`).join('')}</select></div>`;}
+function seriDate(id,label){return `<div><label style="display:block;font-size:9px;text-transform:uppercase;color:#7d8590;font-weight:700;margin-bottom:3px">${label}</label><input type="date" id="${id}" onchange="applySeriFilters()" style="background:#161b22;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:5px 8px;font-size:12px"></div>`;}
+function buildSeriFilters(rows){
+  $('seri-filters').innerHTML=
+    seriSel('sf-tipo','Tipo de máquina',seriUniq(rows.map(r=>r.tipo)))+
+    seriSel('sf-ubic','Ubicación',seriUniq(rows.map(r=>r.ubic)))+
+    seriSel('sf-estado','Estado MP',['Al día','Próximo a vencer','Vencido','Sin registro'])+
+    seriSel('sf-tec','Técnico',seriUniq(seriData.mantto.map(r=>scol(r,SC.tec))))+
+    seriDate('sf-from','Último MP desde')+seriDate('sf-to','Último MP hasta')+
+    `<button onclick="resetSeriFilters()" style="background:#21262d;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:7px 14px;font-size:12px;cursor:pointer;height:32px">Limpiar</button>`;
+}
+function getSeriFiltered(){
+  const g=id=>{const el=$(id);return el?el.value:'';};
+  const t=g('sf-tipo'),u=g('sf-ubic'),e=g('sf-estado'),tc=g('sf-tec'),f=g('sf-from'),to=g('sf-to');
+  const from=f?parseFechaSeri(f):null,until=to?parseFechaSeri(to):null;
+  let rows=_seriRows.filter(r=>(!t||r.tipo===t)&&(!u||r.ubic===u)&&(!e||r.estado===e)&&(!tc||r.tec===tc));
+  if(from)rows=rows.filter(r=>r.ultimo&&r.ultimo>=from);
+  if(until)rows=rows.filter(r=>r.ultimo&&r.ultimo<=until);
+  return {rows,filt:{tipo:t,tec:tc,from,until}};
+}
+function applySeriFilters(){const {rows,filt}=getSeriFiltered();renderSeriBanner(rows);renderSeriKPIs(rows);renderSeriTable(rows);renderSeriCharts(rows,filt);}
+function resetSeriFilters(){['sf-tipo','sf-ubic','sf-estado','sf-tec','sf-from','sf-to'].forEach(id=>{const el=$(id);if(el)el.value='';});applySeriFilters();}
+
+function destroySeriChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+function seriChartBar(id,labels,data,color,horizontal){destroySeriChart(id);const c=$(id);if(!c)return;charts[id]=new Chart(c,{type:'bar',data:{labels,datasets:[{data,backgroundColor:color,borderRadius:5,borderSkipped:false}]},options:{indexAxis:horizontal?'y':'x',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#161b22',borderColor:'#30363d',borderWidth:1,padding:8}},scales:{x:{grid:{display:false},ticks:{color:'#7d8590',font:{size:10,family:'Barlow'}}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#7d8590',font:{size:10,family:'Barlow'},precision:0},beginAtZero:true}}}});}
+function seriChartLine(id,labels,data){destroySeriChart(id);const c=$(id);if(!c)return;charts[id]=new Chart(c,{type:'line',data:{labels,datasets:[{data,borderColor:'#0067B8',backgroundColor:'rgba(0,103,184,.15)',fill:true,tension:.35,pointRadius:3,pointBackgroundColor:'#0067B8'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#161b22',borderColor:'#30363d',borderWidth:1,padding:8}},scales:{x:{grid:{display:false},ticks:{color:'#7d8590',font:{size:10,family:'Barlow'}}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#7d8590',font:{size:10,family:'Barlow'},precision:0},beginAtZero:true}}}});}
+function seriChartPie(id,labels,data,colors){destroySeriChart(id);const c=$(id);if(!c)return;charts[id]=new Chart(c,{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:2,borderColor:'#161b22',hoverOffset:8}]},options:{responsive:true,maintainAspectRatio:false,cutout:'58%',plugins:{legend:{position:'bottom',labels:{color:'#7d8590',font:{size:10,family:'Barlow'},padding:8,boxWidth:10}},tooltip:{backgroundColor:'#161b22',borderColor:'#30363d',borderWidth:1,padding:8}}}});}
+
+function renderSeriCharts(rows,filt){
+  filt=filt||{};
+  const series=new Set(rows.map(r=>r.serie));
+  let mant=seriData.mantto.filter(x=>series.has(scol(x,SC.serie))).map(x=>({tipo:scol(x,SC.tipo),tec:scol(x,SC.tec),f:parseFechaSeri(scol(x,SC.fecMP))}));
+  if(filt.tipo)mant=mant.filter(x=>x.tipo===filt.tipo);
+  if(filt.tec)mant=mant.filter(x=>x.tec===filt.tec);
+  if(filt.from)mant=mant.filter(x=>x.f&&x.f>=filt.from);
+  if(filt.until)mant=mant.filter(x=>x.f&&x.f<=filt.until);
+  // 1) por tipo
+  const byTipo={};mant.forEach(x=>{const t=x.tipo||'—';byTipo[t]=(byTipo[t]||0)+1;});
+  seriChartBar('seri-ch-tipo',Object.keys(byTipo),Object.values(byTipo),'#0067B8');
+  // 2) por mes (12 meses)
+  const now=new Date(),labels=[],keys=[];
+  for(let i=11;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1);labels.push(d.toLocaleDateString('es-MX',{month:'short',year:'2-digit'}));keys.push(d.getFullYear()+'-'+d.getMonth());}
+  const mc={};mant.forEach(x=>{if(x.f)mc[x.f.getFullYear()+'-'+x.f.getMonth()]=(mc[x.f.getFullYear()+'-'+x.f.getMonth()]||0)+1;});
+  seriChartLine('seri-ch-mes',labels,keys.map(k=>mc[k]||0));
+  // 3) por ubicación
+  const byU={};rows.forEach(r=>{const u=r.ubic||'—';byU[u]=(byU[u]||0)+1;});
+  seriChartBar('seri-ch-ubic',Object.keys(byU),Object.values(byU),'#58a6ff',true);
+  // 4) por estado MP
+  const est=['Al día','Próximo a vencer','Vencido','Sin registro'],ec=['#3fb950','#d29922','#f85149','#7d8590'];
+  seriChartPie('seri-ch-estado',est,est.map(e=>rows.filter(r=>r.estado===e).length),ec);
+}
+
+async function renderSerigrafia(){
+  const cfg=$('seri-config'),body=$('seri-body');
+  if(!SERI_GIDS.maquinas||!SERI_GIDS.mantto){cfg.style.display='block';body.style.display='none';$('seri-sub').textContent='Configura los enlaces de tus hojas para activar el panel.';return;}
+  if(!_seriLoaded){
+    $('seri-sub').textContent='Cargando datos de serigrafía…';
+    const [maquinas,frec,mantto]=await Promise.all([
+      fetchCSV(SERI_BASE+SERI_GIDS.maquinas),
+      SERI_GIDS.frecuencia?fetchCSV(SERI_BASE+SERI_GIDS.frecuencia):Promise.resolve([]),
+      fetchCSV(SERI_BASE+SERI_GIDS.mantto)
+    ]);
+    seriData={maquinas,frec,mantto};_seriLoaded=true;
+  }
+  if(!seriData.maquinas.length){cfg.style.display='block';body.style.display='none';$('seri-sub').textContent='No se pudieron leer las máquinas. Revisa que la hoja MAQUINAS esté publicada.';return;}
+  cfg.style.display='none';body.style.display='block';
+  _seriRows=computeSeri();
+  const upd=new Date().toLocaleString('es-MX',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+  $('seri-sub').textContent=`${_seriRows.length} máquinas · ${seriData.mantto.length} mantenimientos registrados · actualizado ${upd}`;
+  buildSeriFilters(_seriRows);
+  applySeriFilters();
+}
+/* =================== FIN SERIGRAFÍA · MP =================== */
+
 </script>
 </body>
 </html>
