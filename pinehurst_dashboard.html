@@ -440,6 +440,14 @@ footer strong{color:#58a6ff}
     </div>
   </div>
 </div>
+<div class="sec-wrap" id="serigrafia-pasos-section" style="display:none">
+  <div class="sec-title">SERIGRAFÍA · PASOS DE MANTENIMIENTO</div>
+  <div class="sec-sub">Instructivo de trabajo · hoja "Pasos mantenimiento serigrafia"</div>
+  <div style="margin-top:12px;border:1px solid #30363d;border-radius:8px;overflow:hidden;background:#fff">
+    <iframe id="seri-pasos-frame" title="Pasos de mantenimiento serigrafía" style="width:100%;height:78vh;border:0;background:#fff;display:block" src="about:blank"></iframe>
+  </div>
+  <div style="margin-top:8px;color:#7d8590;font-size:11.5px">Si el instructivo no se muestra, verifica que el documento esté publicado en la web (Archivo → Compartir → Publicar en la web → “Todo el documento”).</div>
+</div>
 <footer><strong>PINEHURST MFG</strong> &nbsp;·&nbsp; Dashboard Mantenimiento &nbsp;·&nbsp; Datos en tiempo real · Auto-actualización cada 5 min &nbsp;·&nbsp; <span id="footer-ts">—</span></footer>
 </div>
 
@@ -493,6 +501,7 @@ function renderTabs(){
   const bar=$('area-tabs');
   bar.innerHTML='<button class="area-tab active" onclick="filterArea(\'TODAS\',this)">TODAS LAS ÁREAS</button>';
   bar.innerHTML+='<button class="area-tab" onclick="filterArea(\'SERIGRAFÍA MP\',this)">🖨 SERIGRAFÍA MP</button>';
+  bar.innerHTML+='<button class="area-tab" onclick="filterArea(\'PASOS MP\',this)">📋 PASOS DE MANTENIMIENTO</button>';
   areas.forEach(a=>{const btn=document.createElement('button');btn.className='area-tab';btn.textContent=a;btn.onclick=()=>filterArea(a,btn);bar.appendChild(btn)});
 }
 
@@ -504,9 +513,11 @@ function filterArea(area,btn){
   $('costura-section').style.display='none';
   $('pd-section').style.display='none';
   $('serigrafia-section').style.display='none';
+  $('serigrafia-pasos-section').style.display='none';
   const up=area.toUpperCase();
   if(up.includes('COSTURA')){$('costura-section').style.display='block';renderCosturaSection(allData.filter(r=>getArea(r).toUpperCase().includes('COSTURA')))}
   else if(up==='PD'){$('pd-section').style.display='block';renderPDSection(allData.filter(r=>getArea(r).toUpperCase()==='PD'))}
+  else if(up.includes('PASOS')){$('serigrafia-pasos-section').style.display='block';renderSeriPasos()}
   else if(up.includes('SERIGRAF')){$('serigrafia-section').style.display='block';renderSerigrafia()}
   else{$('main-section').style.display='block';renderMain(area==='TODAS'?allData:allData.filter(r=>getArea(r)===area))}
 }
@@ -1455,6 +1466,9 @@ window.filterArea=filterArea;
 const SERI_BASE='https://docs.google.com/spreadsheets/d/e/2PACX-1vQvyJg610AkUuW2nmyhUKthxKwTcdmISAptd-oliRib55e5TXNndz7VyiTyK81O4V0OFF5d_RxrISKT/pub?single=true&output=csv&gid=';
 /* >>> Pega aquí el gid de cada hoja publicada <<< */
 const SERI_GIDS={ maquinas:'73648269', frecuencia:'873861599', mantto:'707561136' };
+/* Pestaña "Pasos mantenimiento serigrafia" (instructivo visual) — se incrusta tal cual */
+const SERI_PASOS_GID='1824901786';
+const SERI_PUBHTML='https://docs.google.com/spreadsheets/d/e/2PACX-1vQvyJg610AkUuW2nmyhUKthxKwTcdmISAptd-oliRib55e5TXNndz7VyiTyK81O4V0OFF5d_RxrISKT/pubhtml?single=true&widget=true&headers=false&gid=';
 /* MAQUINAS trae TODA la planta: se filtran solo las de serigrafía por su HOME LOCATION.
    Coincidencia parcial sin mayúsculas: 'SERIGRAF' atrapa "Serigrafía", "SERIGRAFIA", etc. */
 const SERI_HOME_MATCH='SERIGRAF';
@@ -1559,7 +1573,8 @@ function buildSeriFilters(rows){
     seriSel('sf-estado','Estado MP',['Al día','Próximo a vencer','Vencido','Sin registro'])+
     seriSel('sf-tec','Técnico',seriUniq(seriData.mantto.map(r=>scol(r,SC.tec))))+
     seriDate('sf-from','Último MP desde')+seriDate('sf-to','Último MP hasta')+
-    `<button onclick="resetSeriFilters()" style="background:#21262d;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:7px 14px;font-size:12px;cursor:pointer;height:32px">Limpiar</button>`;
+    `<button onclick="resetSeriFilters()" style="background:#21262d;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:7px 14px;font-size:12px;cursor:pointer;height:32px">Limpiar</button>`+
+    `<button onclick="downloadSeriCSV()" style="background:#0067B8;color:#fff;border:1px solid #0067B8;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;height:32px">⬇ Descargar registros</button>`;
 }
 function getSeriFiltered(){
   const g=id=>{const el=$(id);return el?el.value:'';};
@@ -1625,6 +1640,26 @@ function buildSeriDiag(maquinas,maqF,frec,mantto){
       • Si las columnas no son las que esperabas, el gid de esa pestaña está cambiado de orden.
     </div>
   </div>`;
+}
+
+function renderSeriPasos(){const f=$('seri-pasos-frame');if(f&&(!f.src||f.src==='about:blank'||!f.src.includes('gid=')))f.src=SERI_PUBHTML+SERI_PASOS_GID;}
+
+function downloadSeriCSV(){
+  const {rows}=getSeriFiltered();
+  if(!rows.length){alert('No hay registros para descargar con los filtros actuales.');return;}
+  const headers=['Número de serie','Tipo de máquina','Ubicación','Estado de la máquina','Frecuencia','Último mantenimiento','Próximo mantenimiento','Días restantes','Estado MP','Técnico','# Mantenimientos'];
+  const esc=s=>'"'+(s==null?'':s).toString().replace(/"/g,'""')+'"';
+  const lines=[headers.map(esc).join(',')];
+  [...rows].sort((a,b)=>(a.dias==null?99999:a.dias)-(b.dias==null?99999:b.dias)).forEach(r=>{
+    lines.push([r.serie,r.tipo,r.ubic,r.estadoMaq,r.frec,r.ultimo?fmtDSeri(r.ultimo):'',r.prox?fmtDSeri(r.prox):'',r.dias==null?'':r.dias,r.estado,r.tec,r.nMant].map(esc).join(','));
+  });
+  const csv='\ufeff'+lines.join('\r\n');   /* BOM para que Excel respete acentos */
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download='registros_serigrafia_'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 
 async function renderSerigrafia(){
