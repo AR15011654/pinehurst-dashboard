@@ -235,6 +235,9 @@ footer strong{color:#58a6ff}
   .main,.sec-wrap{padding-left:14px;padding-right:14px}
   .area-tabs,.topbar{padding-left:14px;padding-right:14px}
 }
+.seri-subtab{padding:6px 16px;background:#161b22;border:1px solid #30363d;border-radius:7px;font-family:'Barlow',sans-serif;font-size:12px;font-weight:600;color:#7d8590;cursor:pointer;transition:all .2s}
+.seri-subtab:hover{border-color:#58a6ff;color:#58a6ff}
+.seri-subtab.active{background:#0067B8;border-color:#0067B8;color:#fff}
 </style>
 </head>
 <body>
@@ -420,6 +423,16 @@ footer strong{color:#58a6ff}
 <div class="sec-wrap" id="serigrafia-section" style="display:none">
   <div class="sec-title">SERIGRAFÍA · MANTENIMIENTO PREVENTIVO</div>
   <div class="sec-sub" id="seri-sub"></div>
+  <div id="seri-subtabs" style="display:flex;gap:6px;margin:12px 0 4px">
+    <button class="seri-subtab active" onclick="seriSubView('tablero',this)">📊 Tablero de MP</button>
+    <button class="seri-subtab" onclick="seriSubView('pasos',this)">📋 Pasos de mantenimiento</button>
+  </div>
+  <div id="seri-pasos-view" style="display:none">
+    <div style="margin-top:10px;border:1px solid #30363d;border-radius:8px;overflow:hidden;background:#fff">
+      <iframe id="seri-pasos-frame" title="Pasos de mantenimiento serigrafía" style="width:100%;height:76vh;border:0;background:#fff;display:block" src="about:blank"></iframe>
+    </div>
+    <div style="margin-top:8px;color:#7d8590;font-size:11.5px">Instructivo de la hoja "Pasos mantenimiento serigrafia". Si no se muestra, verifica que el documento esté publicado en la web (Archivo → Compartir → Publicar en la web → “Todo el documento”).</div>
+  </div>
   <div id="seri-config" style="display:none;background:#161b22;border:1px solid #30363d;border-left:3px solid #d29922;border-radius:8px;padding:16px 20px;color:#e6edf3;font-size:13px;line-height:1.6;margin-top:10px">
     <strong style="color:#d29922">⚙️ Falta configurar las hojas de Serigrafía.</strong><br>
     Publica en Google Sheets (<b>Archivo → Compartir → Publicar en la web</b>) las hojas <b>MAQUINAS</b>, <b>Frecuencia de MP Serigrafía</b> y <b>MANTTO. SERIGRAFIA</b>, y pega el <b>gid</b> de cada una en la constante <code style="color:#58a6ff">SERI_GIDS</code> al inicio del script.
@@ -439,14 +452,6 @@ footer strong{color:#58a6ff}
       <div class="cs-chart-card" style="display:flex;flex-direction:column;height:260px"><div class="cs-chart-title">Máquinas por estado de mantenimiento</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-estado"></canvas></div></div>
     </div>
   </div>
-</div>
-<div class="sec-wrap" id="serigrafia-pasos-section" style="display:none">
-  <div class="sec-title">SERIGRAFÍA · PASOS DE MANTENIMIENTO</div>
-  <div class="sec-sub">Instructivo de trabajo · hoja "Pasos mantenimiento serigrafia"</div>
-  <div style="margin-top:12px;border:1px solid #30363d;border-radius:8px;overflow:hidden;background:#fff">
-    <iframe id="seri-pasos-frame" title="Pasos de mantenimiento serigrafía" style="width:100%;height:78vh;border:0;background:#fff;display:block" src="about:blank"></iframe>
-  </div>
-  <div style="margin-top:8px;color:#7d8590;font-size:11.5px">Si el instructivo no se muestra, verifica que el documento esté publicado en la web (Archivo → Compartir → Publicar en la web → “Todo el documento”).</div>
 </div>
 <footer><strong>PINEHURST MFG</strong> &nbsp;·&nbsp; Dashboard Mantenimiento &nbsp;·&nbsp; Datos en tiempo real · Auto-actualización cada 5 min &nbsp;·&nbsp; <span id="footer-ts">—</span></footer>
 </div>
@@ -501,7 +506,6 @@ function renderTabs(){
   const bar=$('area-tabs');
   bar.innerHTML='<button class="area-tab active" onclick="filterArea(\'TODAS\',this)">TODAS LAS ÁREAS</button>';
   bar.innerHTML+='<button class="area-tab" onclick="filterArea(\'SERIGRAFÍA MP\',this)">🖨 SERIGRAFÍA MP</button>';
-  bar.innerHTML+='<button class="area-tab" onclick="filterArea(\'PASOS MP\',this)">📋 PASOS DE MANTENIMIENTO</button>';
   areas.forEach(a=>{const btn=document.createElement('button');btn.className='area-tab';btn.textContent=a;btn.onclick=()=>filterArea(a,btn);bar.appendChild(btn)});
 }
 
@@ -513,11 +517,9 @@ function filterArea(area,btn){
   $('costura-section').style.display='none';
   $('pd-section').style.display='none';
   $('serigrafia-section').style.display='none';
-  $('serigrafia-pasos-section').style.display='none';
   const up=area.toUpperCase();
   if(up.includes('COSTURA')){$('costura-section').style.display='block';renderCosturaSection(allData.filter(r=>getArea(r).toUpperCase().includes('COSTURA')))}
   else if(up==='PD'){$('pd-section').style.display='block';renderPDSection(allData.filter(r=>getArea(r).toUpperCase()==='PD'))}
-  else if(up.includes('PASOS')){$('serigrafia-pasos-section').style.display='block';renderSeriPasos()}
   else if(up.includes('SERIGRAF')){$('serigrafia-section').style.display='block';renderSerigrafia()}
   else{$('main-section').style.display='block';renderMain(area==='TODAS'?allData:allData.filter(r=>getArea(r)===area))}
 }
@@ -1642,6 +1644,23 @@ function buildSeriDiag(maquinas,maqF,frec,mantto){
   </div>`;
 }
 
+let _seriView='tablero',_seriDisp={cfg:false,diag:false,body:false};
+function showSeri(cfg,diag,body){_seriDisp={cfg,diag,body};if(_seriView!=='tablero')return;$('seri-config').style.display=cfg?'block':'none';$('seri-diag').style.display=diag?'block':'none';$('seri-body').style.display=body?'block':'none';}
+function seriSubView(view,btn){
+  _seriView=view;
+  document.querySelectorAll('.seri-subtab').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  if(view==='pasos'){
+    $('seri-config').style.display='none';$('seri-diag').style.display='none';$('seri-body').style.display='none';
+    $('seri-pasos-view').style.display='block';
+    renderSeriPasos();
+  }else{
+    $('seri-pasos-view').style.display='none';
+    $('seri-config').style.display=_seriDisp.cfg?'block':'none';
+    $('seri-diag').style.display=_seriDisp.diag?'block':'none';
+    $('seri-body').style.display=_seriDisp.body?'block':'none';
+  }
+}
 function renderSeriPasos(){const f=$('seri-pasos-frame');if(f&&(!f.src||f.src==='about:blank'||!f.src.includes('gid=')))f.src=SERI_PUBHTML+SERI_PASOS_GID;}
 
 function downloadSeriCSV(){
@@ -1664,8 +1683,7 @@ function downloadSeriCSV(){
 
 async function renderSerigrafia(){
   const cfg=$('seri-config'),body=$('seri-body'),diag=$('seri-diag');
-  if(!SERI_GIDS.maquinas||!SERI_GIDS.mantto){cfg.style.display='block';diag.style.display='none';body.style.display='none';$('seri-sub').textContent='Configura los enlaces de tus hojas para activar el panel.';return;}
-  cfg.style.display='none';
+  if(!SERI_GIDS.maquinas||!SERI_GIDS.mantto){showSeri(true,false,false);$('seri-sub').textContent='Configura los enlaces de tus hojas para activar el panel.';return;}
   if(!seriData.maquinas.length)$('seri-sub').textContent='Cargando datos de serigrafía…';
   const cb=u=>u+'&_t='+Date.now();   /* evita caché del navegador/proxy */
   const [maquinas,frec,mantto]=await Promise.all([
@@ -1676,10 +1694,9 @@ async function renderSerigrafia(){
   const maqF=maquinas.filter(r=>scol(r,SC.ubic).toUpperCase().includes(SERI_HOME_MATCH));
   buildSeriDiag(maquinas,maqF,frec,mantto);
   const problema=!maqF.length||!mantto.length;
-  diag.style.display=problema?'block':'none';
   if(maqF.length||mantto.length)seriData={maquinas:maqF,frec,mantto};   /* solo sustituye si llegó algo */
-  if(!seriData.maquinas.length){body.style.display='none';$('seri-sub').textContent='No llegaron máquinas de serigrafía — revisa el diagnóstico de abajo.';return;}
-  body.style.display='block';
+  if(!seriData.maquinas.length){showSeri(false,true,false);$('seri-sub').textContent='No llegaron máquinas de serigrafía — revisa el diagnóstico de abajo.';return;}
+  showSeri(false,problema,true);
   _seriRows=computeSeri();
   const upd=new Date().toLocaleString('es-MX',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
   $('seri-sub').textContent=`${_seriRows.length} máquinas · ${seriData.mantto.length} mantenimientos registrados · actualizado ${upd}`;
