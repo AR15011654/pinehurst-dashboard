@@ -1453,7 +1453,10 @@ window.filterArea=filterArea;
 /* ===================== SERIGRAFÍA · MP ===================== */
 const SERI_BASE='https://docs.google.com/spreadsheets/d/e/2PACX-1vQvyJg610AkUuW2nmyhUKthxKwTcdmISAptd-oliRib55e5TXNndz7VyiTyK81O4V0OFF5d_RxrISKT/pub?single=true&output=csv&gid=';
 /* >>> Pega aquí el gid de cada hoja publicada <<< */
-const SERI_GIDS={ maquinas:'', frecuencia:'', mantto:'' };
+const SERI_GIDS={ maquinas:'73648269', frecuencia:'707561136', mantto:'873861599' };
+/* MAQUINAS trae TODA la planta: se filtran solo las de serigrafía por su HOME LOCATION.
+   Coincidencia parcial sin mayúsculas: 'SERIGRAF' atrapa "Serigrafía", "SERIGRAFIA", etc. */
+const SERI_HOME_MATCH='SERIGRAF';
 let seriData={maquinas:[],frec:[],mantto:[]},_seriLoaded=false,_seriRows=[];
 
 const SC={
@@ -1608,9 +1611,9 @@ async function renderSerigrafia(){
       SERI_GIDS.frecuencia?fetchCSV(SERI_BASE+SERI_GIDS.frecuencia):Promise.resolve([]),
       fetchCSV(SERI_BASE+SERI_GIDS.mantto)
     ]);
-    seriData={maquinas,frec,mantto};_seriLoaded=true;
+    seriData={maquinas:maquinas.filter(r=>scol(r,SC.ubic).toUpperCase().includes(SERI_HOME_MATCH)),frec,mantto};_seriLoaded=true;
   }
-  if(!seriData.maquinas.length){cfg.style.display='block';body.style.display='none';$('seri-sub').textContent='No se pudieron leer las máquinas. Revisa que la hoja MAQUINAS esté publicada.';return;}
+  if(!seriData.maquinas.length){cfg.style.display='block';body.style.display='none';$('seri-sub').textContent='No se encontraron máquinas de serigrafía. Revisa que la hoja MAQUINAS esté publicada y que la columna HOME LOCATION contenga "'+SERI_HOME_MATCH+'".';return;}
   cfg.style.display='none';body.style.display='block';
   _seriRows=computeSeri();
   const upd=new Date().toLocaleString('es-MX',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
