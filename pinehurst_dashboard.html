@@ -424,6 +424,7 @@ footer strong{color:#58a6ff}
     <strong style="color:#d29922">⚙️ Falta configurar las hojas de Serigrafía.</strong><br>
     Publica en Google Sheets (<b>Archivo → Compartir → Publicar en la web</b>) las hojas <b>MAQUINAS</b>, <b>Frecuencia de MP Serigrafía</b> y <b>MANTTO. SERIGRAFIA</b>, y pega el <b>gid</b> de cada una en la constante <code style="color:#58a6ff">SERI_GIDS</code> al inicio del script.
   </div>
+  <div id="seri-diag" style="display:none;margin-top:10px"></div>
   <div id="seri-body" style="display:none">
     <div id="seri-banner" style="margin:6px 0 14px"></div>
     <div id="seri-kpis" style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px"></div>
@@ -1453,26 +1454,26 @@ window.filterArea=filterArea;
 /* ===================== SERIGRAFÍA · MP ===================== */
 const SERI_BASE='https://docs.google.com/spreadsheets/d/e/2PACX-1vQvyJg610AkUuW2nmyhUKthxKwTcdmISAptd-oliRib55e5TXNndz7VyiTyK81O4V0OFF5d_RxrISKT/pub?single=true&output=csv&gid=';
 /* >>> Pega aquí el gid de cada hoja publicada <<< */
-const SERI_GIDS={ maquinas:'73648269', frecuencia:'707561136', mantto:'873861599' };
+const SERI_GIDS={ maquinas:'73648269', frecuencia:'873861599', mantto:'707561136' };
 /* MAQUINAS trae TODA la planta: se filtran solo las de serigrafía por su HOME LOCATION.
    Coincidencia parcial sin mayúsculas: 'SERIGRAF' atrapa "Serigrafía", "SERIGRAFIA", etc. */
 const SERI_HOME_MATCH='SERIGRAF';
 let seriData={maquinas:[],frec:[],mantto:[]},_seriLoaded=false,_seriRows=[];
 
 const SC={
-  serie:['Número de serie','Numero de serie','No. de serie','No de serie','Serie'],
-  tipo:['Tipo de máquina','Tipo de maquina','TIPO DE MAQUINA','Tipo'],
-  modelo:['Modelo'],fab:['Fabricante'],
+  serie:['Número de serie','Numero de serie','No. de serie','No de serie','SERIE','Serie'],
+  tipo:['Tipo de máquina','Tipo de maquina','TIPO DE MAQUINA','MAQUINA','Tipo'],
+  modelo:['Modelo','MODEL','Model'],fab:['Fabricante','FABRICANTE'],
   ubic:['Ubicación','Ubicacion','home location','Home Location','HOME LOCATION'],
-  estado:['Estado'],
-  fecMP:['Fecha de mantenimiento','Fecha mantenimiento','Fecha de MP','Fecha'],
-  tec:['Técnico responsable','Tecnico responsable','Técnico','Tecnico'],
-  obs:['Observaciones'],
-  frecTxt:['Frecuencia de mantenimiento','Frecuencia'],
-  dias:['Días equivalentes','Dias equivalentes','Días','Dias'],
-  id:['ID','Id']
+  estado:['Estado','ESTADO'],
+  fecMP:['Fecha de mantenimiento','Fecha mantenimiento','Fecha de MP','FINAL ACTIVIDAD','Final Actividad','Inicio actividad','Inicio Actividad','Fecha'],
+  tec:['Técnico responsable','Tecnico responsable','MECANICO','Mecanico','Técnico','Tecnico'],
+  obs:['Observaciones','COMENTARIO','Comentario'],
+  frecTxt:['Frecuencia de mantenimiento','FRECUENCIA','Frecuencia'],
+  dias:['Días equivalentes','Dias equivalentes','DIAS','Días','Dias'],
+  id:['MANTENIMIENTOSUBID','ID','Id']
 };
-function scol(r,names){for(const n of names){for(const k in r){if(k.trim().toLowerCase()===n.toLowerCase())return (r[k]||'').toString().trim();}}return '';}
+function scol(r,names){for(const n of names){for(const k in r){if(k.trim().toLowerCase()===n.toLowerCase()){const val=(r[k]||'').toString().trim();if(val)return val;}}}return '';}
 
 function parseFechaSeri(s){
   s=(s||'').toString().trim();if(!s)return null;
@@ -1601,9 +1602,35 @@ function renderSeriCharts(rows,filt){
   seriChartPie('seri-ch-estado',est,est.map(e=>rows.filter(r=>r.estado===e).length),ec);
 }
 
+function seriHeaders(rows){return rows.length?Object.keys(rows[0]).map(k=>k.trim()).filter(Boolean):[];}
+function seriDistinct(rows,names,top){const m={};rows.forEach(r=>{const x=scol(r,names);if(x)m[x]=(m[x]||0)+1;});return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,top||15);}
+function buildSeriDiag(maquinas,maqF,frec,mantto){
+  const row=(lbl,n,okColor)=>`<tr><td style="padding:2px 14px 2px 0;color:#7d8590">${lbl}</td><td><b style="color:${n?(okColor||'#3fb950'):'#f85149'}">${n} filas</b></td></tr>`;
+  const homeVals=seriDistinct(maquinas,SC.ubic,15);
+  const mqHdr=seriHeaders(maquinas),mtHdr=seriHeaders(mantto);
+  $('seri-diag').innerHTML=`<div style="background:#161b22;border:1px solid #30363d;border-left:3px solid #58a6ff;border-radius:8px;padding:14px 18px;color:#e6edf3;font-size:12.5px;line-height:1.7">
+    <strong style="color:#58a6ff">🔌 Diagnóstico de conexión por pestaña</strong>
+    <table style="margin-top:8px;border-collapse:collapse;font-size:12px">
+      ${row('MAQUINAS · gid '+SERI_GIDS.maquinas,maquinas.length)}
+      ${row('&nbsp;&nbsp;↳ de serigrafía (HOME LOCATION ∋ "'+SERI_HOME_MATCH+'")',maqF.length)}
+      ${row('FRECUENCIA · gid '+SERI_GIDS.frecuencia,frec.length,'#d29922')}
+      ${row('MANTTO. SERIGRAFIA · gid '+SERI_GIDS.mantto,mantto.length)}
+    </table>
+    <div style="margin-top:8px;color:#7d8590">Columnas leídas en MAQUINAS: <span style="color:#e6edf3">${mqHdr.join(' · ')||'(ninguna)'}</span></div>
+    <div style="margin-top:4px;color:#7d8590">Columnas leídas en MANTTO: <span style="color:#e6edf3">${mtHdr.join(' · ')||'(ninguna)'}</span></div>
+    ${homeVals.length?`<div style="margin-top:4px;color:#7d8590">Valores de HOME LOCATION: <span style="color:#e6edf3">${homeVals.map(([k,c])=>k+' ('+c+')').join(' · ')}</span></div>`:''}
+    <div style="margin-top:10px;color:#8b949e;font-size:11.5px">
+      • Si una pestaña dice <b style="color:#f85149">0 filas</b>: el gid es incorrecto o el documento no está publicado como “Todo el documento” (Archivo → Compartir → Publicar en la web).<br>
+      • Si <b>MAQUINAS</b> trae filas pero las “de serigrafía” dan 0: el valor que identifica al área en HOME LOCATION no contiene “${SERI_HOME_MATCH}”. Mira arriba qué valores hay y ajusto el filtro.<br>
+      • Si las columnas no son las que esperabas, el gid de esa pestaña está cambiado de orden.
+    </div>
+  </div>`;
+}
+
 async function renderSerigrafia(){
-  const cfg=$('seri-config'),body=$('seri-body');
-  if(!SERI_GIDS.maquinas||!SERI_GIDS.mantto){cfg.style.display='block';body.style.display='none';$('seri-sub').textContent='Configura los enlaces de tus hojas para activar el panel.';return;}
+  const cfg=$('seri-config'),body=$('seri-body'),diag=$('seri-diag');
+  if(!SERI_GIDS.maquinas||!SERI_GIDS.mantto){cfg.style.display='block';diag.style.display='none';body.style.display='none';$('seri-sub').textContent='Configura los enlaces de tus hojas para activar el panel.';return;}
+  cfg.style.display='none';
   if(!seriData.maquinas.length)$('seri-sub').textContent='Cargando datos de serigrafía…';
   const cb=u=>u+'&_t='+Date.now();   /* evita caché del navegador/proxy */
   const [maquinas,frec,mantto]=await Promise.all([
@@ -1612,9 +1639,12 @@ async function renderSerigrafia(){
     fetchCSV(cb(SERI_BASE+SERI_GIDS.mantto))
   ]);
   const maqF=maquinas.filter(r=>scol(r,SC.ubic).toUpperCase().includes(SERI_HOME_MATCH));
+  buildSeriDiag(maquinas,maqF,frec,mantto);
+  const problema=!maqF.length||!mantto.length;
+  diag.style.display=problema?'block':'none';
   if(maqF.length||mantto.length)seriData={maquinas:maqF,frec,mantto};   /* solo sustituye si llegó algo */
-  if(!seriData.maquinas.length){cfg.style.display='block';body.style.display='none';$('seri-sub').textContent='No se encontraron máquinas de serigrafía. Revisa que la hoja MAQUINAS esté publicada y que la columna HOME LOCATION contenga "'+SERI_HOME_MATCH+'".';return;}
-  cfg.style.display='none';body.style.display='block';
+  if(!seriData.maquinas.length){body.style.display='none';$('seri-sub').textContent='No llegaron máquinas de serigrafía — revisa el diagnóstico de abajo.';return;}
+  body.style.display='block';
   _seriRows=computeSeri();
   const upd=new Date().toLocaleString('es-MX',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
   $('seri-sub').textContent=`${_seriRows.length} máquinas · ${seriData.mantto.length} mantenimientos registrados · actualizado ${upd}`;
