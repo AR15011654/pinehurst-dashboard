@@ -59,7 +59,7 @@
 
 <div class="wrap">
   <div class="kpis" id="kpis"></div>
-  <div class="card"><h2>Fallas por línea</h2><div id="chartBox"><canvas id="chart"></canvas></div></div>
+  <div class="card"><h2>Fallas por línea y día de la semana</h2><div id="chartBox"><canvas id="chart"></canvas></div></div>
   <div class="card"><h2>Matriz: día × línea (mapa de calor)</h2><div class="scroll" id="matrix"></div></div>
 </div>
 
@@ -76,6 +76,24 @@ const FILTER_VAL = ""; // opcional, ej. "Falla"
 
 const norm = s => String(s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
 const guess = (hdrs, kws) => hdrs.find(h => kws.some(k => norm(h).includes(k))) || "";
+
+// Orden y colores de los días de la semana.
+const WEEKDAYS = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+const WD_COLORS = {Lun:"#f5a524",Mar:"#fbbf24",Mié:"#34d399",Jue:"#60a5fa",Vie:"#a78bfa",Sáb:"#f472b6",Dom:"#ef4444"};
+const WD_FULL = {Lun:"Lunes",Mar:"Martes",Mié:"Miércoles",Jue:"Jueves",Vie:"Viernes",Sáb:"Sábado",Dom:"Domingo"};
+
+// Convierte un texto de fecha en día de la semana (Lun…Dom). Soporta varios formatos.
+function weekdayOf(str){
+  const s = String(str).trim();
+  let dt = null;
+  // dd/mm/yyyy o dd-mm-yyyy
+  let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if(m){ let y=+m[3]; if(y<100) y+=2000; dt=new Date(y,(+m[2])-1,+m[1]); }
+  if(!dt){ const t=new Date(s); if(!isNaN(t)) dt=t; }
+  if(!dt || isNaN(dt)) return null;
+  // getDay(): 0=Dom … 6=Sáb  ->  índice en WEEKDAYS (0=Lun)
+  return WEEKDAYS[(dt.getDay()+6)%7];
+}
 let chart = null;
 let hasGoodData = false;
 
@@ -137,6 +155,8 @@ async function load(){
 
 function render(rows){
   const matrix = {}, lineSet = new Set(), dateSet = new Set();
+  const byLineWd = {}; // linea -> {Lun:n, Mar:n, ...}
+  const wdPresent = new Set();
   for(const r of rows){
     const d = String(r[DATE_COL]||"").trim();
     const l = String(r[LINE_COL]||"").trim();
@@ -144,6 +164,10 @@ function render(rows){
     dateSet.add(d); lineSet.add(l);
     (matrix[d] = matrix[d] || {});
     matrix[d][l] = (matrix[d][l]||0) + 1;
+    const wd = weekdayOf(d) || "S/F";
+    wdPresent.add(wd);
+    (byLineWd[l] = byLineWd[l] || {});
+    byLineWd[l][wd] = (byLineWd[l][wd]||0) + 1;
   }
   const dates = [...dateSet].sort();
   const lines = [...lineSet].sort();
@@ -167,17 +191,33 @@ function render(rows){
     kpi("Día más afectado", worstDay||"—", worstDay?dateTotals[worstDay]+" fallas":"", "var(--red)", true) +
     kpi("Líneas monitoreadas", lines.length, "", "var(--green)");
 
-  // Gráfico
+  // Gráfico: barras HORIZONTALES, líneas en eje vertical, ocurrencias en horizontal,
+  // desglosadas y apiladas por DÍA DE LA SEMANA (leyenda arriba).
+  const usedDays = WEEKDAYS.filter(w => wdPresent.has(w));
+  if(wdPresent.has("S/F")) usedDays.push("S/F");
+  const datasets = usedDays.map(w => ({
+    label: WD_FULL[w] || "Sin fecha",
+    data: lines.map(l => byLineWd[l]?.[w] || 0),
+    backgroundColor: WD_COLORS[w] || "#8b91a0",
+    borderRadius: 3,
+    borderWidth: 0,
+  }));
   const ctx = document.getElementById("chart");
-  const colors = lines.map(l => l===worstLine ? "#ef4444" : "#f5a524");
+  // Altura proporcional al número de líneas para barras horizontales legibles.
+  document.getElementById("chartBox").style.height = Math.max(220, lines.length * 42 + 70) + "px";
   if(chart) chart.destroy();
   chart = new Chart(ctx, {
     type:"bar",
-    data:{ labels:lines, datasets:[{ data:lines.map(l=>lineTotals[l]), backgroundColor:colors, borderRadius:4 }]},
-    options:{ responsive:true, maintainAspectRatio:false,
-      plugins:{legend:{display:false}},
-      scales:{ x:{ticks:{color:"#8b91a0"},grid:{display:false}},
-               y:{ticks:{color:"#8b91a0",precision:0},grid:{color:"#2a2f3a"}}}}
+    data:{ labels:lines, datasets },
+    options:{ indexAxis:"y", responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ position:"top", labels:{ color:"#e7e9ee", boxWidth:14, font:{size:11} } },
+        tooltip:{ mode:"index" } },
+      scales:{
+        x:{ stacked:true, beginAtZero:true, ticks:{color:"#8b91a0",precision:0},
+            grid:{color:"#2a2f3a"}, title:{display:true,text:"Ocurrencias",color:"#8b91a0",font:{size:11}} },
+        y:{ stacked:true, ticks:{color:"#e7e9ee"}, grid:{display:false},
+            title:{display:true,text:"Línea",color:"#8b91a0",font:{size:11}} }
+      }}
   });
 
   // Matriz
