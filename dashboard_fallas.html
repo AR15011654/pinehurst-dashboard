@@ -37,6 +37,22 @@
   th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:center}
   th{color:var(--dim);font-weight:600;position:sticky;top:0;background:var(--panel)}
   .scroll{overflow-x:auto}
+  /* Matriz profesional */
+  .matx{border-collapse:separate;border-spacing:0;width:100%;font-size:12.5px;
+    border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .matx thead th{background:linear-gradient(180deg,#252b38,#1b1f29);color:#cfd3dc;
+    font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.6px;font-size:11px;
+    font-weight:600;padding:12px 14px;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}
+  .matx thead th:first-child{text-align:left}
+  .matx tbody td{padding:11px 14px;text-align:center;border-bottom:1px solid var(--line);
+    font-variant-numeric:tabular-nums;transition:filter .15s}
+  .matx tbody tr:last-child td{border-bottom:none}
+  .matx .lcol{text-align:left;font-weight:600;color:var(--text);
+    position:sticky;left:0;background:var(--panel);border-right:1px solid var(--line)}
+  .matx .tot{font-weight:700;color:var(--amber);background:rgba(245,165,36,.07)}
+  .matx tbody tr:hover td{filter:brightness(1.15)}
+  .matx .totalrow td{background:#13161d;font-weight:700;color:var(--amber);border-top:1px solid var(--line)}
+  .matx .totalrow .lcol{background:#13161d}
   .err{color:var(--red)}
   #chartBox{height:260px}
 </style>
@@ -201,20 +217,20 @@ function render(rows){
   const wdMax = Math.max(1, ...lines.flatMap(l => usedDays.map(w => byLineWd[l]?.[w]||0)));
   const hot = v => v ? `rgba(239,68,68,${0.12 + (v/wdMax)*0.78})` : "transparent";
 
-  let wh = "<table><thead><tr><th style='text-align:left'>Línea</th>";
+  let wh = "<table class='matx'><thead><tr><th>Línea</th>";
   usedDays.forEach(w => wh += `<th>${w==="S/F"?"Sin fecha":(WD_FULL[w]||w)}</th>`);
-  wh += "<th style='color:var(--amber)'>Total</th></tr></thead><tbody>";
+  wh += "<th>Total</th></tr></thead><tbody>";
   lines.forEach(l=>{
-    wh += `<tr><td style="text-align:left;font-weight:600">${l}</td>`;
+    wh += `<tr><td class="lcol">${l}</td>`;
     usedDays.forEach(w=>{
       const v = byLineWd[l]?.[w]||0;
       wh += `<td style="background:${hot(v)};font-weight:${v?700:400};color:${v?'#fff':'var(--line)'}">${v||'·'}</td>`;
     });
-    wh += `<td style="font-weight:700;color:var(--amber)">${wdTotalByLine[l]}</td></tr>`;
+    wh += `<td class="tot">${wdTotalByLine[l]}</td></tr>`;
   });
-  wh += `<tr><td style="text-align:left;font-weight:700;color:var(--amber)">Total</td>`;
-  usedDays.forEach(w => wh += `<td style="font-weight:700;color:var(--amber)">${wdColTotal[w]}</td>`);
-  wh += `<td style="font-weight:700;color:var(--amber)">${grand}</td></tr></tbody></table>`;
+  wh += `<tr class="totalrow"><td class="lcol">Total</td>`;
+  usedDays.forEach(w => wh += `<td>${wdColTotal[w]}</td>`);
+  wh += `<td>${grand}</td></tr></tbody></table>`;
   document.getElementById("wdMatrix").innerHTML = grand ? wh :
     "<div style='color:var(--dim);padding:20px;text-align:center'>Sin datos para mostrar.</div>";
 
