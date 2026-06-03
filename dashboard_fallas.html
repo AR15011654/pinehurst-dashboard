@@ -108,6 +108,15 @@ function parseDate(str){
   return isNaN(t) ? null : t;
 }
 
+// Muestra la fecha en formato latino dd/mm/aaaa (la lectura sigue siendo americana).
+function formatLatino(str){
+  const dt = parseDate(str);
+  if(!dt) return str;
+  const dd = String(dt.getDate()).padStart(2,"0");
+  const mm = String(dt.getMonth()+1).padStart(2,"0");
+  return `${dd}/${mm}/${dt.getFullYear()}`;
+}
+
 function weekdayOf(str){
   const dt = parseDate(str);
   if(!dt) return null;
@@ -249,7 +258,7 @@ function render(rows){
   dates.forEach(d=>{
     const wd = weekdayOf(d);
     const wdLabel = wd ? ` · ${WD_FULL[wd]||wd}` : " · Sin fecha";
-    html += `<tr><td style="text-align:left;color:var(--dim);white-space:nowrap">${d}<span style="color:var(--amber)">${wdLabel}</span></td>`;
+    html += `<tr><td style="text-align:left;color:var(--dim);white-space:nowrap">${formatLatino(d)}<span style="color:var(--amber)">${wdLabel}</span></td>`;
     lines.forEach(l=>{
       const v = matrix[d]?.[l]||0;
       html += `<td style="background:${heat(v)};font-weight:${v?600:400};color:${v?'#fff':'var(--line)'}">${v||'·'}</td>`;
