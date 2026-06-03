@@ -423,10 +423,12 @@ footer strong{color:#58a6ff}
 <div class="sec-wrap" id="serigrafia-section" style="display:none">
   <div class="sec-title">SERIGRAFÍA · MANTENIMIENTO PREVENTIVO</div>
   <div class="sec-sub" id="seri-sub"></div>
-  <div id="seri-subtabs" style="display:flex;gap:6px;margin:12px 0 4px">
+  <div id="seri-subtabs" style="display:flex;gap:6px;margin:12px 0 4px;flex-wrap:wrap">
     <button class="seri-subtab active" onclick="seriSubView('tablero',this)">📊 Tablero de MP</button>
+    <button class="seri-subtab" onclick="seriSubView('gantt',this)">📅 Gantt y cumplimiento</button>
     <button class="seri-subtab" onclick="seriSubView('pasos',this)">📋 Pasos de mantenimiento</button>
   </div>
+  <div id="seri-gantt-view" style="display:none"></div>
   <div id="seri-pasos-view" style="display:none">
     <div style="margin-top:10px;border:1px solid #30363d;border-radius:8px;overflow:hidden;background:#fff">
       <iframe id="seri-pasos-frame" title="Pasos de mantenimiento serigrafía" style="width:100%;height:76vh;border:0;background:#fff;display:block" src="about:blank"></iframe>
@@ -1467,7 +1469,7 @@ window.filterArea=filterArea;
 /* ===================== SERIGRAFÍA · MP ===================== */
 const SERI_BASE='https://docs.google.com/spreadsheets/d/e/2PACX-1vQvyJg610AkUuW2nmyhUKthxKwTcdmISAptd-oliRib55e5TXNndz7VyiTyK81O4V0OFF5d_RxrISKT/pub?single=true&output=csv&gid=';
 /* >>> Pega aquí el gid de cada hoja publicada <<< */
-const SERI_GIDS={ maquinas:'73648269', frecuencia:'873861599', mantto:'707561136' };
+const SERI_GIDS={ maquinas:'73648269', frecuencia:'873861599', mantto:'707561136', fechas:'209065361' };
 /* Pestaña "Pasos mantenimiento serigrafia" (instructivo visual) — se incrusta tal cual */
 const SERI_PASOS_GID='1824901786';
 const SERI_PUBHTML='https://docs.google.com/spreadsheets/d/e/2PACX-1vQvyJg610AkUuW2nmyhUKthxKwTcdmISAptd-oliRib55e5TXNndz7VyiTyK81O4V0OFF5d_RxrISKT/pubhtml?single=true&widget=true&headers=false&gid=';
@@ -1487,6 +1489,8 @@ const SC={
   obs:['Observaciones','COMENTARIO','Comentario'],
   frecTxt:['Frecuencia de mantenimiento','FRECUENCIA','Frecuencia'],
   dias:['Días equivalentes','Dias equivalentes','DIAS','Días','Dias'],
+  fechaPlan:['fecha inicio Mantenimiento','Fecha inicio Mantenimiento','Fecha de Mantenimiento','Fecha programada','Fecha'],
+  area:['Area','AREA','Área','ÁREA'],
   id:['MANTENIMIENTOSUBID','ID','Id']
 };
 function scol(r,names){for(const n of names){for(const k in r){if(k.trim().toLowerCase()===n.toLowerCase()){const val=(r[k]||'').toString().trim();if(val)return val;}}}return '';}
@@ -1650,18 +1654,73 @@ function seriSubView(view,btn){
   _seriView=view;
   document.querySelectorAll('.seri-subtab').forEach(b=>b.classList.remove('active'));
   if(btn)btn.classList.add('active');
-  if(view==='pasos'){
-    $('seri-config').style.display='none';$('seri-diag').style.display='none';$('seri-body').style.display='none';
-    $('seri-pasos-view').style.display='block';
-    renderSeriPasos();
-  }else{
-    $('seri-pasos-view').style.display='none';
-    $('seri-config').style.display=_seriDisp.cfg?'block':'none';
-    $('seri-diag').style.display=_seriDisp.diag?'block':'none';
-    $('seri-body').style.display=_seriDisp.body?'block':'none';
-  }
+  const pasos=view==='pasos',gantt=view==='gantt',tablero=view==='tablero';
+  $('seri-pasos-view').style.display=pasos?'block':'none';
+  $('seri-gantt-view').style.display=gantt?'block':'none';
+  $('seri-config').style.display=(tablero&&_seriDisp.cfg)?'block':'none';
+  $('seri-diag').style.display=(tablero&&_seriDisp.diag)?'block':'none';
+  $('seri-body').style.display=(tablero&&_seriDisp.body)?'block':'none';
+  if(pasos)renderSeriPasos();
+  if(gantt)renderSeriGantt();
 }
 function renderSeriPasos(){const f=$('seri-pasos-frame');if(f&&(!f.src||f.src==='about:blank'||!f.src.includes('gid=')))f.src=SERI_PUBHTML+SERI_PASOS_GID;}
+
+function seriGanttData(){
+  const today=new Date();today.setHours(0,0,0,0);
+  const plan=(seriData.fechas||[]).map(r=>({
+    serie:scol(r,SC.serie),tipo:scol(r,SC.tipo)||scol(r,SC.frecTxt),area:scol(r,SC.area),fp:parseFechaSeri(scol(r,SC.fechaPlan))
+  })).filter(p=>p.serie&&p.fp&&(!p.area||p.area.toUpperCase().includes(SERI_HOME_MATCH)));
+  return plan.map(p=>{
+    const recs=(seriData.mantto||[]).filter(x=>scol(x,SC.serie)===p.serie).map(x=>parseFechaSeri(scol(x,SC.fecMP))).filter(Boolean);
+    const exec=recs.filter(d=>d>=p.fp).sort((a,b)=>a-b)[0]||null;   /* primer mantenimiento en/después del plan */
+    let estado,color;
+    if(exec){estado='Ejecutado';color='#3fb950';}
+    else if(p.fp<today){estado='Atrasado';color='#f85149';}
+    else{estado='Programado';color='#58a6ff';}
+    return {...p,exec,estado,color};
+  });
+}
+function renderSeriGantt(){
+  const host=$('seri-gantt-view');if(!host)return;
+  const rows=seriGanttData();
+  if(!rows.length){host.innerHTML='<div style="color:#7d8590;padding:18px;background:#161b22;border:1px solid #30363d;border-radius:8px;margin-top:10px">No hay fechas de mantenimiento programadas. Revisa que la pestaña “Fechas de Mantenimiento” esté publicada y tenga las columnas Serie y “fecha inicio Mantenimiento”.</div>';return;}
+  const today=new Date();today.setHours(0,0,0,0);
+  let dates=[today];rows.forEach(r=>{dates.push(r.fp);if(r.exec)dates.push(r.exec);});
+  let min=new Date(Math.min(...dates)),max=new Date(Math.max(...dates));
+  min.setDate(min.getDate()-3);max.setDate(max.getDate()+5);
+  const span=Math.max(1,max-min),pos=d=>(d-min)/span*100;
+  const tot=rows.length,ejec=rows.filter(r=>r.estado==='Ejecutado').length,atr=rows.filter(r=>r.estado==='Atrasado').length,prog=rows.filter(r=>r.estado==='Programado').length;
+  const cum=tot?Math.round(ejec/tot*100):0;
+  let months=[],m=new Date(min.getFullYear(),min.getMonth(),1);
+  while(m<=max){months.push(new Date(m));m.setMonth(m.getMonth()+1);}
+  const grid=months.map(mo=>`<div style="position:absolute;left:${pos(mo)}%;top:0;bottom:0;border-left:1px solid #21262d"><span style="position:absolute;top:-18px;left:3px;font-size:9px;color:#7d8590;white-space:nowrap">${mo.toLocaleDateString('es-MX',{month:'short',year:'2-digit'})}</span></div>`).join('');
+  const todayLine=`<div style="position:absolute;left:${pos(today)}%;top:-18px;bottom:0;border-left:2px dashed #d29922;z-index:2"><span style="position:absolute;top:-2px;left:4px;font-size:9px;color:#d29922;font-weight:700">HOY</span></div>`;
+  const rowsHTML=[...rows].sort((a,b)=>a.fp-b.fp).map(r=>{
+    let bar;
+    if(r.estado==='Ejecutado'){const l=pos(r.fp),w=Math.max(1.2,pos(r.exec)-pos(r.fp));bar=`<div title="Plan ${fmtDSeri(r.fp)} → Ejecutado ${fmtDSeri(r.exec)}" style="position:absolute;left:${l}%;width:${w}%;top:5px;height:14px;background:${r.color};border-radius:3px"></div><div style="position:absolute;left:${pos(r.exec)}%;top:3px;font-size:10px;color:#3fb950;transform:translateX(3px)">✓</div>`;}
+    else if(r.estado==='Atrasado'){const l=pos(r.fp),w=Math.max(1.2,pos(today)-pos(r.fp));bar=`<div title="Atrasado · plan ${fmtDSeri(r.fp)}" style="position:absolute;left:${l}%;width:${w}%;top:5px;height:14px;background:${r.color};border-radius:3px;opacity:.9;background-image:repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(0,0,0,.18) 4px,rgba(0,0,0,.18) 8px)"></div>`;}
+    else{bar=`<div title="Programado ${fmtDSeri(r.fp)}" style="position:absolute;left:${pos(r.fp)}%;width:10px;top:5px;height:14px;background:${r.color};border-radius:3px"></div>`;}
+    return `<div style="display:flex;align-items:center;border-top:1px solid #161b22">
+      <div style="width:185px;flex:0 0 185px;padding:4px 8px;font-size:11px;color:#e6edf3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${r.serie} · ${r.tipo}">${r.serie}<span style="color:#7d8590"> · ${r.tipo}</span></div>
+      <div style="position:relative;flex:1;height:24px">${bar}</div></div>`;
+  }).join('');
+  host.innerHTML=`
+    <div style="display:flex;flex-wrap:wrap;gap:12px;margin:14px 0">
+      ${seriKpi('Programados',tot,'#0067B8')}${seriKpi('Ejecutados',ejec,'#3fb950')}${seriKpi('Atrasados',atr,'#f85149')}${seriKpi('Por ejecutar',prog,'#58a6ff')}${seriKpi('% Cumplimiento',cum+'%','#d29922')}
+    </div>
+    <div style="display:flex;gap:18px;font-size:11px;color:#7d8590;margin:4px 0 8px">
+      <span><span style="display:inline-block;width:11px;height:11px;background:#3fb950;border-radius:2px;vertical-align:-1px"></span> Ejecutado</span>
+      <span><span style="display:inline-block;width:11px;height:11px;background:#f85149;border-radius:2px;vertical-align:-1px"></span> Atrasado</span>
+      <span><span style="display:inline-block;width:11px;height:11px;background:#58a6ff;border-radius:2px;vertical-align:-1px"></span> Programado</span>
+      <span style="margin-left:auto"><button onclick="downloadSeriCSV()" style="background:#0067B8;color:#fff;border:0;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer">⬇ Descargar registros</button></span>
+    </div>
+    <div style="border:1px solid #30363d;border-radius:8px;padding:26px 12px 8px;overflow:auto;max-height:62vh;position:relative">
+      <div style="position:relative;min-width:680px">
+        <div style="position:absolute;left:185px;right:0;top:0;bottom:0">${grid}${todayLine}</div>
+        <div style="position:relative">${rowsHTML}</div>
+      </div>
+    </div>`;
+}
 
 function downloadSeriCSV(){
   const {rows}=getSeriFiltered();
@@ -1686,15 +1745,16 @@ async function renderSerigrafia(){
   if(!SERI_GIDS.maquinas||!SERI_GIDS.mantto){showSeri(true,false,false);$('seri-sub').textContent='Configura los enlaces de tus hojas para activar el panel.';return;}
   if(!seriData.maquinas.length)$('seri-sub').textContent='Cargando datos de serigrafía…';
   const cb=u=>u+'&_t='+Date.now();   /* evita caché del navegador/proxy */
-  const [maquinas,frec,mantto]=await Promise.all([
+  const [maquinas,frec,mantto,fechas]=await Promise.all([
     fetchCSV(cb(SERI_BASE+SERI_GIDS.maquinas)),
     SERI_GIDS.frecuencia?fetchCSV(cb(SERI_BASE+SERI_GIDS.frecuencia)):Promise.resolve([]),
-    fetchCSV(cb(SERI_BASE+SERI_GIDS.mantto))
+    fetchCSV(cb(SERI_BASE+SERI_GIDS.mantto)),
+    SERI_GIDS.fechas?fetchCSV(cb(SERI_BASE+SERI_GIDS.fechas)):Promise.resolve([])
   ]);
   const maqF=maquinas.filter(r=>scol(r,SC.ubic).toUpperCase().includes(SERI_HOME_MATCH));
   buildSeriDiag(maquinas,maqF,frec,mantto);
   const problema=!maqF.length||!mantto.length;
-  if(maqF.length||mantto.length)seriData={maquinas:maqF,frec,mantto};   /* solo sustituye si llegó algo */
+  if(maqF.length||mantto.length)seriData={maquinas:maqF,frec,mantto,fechas};   /* solo sustituye si llegó algo */
   if(!seriData.maquinas.length){showSeri(false,true,false);$('seri-sub').textContent='No llegaron máquinas de serigrafía — revisa el diagnóstico de abajo.';return;}
   showSeri(false,problema,true);
   _seriRows=computeSeri();
@@ -1704,6 +1764,7 @@ async function renderSerigrafia(){
   buildSeriFilters(_seriRows);
   Object.keys(keep).forEach(id=>{const el=$(id);if(el)el.value=keep[id];});
   applySeriFilters();
+  if(_seriView==='gantt')renderSeriGantt();
 }
 /* =================== FIN SERIGRAFÍA · MP =================== */
 
