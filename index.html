@@ -76,7 +76,7 @@
 <div class="wrap">
   <div class="kpis" id="kpis"></div>
   <div class="card"><h2>Matriz: línea × día de la semana</h2><div class="scroll" id="wdMatrix"></div></div>
-  <div class="card"><h2>Pareto: total de eventos por día</h2><div id="paretoBox" style="height:340px"><canvas id="pareto"></canvas></div></div>
+  <div class="card"><h2>Eventos por día de la semana</h2><div id="paretoBox" style="height:360px"><canvas id="pareto"></canvas></div></div>
 </div>
 
 <script>
@@ -258,39 +258,47 @@ function render(rows){
   document.getElementById("wdMatrix").innerHTML = grand ? wh :
     "<div style='color:var(--dim);padding:20px;text-align:center'>Sin datos para mostrar.</div>";
 
-  // Pareto: total de eventos por día, ordenado de mayor a menor + % acumulado.
-  const paretoDays = [...dates].sort((a,b)=> (dateTotals[b]-dateTotals[a]) || ((parseDate(a)||0)-(parseDate(b)||0)));
-  const labels = paretoDays.map(d=>{
-    const wd = weekdayOf(d);
-    return wd ? `${formatLatino(d)} (${(WD_FULL[wd]||wd).slice(0,3)})` : formatLatino(d);
-  });
-  const totals = paretoDays.map(d=>dateTotals[d]);
-  let acc = 0;
-  const cumPct = totals.map(v => { acc += v; return grand ? +(acc/grand*100).toFixed(1) : 0; });
+  // Gráfica de columnas: total de eventos por DÍA DE LA SEMANA, con el valor encima.
+  const chartDays = WEEKDAYS.filter(w => wdPresent.has(w));
+  if(wdPresent.has("S/F")) chartDays.push("S/F");
+  const dayLabels = chartDays.map(w => w==="S/F" ? "Sin fecha" : (WD_FULL[w]||w));
+  const dayVals = chartDays.map(w => wdColTotal[w]||0);
+  const maxVal = Math.max(...dayVals, 0);
+
+  // Plugin para dibujar el número encima de cada columna.
+  const valueLabels = {
+    id:"valueLabels",
+    afterDatasetsDraw(c){
+      const {ctx} = c;
+      const meta = c.getDatasetMeta(0);
+      ctx.save();
+      ctx.fillStyle = "#e7e9ee";
+      ctx.font = "600 14px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "center";
+      meta.data.forEach((bar,i)=>{
+        const v = dayVals[i];
+        if(v!=null) ctx.fillText(v, bar.x, bar.y - 8);
+      });
+      ctx.restore();
+    }
+  };
 
   const pctx = document.getElementById("pareto");
   if(chart) chart.destroy();
   chart = new Chart(pctx, {
-    data:{
-      labels,
-      datasets:[
-        { type:"bar", label:"Eventos", data:totals, yAxisID:"y", order:2,
-          backgroundColor: totals.map((_,i)=> i===0 ? "#ef4444" : "#f5a524"), borderRadius:4 },
-        { type:"line", label:"% acumulado", data:cumPct, yAxisID:"y1", order:1,
-          borderColor:"#60a5fa", backgroundColor:"#60a5fa", borderWidth:2,
-          pointRadius:4, pointBackgroundColor:"#60a5fa", tension:0.25 }
-      ]
-    },
+    type:"bar",
+    data:{ labels:dayLabels, datasets:[{
+      data:dayVals,
+      backgroundColor: dayVals.map(v => v===maxVal && maxVal>0 ? "#ef4444" : "#f5a524"),
+      borderRadius:4, maxBarThickness:90 }]},
     options:{ responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ position:"top", labels:{ color:"#e7e9ee", boxWidth:14, font:{size:11} } },
-        tooltip:{ callbacks:{ label:(c)=> c.dataset.yAxisID==="y1" ? `% acumulado: ${c.parsed.y}%` : `Eventos: ${c.parsed.y}` } } },
+      layout:{ padding:{ top:24 } },
+      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:c=>`${c.parsed.y} eventos` } } },
       scales:{
-        x:{ ticks:{color:"#8b91a0",maxRotation:0,autoSkip:false,font:{size:10}}, grid:{display:false} },
-        y:{ beginAtZero:true, position:"left", ticks:{color:"#f5a524",precision:0},
-            grid:{color:"#2a2f3a"}, title:{display:true,text:"Eventos",color:"#f5a524",font:{size:11}} },
-        y1:{ beginAtZero:true, max:100, position:"right", ticks:{color:"#60a5fa",callback:v=>v+"%"},
-            grid:{drawOnChartArea:false}, title:{display:true,text:"% acumulado",color:"#60a5fa",font:{size:11}} }
-      }}
+        x:{ ticks:{color:"#e7e9ee",font:{size:12}}, grid:{display:false} },
+        y:{ beginAtZero:true, ticks:{color:"#8b91a0",precision:0,stepSize:1}, grid:{color:"#2a2f3a"} }
+      }},
+    plugins:[valueLabels]
   });
 }
 
