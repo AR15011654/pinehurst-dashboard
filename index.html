@@ -76,7 +76,7 @@
 <div class="wrap">
   <div class="kpis" id="kpis"></div>
   <div class="card"><h2>Matriz: línea × día de la semana</h2><div class="scroll" id="wdMatrix"></div></div>
-  <div class="card"><h2>Matriz: día × línea (mapa de calor)</h2><div class="scroll" id="matrix"></div></div>
+  <div class="card"><h2>Pareto: total de eventos por día</h2><div id="paretoBox" style="height:340px"><canvas id="pareto"></canvas></div></div>
 </div>
 
 <script>
@@ -258,25 +258,40 @@ function render(rows){
   document.getElementById("wdMatrix").innerHTML = grand ? wh :
     "<div style='color:var(--dim);padding:20px;text-align:center'>Sin datos para mostrar.</div>";
 
-  // Matriz
-  let html = "<table><thead><tr><th style='text-align:left'>Fecha</th>";
-  lines.forEach(l => html += `<th>${l}</th>`);
-  html += "<th style='color:var(--amber)'>Total</th></tr></thead><tbody>";
-  dates.forEach(d=>{
+  // Pareto: total de eventos por día, ordenado de mayor a menor + % acumulado.
+  const paretoDays = [...dates].sort((a,b)=> (dateTotals[b]-dateTotals[a]) || ((parseDate(a)||0)-(parseDate(b)||0)));
+  const labels = paretoDays.map(d=>{
     const wd = weekdayOf(d);
-    const wdLabel = wd ? ` · ${WD_FULL[wd]||wd}` : " · Sin fecha";
-    html += `<tr><td style="text-align:left;color:var(--dim);white-space:nowrap">${formatLatino(d)}<span style="color:var(--amber)">${wdLabel}</span></td>`;
-    lines.forEach(l=>{
-      const v = matrix[d]?.[l]||0;
-      html += `<td style="background:${heat(v)};font-weight:${v?600:400};color:${v?'#fff':'var(--line)'}">${v||'·'}</td>`;
-    });
-    html += `<td style="font-weight:700;color:var(--amber)">${dateTotals[d]}</td></tr>`;
+    return wd ? `${formatLatino(d)} (${(WD_FULL[wd]||wd).slice(0,3)})` : formatLatino(d);
   });
-  html += `<tr><td style="text-align:left;font-weight:700;color:var(--amber)">Total</td>`;
-  lines.forEach(l => html += `<td style="font-weight:700;color:${l===worstLine?'var(--red)':'var(--amber)'}">${lineTotals[l]}</td>`);
-  html += `<td style="font-weight:700;color:var(--amber)">${grand}</td></tr></tbody></table>`;
-  document.getElementById("matrix").innerHTML = grand ? html :
-    "<div style='color:var(--dim);padding:20px;text-align:center'>Sin datos para mostrar.</div>";
+  const totals = paretoDays.map(d=>dateTotals[d]);
+  let acc = 0;
+  const cumPct = totals.map(v => { acc += v; return grand ? +(acc/grand*100).toFixed(1) : 0; });
+
+  const pctx = document.getElementById("pareto");
+  if(chart) chart.destroy();
+  chart = new Chart(pctx, {
+    data:{
+      labels,
+      datasets:[
+        { type:"bar", label:"Eventos", data:totals, yAxisID:"y", order:2,
+          backgroundColor: totals.map((_,i)=> i===0 ? "#ef4444" : "#f5a524"), borderRadius:4 },
+        { type:"line", label:"% acumulado", data:cumPct, yAxisID:"y1", order:1,
+          borderColor:"#60a5fa", backgroundColor:"#60a5fa", borderWidth:2,
+          pointRadius:4, pointBackgroundColor:"#60a5fa", tension:0.25 }
+      ]
+    },
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ position:"top", labels:{ color:"#e7e9ee", boxWidth:14, font:{size:11} } },
+        tooltip:{ callbacks:{ label:(c)=> c.dataset.yAxisID==="y1" ? `% acumulado: ${c.parsed.y}%` : `Eventos: ${c.parsed.y}` } } },
+      scales:{
+        x:{ ticks:{color:"#8b91a0",maxRotation:0,autoSkip:false,font:{size:10}}, grid:{display:false} },
+        y:{ beginAtZero:true, position:"left", ticks:{color:"#f5a524",precision:0},
+            grid:{color:"#2a2f3a"}, title:{display:true,text:"Eventos",color:"#f5a524",font:{size:11}} },
+        y1:{ beginAtZero:true, max:100, position:"right", ticks:{color:"#60a5fa",callback:v=>v+"%"},
+            grid:{drawOnChartArea:false}, title:{display:true,text:"% acumulado",color:"#60a5fa",font:{size:11}} }
+      }}
+  });
 }
 
 load();
