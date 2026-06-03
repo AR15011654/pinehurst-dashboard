@@ -526,18 +526,30 @@ function filterArea(area,btn){
   else{$('main-section').style.display='block';renderMain(area==='TODAS'?allData:allData.filter(r=>getArea(r)===area))}
 }
 
+let _mainData=null;
 function renderMain(d){
-  const tot=d.length;
-  const areas=new Set(d.map(r=>getArea(r)).filter(a=>a&&a!=='Sin área')).size;
-  const conFinal=d.filter(r=>v(r,'Final Actividad')).length;
-  const pct=n=>tot>0?Math.round(n/tot*100):0;
-  $('kpi-row').innerHTML=`
-    <div class="kpi bl"><div class="kpi-label">Total Registros</div><div class="kpi-val">${tot.toLocaleString()}</div><div class="kpi-sub">mantenimientos en base</div><div class="kpi-bar"><div class="kpi-bar-fill" style="width:100%"></div></div></div>
-    <div class="kpi gr"><div class="kpi-label">Áreas Activas</div><div class="kpi-val">${areas}</div><div class="kpi-sub">en seguimiento</div><div class="kpi-bar"><div class="kpi-bar-fill" style="width:70%"></div></div></div>
-    <div class="kpi or"><div class="kpi-label">Realizados</div><div class="kpi-val">${conFinal.toLocaleString()}</div><div class="kpi-sub">${pct(conFinal)}% completados</div><div class="kpi-bar"><div class="kpi-bar-fill" style="width:${pct(conFinal)}%"></div></div></div>`;
+  _mainData=d;
+  renderMainKPIs(d);
   renderBars('bar-areas',cnt(d,'AREA DUEÑA'));
   renderAreaSummary(d);
   renderAreaGantts(d);
+  /* Si los datos de serigrafía aún no están cargados, tráelos y re-pinta esta vista */
+  if(!(seriData.fechas&&seriData.fechas.length)){
+    ensureSeriData().then(()=>{if(activeArea==='TODAS'&&_mainData){renderMainKPIs(_mainData);renderAreaSummary(_mainData);renderAreaGantts(_mainData);}});
+  }
+}
+function renderMainKPIs(d){
+  const dNS=d.filter(r=>!getArea(r).toUpperCase().includes('SERIGRAF'));   /* serigrafía se toma de sus hojas, no de REGISTRO */
+  const s=seriSummary();
+  let tot=dNS.length, conFinal=dNS.filter(r=>v(r,'Final Actividad')).length;
+  const areaSet=new Set(dNS.map(r=>getArea(r)).filter(a=>a&&a!=='Sin área'));
+  if(s){tot+=s.tot;conFinal+=s.done;areaSet.add('SERIGRAFIA');}
+  const areas=areaSet.size;
+  const pct=n=>tot>0?Math.round(n/tot*100):0;
+  $('kpi-row').innerHTML=`
+    <div class="kpi bl"><div class="kpi-label">Total Registros</div><div class="kpi-val">${tot.toLocaleString()}</div><div class="kpi-sub">mantenimientos en base${s?' (incl. serigrafía)':''}</div><div class="kpi-bar"><div class="kpi-bar-fill" style="width:100%"></div></div></div>
+    <div class="kpi gr"><div class="kpi-label">Áreas Activas</div><div class="kpi-val">${areas}</div><div class="kpi-sub">en seguimiento</div><div class="kpi-bar"><div class="kpi-bar-fill" style="width:70%"></div></div></div>
+    <div class="kpi or"><div class="kpi-label">Realizados</div><div class="kpi-val">${conFinal.toLocaleString()}</div><div class="kpi-sub">${pct(conFinal)}% completados</div><div class="kpi-bar"><div class="kpi-bar-fill" style="width:${pct(conFinal)}%"></div></div></div>`;
 }
 
 const MESES=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
@@ -575,10 +587,13 @@ function renderAreaSummary(d){
   d.forEach(r=>{
     const a=getArea(r);
     if(!a||a==='Sin área')return;
+    if(a.toUpperCase().includes('SERIGRAF'))return;   /* serigrafía se añade desde sus hojas */
     if(!map[a])map[a]={tot:0,done:0};
     map[a].tot++;
     if(v(r,'Final Actividad'))map[a].done++;
   });
+  const _s=seriSummary();
+  if(_s)map['SERIGRAFIA']={tot:_s.tot,done:_s.done};
   const sorted=Object.entries(map).sort((a,b)=>b[1].tot-a[1].tot);
   if(!sorted.length){
     if(lbl)lbl.style.display='none';
@@ -667,7 +682,9 @@ function renderAreaGantts(d){
   }
   // Áreas únicas ordenadas por volumen desc
   const map={};
-  d.forEach(r=>{const a=getArea(r);if(!a||a==='Sin área')return;if(!map[a])map[a]={tot:0,done:0};map[a].tot++;if(v(r,'Final Actividad'))map[a].done++});
+  d.forEach(r=>{const a=getArea(r);if(!a||a==='Sin área')return;if(a.toUpperCase().includes('SERIGRAF'))return;if(!map[a])map[a]={tot:0,done:0};map[a].tot++;if(v(r,'Final Actividad'))map[a].done++});
+  const _s=seriSummary();
+  if(_s)map['SERIGRAFIA']={tot:_s.tot,done:_s.done};
   const areas=Object.entries(map).sort((a,b)=>b[1].tot-a[1].tot).map(([n])=>n);
   if(!areas.length){if(lbl)lbl.style.display='none';if(cont)cont.style.display='none';return}
   lbl.style.display='flex';
@@ -715,6 +732,10 @@ function renderAreaGantts(d){
   // Render cada Gantt con datos filtrados de su área
   areas.forEach(area=>{
     const safeId='ag-'+area.toLowerCase().replace(/[^a-z0-9]/g,'_');
+    if(area.toUpperCase().includes('SERIGRAF')){
+      renderSeriAreaGantt(`${safeId}-head`,`${safeId}-body`,AREA_COLOR_MAP['SERIGRAFIA']);
+      return;
+    }
     const areaData=d.filter(r=>getArea(r)===area);
     const col=AREA_COLOR_MAP[area.toUpperCase()]||'#e6edf3';
     // Costura: restringir grupos a SEWING / STEAM / HEAT (excluye datos mal clasificados)
@@ -1665,6 +1686,60 @@ function seriSubView(view,btn){
 }
 function renderSeriPasos(){const f=$('seri-pasos-frame');if(f&&(!f.src||f.src==='about:blank'||!f.src.includes('gid=')))f.src=SERI_PUBHTML+SERI_PASOS_GID;}
 
+function seriSummary(){
+  if(!(seriData.fechas&&seriData.fechas.length))return null;
+  const rows=seriGanttData();
+  if(!rows.length)return null;
+  const tot=rows.length,done=rows.filter(r=>r.estado==='Ejecutado').length;
+  return {tot,done,pend:tot-done,pct:tot?Math.round(done/tot*100):0,rows};
+}
+async function loadSeriData(){
+  if(!SERI_GIDS.maquinas)return seriData;
+  const cb=u=>u+'&_t='+Date.now();
+  const [maquinas,frec,mantto,fechas]=await Promise.all([
+    fetchCSV(cb(SERI_BASE+SERI_GIDS.maquinas)),
+    SERI_GIDS.frecuencia?fetchCSV(cb(SERI_BASE+SERI_GIDS.frecuencia)):Promise.resolve([]),
+    fetchCSV(cb(SERI_BASE+SERI_GIDS.mantto)),
+    SERI_GIDS.fechas?fetchCSV(cb(SERI_BASE+SERI_GIDS.fechas)):Promise.resolve([])
+  ]);
+  const maqF=maquinas.filter(r=>scol(r,SC.ubic).toUpperCase().includes(SERI_HOME_MATCH));
+  if(maqF.length||mantto.length||fechas.length)seriData={maquinas:maqF,frec,mantto,fechas};
+  return seriData;
+}
+async function ensureSeriData(){
+  if((seriData.maquinas&&seriData.maquinas.length)||(seriData.fechas&&seriData.fechas.length))return seriData;
+  return await loadSeriData();
+}
+function renderSeriAreaGantt(headId,bodyId,accent){
+  const MESES_SHOW=['FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'],MESES_IDX=[2,3,4,5,6,7,8,9,10,11,12];
+  const mesActual=new Date().getMonth()+1;
+  const plan=seriGanttData();
+  let grupos=[...new Set(plan.map(p=>p.tipo).filter(Boolean))].sort();
+  if(!grupos.length){$(headId).innerHTML='';$(bodyId).innerHTML='<tr><td colspan="12" style="padding:18px;color:#7d8590;font-size:.72rem;text-align:center;background:#161b22">Sin fechas de mantenimiento programadas</td></tr>';return;}
+  const meta={},real={},tot={};
+  grupos.forEach(g=>{meta[g]={};real[g]={};tot[g]=0;MESES_IDX.forEach(m=>{meta[g][m]=0;real[g][m]=0});});
+  plan.forEach(p=>{
+    if(!p.tipo||!meta[p.tipo])return;tot[p.tipo]++;
+    if(p.fp&&p.fp.getFullYear()===2026){const m=p.fp.getMonth()+1;if(m>=2&&m<=12)meta[p.tipo][m]++;}
+    if(p.exec&&p.exec.getFullYear()===2026){const m=p.exec.getMonth()+1;if(m>=2&&m<=12)real[p.tipo][m]++;}
+  });
+  $(headId).innerHTML=`<tr>
+    <th style="padding:8px 12px;font-size:.62rem;text-transform:uppercase;color:#7d8590;text-align:left;border-bottom:2px solid #30363d;min-width:160px;background:#0d1117;position:sticky;left:0">Tipo de Máquina</th>
+    ${MESES_SHOW.map(m=>`<th style="padding:8px 6px;font-size:.62rem;text-transform:uppercase;color:#7d8590;text-align:center;border-bottom:2px solid #30363d;background:#0d1117;">${m}</th>`).join('')}
+  </tr>`;
+  $(bodyId).innerHTML=grupos.map(g=>{
+    const totG=tot[g]||0,realTot=MESES_IDX.reduce((s,m)=>s+real[g][m],0),pend=Math.max(0,totG-realTot),pctG=totG?Math.round(realTot/totG*100):0;
+    const label=g.length>22?g.slice(0,22)+'…':g;
+    const cells=MESES_IDX.map(mi=>{
+      const esFut=mi>mesActual,r=real[g][mi]||0,me=meta[g][mi]||0;let bg,color,txt;
+      if(esFut){if(me>0){bg='rgba(125,133,144,.08)';color='#7d8590';txt=`<span style="font-size:.65rem;font-weight:700">${me}</span>`;}else{bg='rgba(125,133,144,.06)';color='#484f58';txt='—';}}
+      else if(me===0&&r===0){bg='rgba(125,133,144,.06)';color='#484f58';txt='—';}
+      else{const pct=me>0?Math.round(r/me*100):(r>0?100:0);if(pct>=100){bg='rgba(63,185,80,.2)';color='#3fb950';}else if(pct>=50){bg='rgba(210,153,34,.18)';color='#d29922';}else{bg='rgba(248,81,73,.15)';color='#f85149';}txt=`${r}<br><span style="font-size:.56rem">${pct}%</span>`;}
+      return `<td style="padding:4px;border-top:1px solid #21262d;text-align:center;"><div style="height:36px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;background:${bg};color:${color};line-height:1.2;">${txt}</div></td>`;
+    }).join('');
+    return `<tr><td style="padding:8px 12px;border-top:1px solid #21262d;background:#161b22;position:sticky;left:0"><div style="font-weight:700;font-size:.76rem;color:${accent||'#e6edf3'}" title="${g}">${label}</div><div style="font-size:.6rem;color:#484f58;margin-top:1px">total: ${totG} · ejec: ${realTot} (${pctG}%) · pend: ${pend}</div></td>${cells}</tr>`;
+  }).join('');
+}
 function seriGanttData(){
   const today=new Date();today.setHours(0,0,0,0);
   const plan=(seriData.fechas||[]).map(r=>({
