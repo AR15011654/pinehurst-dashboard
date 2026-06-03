@@ -77,6 +77,7 @@ const FILTER_VAL = ""; // opcional, ej. "Falla"
 const norm = s => String(s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
 const guess = (hdrs, kws) => hdrs.find(h => kws.some(k => norm(h).includes(k))) || "";
 let chart = null;
+let hasGoodData = false;
 
 function setStatus(state, msg){
   const dot = document.getElementById("dot");
@@ -93,6 +94,12 @@ async function load(){
     const res = await fetch(CSV_URL, {cache:"no-store"});
     if(!res.ok) throw new Error("HTTP "+res.status);
     const text = await res.text();
+
+    // Validar que sea CSV real y no una página de error/redirección de Google.
+    if(/^\s*</.test(text) || /<html/i.test(text.slice(0,200))){
+      throw new Error("Respuesta no válida (la hoja respondió HTML). Reintentando…");
+    }
+
     const parsed = Papa.parse(text, {header:true, skipEmptyLines:true});
     const headers = parsed.meta.fields || [];
     let rows = parsed.data.filter(r => Object.values(r).some(v => v!==""));
@@ -100,19 +107,31 @@ async function load(){
     if(!DATE_COL) DATE_COL = guess(headers, ["fecha","dia","date","day"]);
     if(!LINE_COL) LINE_COL = guess(headers, ["linea","line","celda","estacion"]);
 
-    if(!DATE_COL || !LINE_COL){
-      setStatus("error", "No identifiqué las columnas. Encabezados: " + headers.join(", "));
+    if(!DATE_COL || !LINE_COL || !headers.includes(DATE_COL) || !headers.includes(LINE_COL)){
+      // No tocar lo que ya está pintado; solo avisar.
+      if(!hasGoodData) setStatus("error", "No identifiqué las columnas. Encabezados: " + headers.join(", "));
+      else setStatus("ok");
       return;
     }
     if(FILTER_COL && FILTER_VAL){
       rows = rows.filter(r => norm(r[FILTER_COL]||"").trim() === norm(FILTER_VAL).trim());
     }
-    render(rows);
+
+    // Si esta lectura viene vacía pero ya teníamos datos buenos, NO borrar la pantalla.
+    const usable = rows.filter(r => String(r[DATE_COL]||"").trim() && String(r[LINE_COL]||"").trim());
+    if(usable.length === 0 && hasGoodData){
+      setStatus("ok");
+      return;
+    }
+
+    render(usable);
+    if(usable.length > 0) hasGoodData = true;
     setStatus("ok");
     document.getElementById("lastUpd").textContent = "Última actualización: " + new Date().toLocaleTimeString("es-MX");
     document.getElementById("refreshTxt").textContent = "Auto-refresco cada " + REFRESH_SECONDS + "s";
   }catch(e){
-    setStatus("error", e.message);
+    // En error de red: conservar lo último bueno, solo marcar estado.
+    setStatus(hasGoodData ? "ok" : "error", hasGoodData ? "" : e.message);
   }
 }
 
