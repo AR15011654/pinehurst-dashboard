@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tablero de Fallas · Máquina Mala por Día y Línea</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1d212b; --line:#2a2f3a;
+    --text:#e7e9ee; --dim:#8b91a0; --amber:#f5a524; --red:#ef4444; --green:#22c55e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'IBM Plex Mono',monospace}
+  header{border-bottom:1px solid var(--line);padding:18px 22px;display:flex;align-items:center;
+    justify-content:space-between;background:linear-gradient(180deg,var(--panel),var(--bg))}
+  h1{font-family:'Oswald',sans-serif;font-size:26px;font-weight:700;letter-spacing:1px;
+    text-transform:uppercase;margin:0;line-height:1}
+  .sub{color:var(--dim);font-size:12px;margin-top:4px}
+  .badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--dim);
+    background:var(--panel2);padding:6px 10px;border-radius:6px;border:1px solid var(--line)}
+  .statusbar{padding:10px 22px;font-size:11px;color:var(--dim);display:flex;gap:18px;
+    align-items:center;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .wrap{padding:22px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:22px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+  .kpi .lbl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px}
+  .kpi .val{font-family:'Oswald',sans-serif;font-weight:700;margin-top:6px;line-height:1}
+  .kpi .subv{font-size:11px;color:var(--dim);margin-top:4px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:18px}
+  .card h2{font-family:'Oswald',sans-serif;font-size:14px;text-transform:uppercase;letter-spacing:1px;margin:0 0 14px}
+  table{border-collapse:collapse;width:100%;font-size:12px}
+  th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:center}
+  th{color:var(--dim);font-weight:600;position:sticky;top:0;background:var(--panel)}
+  .scroll{overflow-x:auto}
+  /* Matriz profesional */
+  .matx{border-collapse:separate;border-spacing:0;width:100%;font-size:12.5px;
+    border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .matx thead th{background:linear-gradient(180deg,#252b38,#1b1f29);color:#cfd3dc;
+    font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.6px;font-size:11px;
+    font-weight:600;padding:12px 14px;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}
+  .matx thead th:first-child{text-align:left}
+  .matx tbody td{padding:11px 14px;text-align:center;border-bottom:1px solid var(--line);
+    font-variant-numeric:tabular-nums;transition:filter .15s}
+  .matx tbody tr:last-child td{border-bottom:none}
+  .matx .lcol{text-align:left;font-weight:600;color:var(--text);
+    position:sticky;left:0;background:var(--panel);border-right:1px solid var(--line)}
+  .matx .tot{font-weight:700;color:var(--amber);background:rgba(245,165,36,.07)}
+  .matx tbody tr:hover td{filter:brightness(1.15)}
+  .matx .totalrow td{background:#13161d;font-weight:700;color:var(--amber);border-top:1px solid var(--line)}
+  .matx .totalrow .lcol{background:#13161d}
+  .err{color:var(--red)}
+  #chartBox{height:260px}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Tablero de Fallas</h1>
+    <div class="sub">Conteo de ocurrencias de máquina mala por día y por línea</div>
+  </div>
+  <span class="badge">🔒 Solo lectura · auto-actualizable</span>
+</header>
+
+<div class="statusbar">
+  <span><span id="dot" class="dot" style="background:var(--green)"></span> <span id="statusTxt">Conectando…</span></span>
+  <span id="lastUpd"></span>
+  <span id="refreshTxt"></span>
+  <span id="errTxt" class="err"></span>
+</div>
+
+<div class="wrap">
+  <div class="kpis" id="kpis"></div>
+  <div class="card"><h2>Diagnóstico de fechas (lo que llega vs. cómo se interpreta)</h2><div class="scroll" id="diag"></div></div>
+  <div class="card"><h2>Matriz: línea × día de la semana</h2><div class="scroll" id="wdMatrix"></div></div>
+  <div class="card"><h2>Matriz: día × línea (mapa de calor)</h2><div class="scroll" id="matrix"></div></div>
+</div>
+
+<script>
+// ====== CONFIGURACIÓN ======
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTDfzsKuj9Vn6eBYhkHM89hWBp3CTM4lL7I1Ia1eVweZKGosuBRvzheWMLIWUZTqKD3UxtM1cR5lLOf/pub?output=csv";
+const REFRESH_SECONDS = 60;
+// Si la autodetección falla, fija los nombres aquí (ej. "Fecha", "Linea"):
+let DATE_COL = "";   // se autodetecta
+let LINE_COL = "";   // se autodetecta
+const FILTER_COL = ""; // opcional, ej. "Estatus"
+const FILTER_VAL = ""; // opcional, ej. "Falla"
+// ============================
+
+const norm = s => String(s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+const guess = (hdrs, kws) => hdrs.find(h => kws.some(k => norm(h).includes(k))) || "";
+
+// Orden y colores de los días de la semana.
+const WEEKDAYS = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+const WD_COLORS = {Lun:"#f5a524",Mar:"#fbbf24",Mié:"#34d399",Jue:"#60a5fa",Vie:"#a78bfa",Sáb:"#f472b6",Dom:"#ef4444"};
+const WD_FULL = {Lun:"Lunes",Mar:"Martes",Mié:"Miércoles",Jue:"Jueves",Vie:"Viernes",Sáb:"Sábado",Dom:"Domingo"};
+
+// Convierte un texto de fecha en día de la semana (Lun…Dom). Soporta varios formatos.
+// Convierte texto de fecha (americano m/d/aaaa o ISO) a objeto Date.
+function parseDate(str){
+  let s = String(str).trim();
+  if(!s) return null;
+  // Quitar parte de hora si existe ("03/06/2026 13:24:23" -> "03/06/2026")
+  s = s.split(/[ T]/)[0];
+  // Formato LATINO con barra: d/m/aaaa (acepta también d-m-aaaa)
+  let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if(m){ let y=+m[3]; if(y<100) y+=2000; const d=new Date(y,(+m[2])-1,+m[1]); return isNaN(d)?null:d; }
+  // Formato ISO aaaa-mm-dd (interpretar como fecha local, no UTC)
+  let iso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if(iso){ const d=new Date(+iso[1],(+iso[2])-1,+iso[3]); return isNaN(d)?null:d; }
+  const t = new Date(s);
+  return isNaN(t) ? null : t;
+}
+
+// Muestra la fecha en formato latino dd/mm/aaaa (la lectura sigue siendo americana).
+function formatLatino(str){
+  const dt = parseDate(str);
+  if(!dt) return str;
+  const dd = String(dt.getDate()).padStart(2,"0");
+  const mm = String(dt.getMonth()+1).padStart(2,"0");
+  return `${dd}/${mm}/${dt.getFullYear()}`;
+}
+
+function weekdayOf(str){
+  const dt = parseDate(str);
+  if(!dt) return null;
+  // getDay(): 0=Dom … 6=Sáb  ->  índice en WEEKDAYS (0=Lun)
+  return WEEKDAYS[(dt.getDay()+6)%7];
+}
+let chart = null;
+let hasGoodData = false;
+
+function setStatus(state, msg){
+  const dot = document.getElementById("dot");
+  const txt = document.getElementById("statusTxt");
+  if(state==="error"){ dot.style.background="var(--red)"; txt.textContent="Error de conexión"; }
+  else if(state==="loading"){ dot.style.background="var(--amber)"; txt.textContent="Actualizando…"; }
+  else { dot.style.background="var(--green)"; txt.textContent="En línea"; }
+  document.getElementById("errTxt").textContent = msg || "";
+}
+
+async function load(){
+  setStatus("loading");
+  try{
+    const res = await fetch(CSV_URL, {cache:"no-store"});
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    const text = await res.text();
+
+    // Validar que sea CSV real y no una página de error/redirección de Google.
+    if(/^\s*</.test(text) || /<html/i.test(text.slice(0,200))){
+      throw new Error("Respuesta no válida (la hoja respondió HTML). Reintentando…");
+    }
+
+    const parsed = Papa.parse(text, {header:true, skipEmptyLines:true});
+    const headers = parsed.meta.fields || [];
+    let rows = parsed.data.filter(r => Object.values(r).some(v => v!==""));
+
+    if(!DATE_COL) DATE_COL = guess(headers, ["fecha","dia","date","day"]);
+    if(!LINE_COL) LINE_COL = guess(headers, ["linea","line","celda","estacion"]);
+
+    if(!DATE_COL || !LINE_COL || !headers.includes(DATE_COL) || !headers.includes(LINE_COL)){
+      // No tocar lo que ya está pintado; solo avisar.
+      if(!hasGoodData) setStatus("error", "No identifiqué las columnas. Encabezados: " + headers.join(", "));
+      else setStatus("ok");
+      return;
+    }
+    if(FILTER_COL && FILTER_VAL){
+      rows = rows.filter(r => norm(r[FILTER_COL]||"").trim() === norm(FILTER_VAL).trim());
+    }
+
+    // Si esta lectura viene vacía pero ya teníamos datos buenos, NO borrar la pantalla.
+    const usable = rows.filter(r => String(r[DATE_COL]||"").trim() && String(r[LINE_COL]||"").trim());
+    if(usable.length === 0 && hasGoodData){
+      setStatus("ok");
+      return;
+    }
+
+    render(usable);
+    if(usable.length > 0) hasGoodData = true;
+    setStatus("ok");
+    document.getElementById("lastUpd").textContent = "Última actualización: " + new Date().toLocaleTimeString("es-MX");
+    document.getElementById("refreshTxt").textContent = "Auto-refresco cada " + REFRESH_SECONDS + "s";
+  }catch(e){
+    // En error de red: conservar lo último bueno, solo marcar estado.
+    setStatus(hasGoodData ? "ok" : "error", hasGoodData ? "" : e.message);
+  }
+}
+
+function render(rows){
+  const matrix = {}, lineSet = new Set(), dateSet = new Set();
+  const byLineWd = {}; // linea -> {Lun:n, Mar:n, ...}
+  const wdPresent = new Set();
+  for(const r of rows){
+    const d = String(r[DATE_COL]||"").trim();
+    const l = String(r[LINE_COL]||"").trim();
+    if(!d || !l) continue;
+    dateSet.add(d); lineSet.add(l);
+    (matrix[d] = matrix[d] || {});
+    matrix[d][l] = (matrix[d][l]||0) + 1;
+    const wd = weekdayOf(d) || "S/F";
+    wdPresent.add(wd);
+    (byLineWd[l] = byLineWd[l] || {});
+    byLineWd[l][wd] = (byLineWd[l][wd]||0) + 1;
+  }
+  const dates = [...dateSet].sort((a,b)=>{
+    const da=parseDate(a), db=parseDate(b);
+    if(da&&db) return da-db;
+    return String(a).localeCompare(String(b));
+  });
+  const lines = [...lineSet].sort();
+  const lineTotals = {}, dateTotals = {};
+  lines.forEach(l => lineTotals[l] = dates.reduce((s,d)=>s+(matrix[d]?.[l]||0),0));
+  dates.forEach(d => dateTotals[d] = lines.reduce((s,l)=>s+(matrix[d]?.[l]||0),0));
+  const grand = Object.values(lineTotals).reduce((a,b)=>a+b,0);
+  const worstLine = lines.reduce((a,l)=>lineTotals[l]>(lineTotals[a]||-1)?l:a, lines[0]);
+  const worstDay  = dates.reduce((a,d)=>dateTotals[d]>(dateTotals[a]||-1)?d:a, dates[0]);
+  const maxCell = Math.max(1, ...dates.flatMap(d=>lines.map(l=>matrix[d]?.[l]||0)));
+  const heat = v => v ? `rgba(239,68,68,${0.12 + (v/maxCell)*0.78})` : "transparent";
+
+  // KPIs
+  const kpi = (lbl,val,sub,color,small)=>`<div class="kpi" style="border-left:3px solid ${color}">
+    <div class="lbl">${lbl}</div>
+    <div class="val" style="font-size:${small?22:34}px;color:${color}">${val}</div>
+    ${sub?`<div class="subv">${sub}</div>`:""}</div>`;
+  document.getElementById("kpis").innerHTML =
+    kpi("Total de fallas", grand, "", "var(--amber)") +
+    kpi("Línea más afectada", worstLine||"—", worstLine?lineTotals[worstLine]+" fallas":"", "var(--red)", true) +
+    kpi("Día más afectado", worstDay||"—", worstDay?dateTotals[worstDay]+" fallas":"", "var(--red)", true) +
+    kpi("Líneas monitoreadas", lines.length, "", "var(--green)");
+
+  // Diagnóstico: cada fecha cruda y cómo se interpreta.
+  let dg = "<table class='matx'><thead><tr><th>Texto recibido</th><th>Interpretado como</th><th>Día de la semana</th></tr></thead><tbody>";
+  dates.forEach(d=>{
+    const dt = parseDate(d);
+    const wd = weekdayOf(d);
+    dg += `<tr><td class="lcol" style="font-family:'IBM Plex Mono',monospace">${d}</td>`+
+          `<td>${dt ? dt.getDate()+"/"+(dt.getMonth()+1)+"/"+dt.getFullYear() : "<span style='color:var(--red)'>no reconocida</span>"}</td>`+
+          `<td style="font-weight:700;color:${wd?'var(--green)':'var(--red)'}">${wd?(WD_FULL[wd]||wd):"—"}</td></tr>`;
+  });
+  dg += "</tbody></table>";
+  document.getElementById("diag").innerHTML = dates.length ? dg :
+    "<div style='color:var(--dim);padding:20px;text-align:center'>Sin fechas.</div>";
+
+  // Matriz línea × día de la semana (mapa de calor): líneas en vertical, días arriba.
+  const usedDays = WEEKDAYS.filter(w => wdPresent.has(w));
+  if(wdPresent.has("S/F")) usedDays.push("S/F");
+  const wdTotalByLine = {};
+  lines.forEach(l => wdTotalByLine[l] = usedDays.reduce((s,w)=>s+(byLineWd[l]?.[w]||0),0));
+  const wdColTotal = {};
+  usedDays.forEach(w => wdColTotal[w] = lines.reduce((s,l)=>s+(byLineWd[l]?.[w]||0),0));
+  const wdMax = Math.max(1, ...lines.flatMap(l => usedDays.map(w => byLineWd[l]?.[w]||0)));
+  const hot = v => v ? `rgba(239,68,68,${0.12 + (v/wdMax)*0.78})` : "transparent";
+
+  let wh = "<table class='matx'><thead><tr><th>Línea</th>";
+  usedDays.forEach(w => wh += `<th>${w==="S/F"?"Sin fecha":(WD_FULL[w]||w)}</th>`);
+  wh += "<th>Total</th></tr></thead><tbody>";
+  lines.forEach(l=>{
+    wh += `<tr><td class="lcol">${l}</td>`;
+    usedDays.forEach(w=>{
+      const v = byLineWd[l]?.[w]||0;
+      wh += `<td style="background:${hot(v)};font-weight:${v?700:400};color:${v?'#fff':'var(--line)'}">${v||'·'}</td>`;
+    });
+    wh += `<td class="tot">${wdTotalByLine[l]}</td></tr>`;
+  });
+  wh += `<tr class="totalrow"><td class="lcol">Total</td>`;
+  usedDays.forEach(w => wh += `<td>${wdColTotal[w]}</td>`);
+  wh += `<td>${grand}</td></tr></tbody></table>`;
+  document.getElementById("wdMatrix").innerHTML = grand ? wh :
+    "<div style='color:var(--dim);padding:20px;text-align:center'>Sin datos para mostrar.</div>";
+
+  // Matriz
+  let html = "<table><thead><tr><th style='text-align:left'>Fecha</th>";
+  lines.forEach(l => html += `<th>${l}</th>`);
+  html += "<th style='color:var(--amber)'>Total</th></tr></thead><tbody>";
+  dates.forEach(d=>{
+    const wd = weekdayOf(d);
+    const wdLabel = wd ? ` · ${WD_FULL[wd]||wd}` : " · Sin fecha";
+    html += `<tr><td style="text-align:left;color:var(--dim);white-space:nowrap">${formatLatino(d)}<span style="color:var(--amber)">${wdLabel}</span></td>`;
+    lines.forEach(l=>{
+      const v = matrix[d]?.[l]||0;
+      html += `<td style="background:${heat(v)};font-weight:${v?600:400};color:${v?'#fff':'var(--line)'}">${v||'·'}</td>`;
+    });
+    html += `<td style="font-weight:700;color:var(--amber)">${dateTotals[d]}</td></tr>`;
+  });
+  html += `<tr><td style="text-align:left;font-weight:700;color:var(--amber)">Total</td>`;
+  lines.forEach(l => html += `<td style="font-weight:700;color:${l===worstLine?'var(--red)':'var(--amber)'}">${lineTotals[l]}</td>`);
+  html += `<td style="font-weight:700;color:var(--amber)">${grand}</td></tr></tbody></table>`;
+  document.getElementById("matrix").innerHTML = grand ? html :
+    "<div style='color:var(--dim);padding:20px;text-align:center'>Sin datos para mostrar.</div>";
+}
+
+load();
+setInterval(load, Math.max(15, REFRESH_SECONDS)*1000);
+</script>
+</body>
+</html>
