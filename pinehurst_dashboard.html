@@ -1723,13 +1723,20 @@ function renderSeriGantt(){
 }
 
 function downloadSeriCSV(){
-  const {rows}=getSeriFiltered();
-  if(!rows.length){alert('No hay máquinas para descargar con los filtros actuales.');return;}
-  const headers=['Número de serie','Tipo de máquina','Ubicación','Frecuencia','Último mantenimiento','Próximo mantenimiento','Días restantes','Estado MP','Técnico','# Mantenimientos'];
+  const recs=seriData.mantto||[];
+  if(!recs.length){alert('No hay registros en MANTTO. SERIGRAFIA para descargar.');return;}
+  const headers=Object.keys(recs[0]).filter(Boolean);
+  /* frecuencia por tipo de máquina (días) para calcular el próximo mantenimiento */
+  const fmap={};(seriData.frec||[]).forEach(r=>{const t=scol(r,SC.tipo).toUpperCase();if(t)fmap[t]=parseInt(scol(r,SC.dias))||0;});
   const esc=s=>'"'+(s==null?'':s).toString().replace(/"/g,'""')+'"';
-  const lines=[headers.map(esc).join(',')];
-  [...rows].sort((a,b)=>(a.dias==null?99999:a.dias)-(b.dias==null?99999:b.dias)).forEach(r=>{
-    lines.push([r.serie,r.tipo,r.ubic,r.frec,r.ultimo?fmtDSeri(r.ultimo):'',r.prox?fmtDSeri(r.prox):'',r.dias==null?'':r.dias,r.estado,r.tec,r.nMant].map(esc).join(','));
+  const extra='Próximo mantenimiento (calculado)';
+  const lines=[headers.concat([extra]).map(esc).join(',')];
+  recs.forEach(r=>{
+    const f=parseFechaSeri(scol(r,SC.fecMP));
+    const dias=fmap[(scol(r,SC.tipo)||'').toUpperCase()]||0;
+    let prox='';
+    if(f&&dias>0){const p=new Date(f);p.setDate(p.getDate()+dias);prox=fmtDSeri(p);}
+    lines.push(headers.map(h=>esc(r[h])).concat([esc(prox)]).join(','));
   });
   const csv='\ufeff'+lines.join('\r\n');   /* BOM para acentos en Excel */
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
