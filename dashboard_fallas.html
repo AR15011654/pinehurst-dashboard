@@ -99,14 +99,18 @@ const WD_COLORS = {Lun:"#f5a524",Mar:"#fbbf24",Mié:"#34d399",Jue:"#60a5fa",Vie:
 const WD_FULL = {Lun:"Lunes",Mar:"Martes",Mié:"Miércoles",Jue:"Jueves",Vie:"Viernes",Sáb:"Sábado",Dom:"Domingo"};
 
 // Convierte un texto de fecha en día de la semana (Lun…Dom). Soporta varios formatos.
-function weekdayOf(str){
+// Convierte texto de fecha (americano m/d/aaaa o ISO) a objeto Date.
+function parseDate(str){
   const s = String(str).trim();
-  let dt = null;
-  // Formato AMERICANO: m/d/aaaa (también acepta m-d-aaaa)
   let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
-  if(m){ let y=+m[3]; if(y<100) y+=2000; dt=new Date(y,(+m[1])-1,+m[2]); }
-  if(!dt){ const t=new Date(s); if(!isNaN(t)) dt=t; }
-  if(!dt || isNaN(dt)) return null;
+  if(m){ let y=+m[3]; if(y<100) y+=2000; const d=new Date(y,(+m[1])-1,+m[2]); return isNaN(d)?null:d; }
+  const t = new Date(s);
+  return isNaN(t) ? null : t;
+}
+
+function weekdayOf(str){
+  const dt = parseDate(str);
+  if(!dt) return null;
   // getDay(): 0=Dom … 6=Sáb  ->  índice en WEEKDAYS (0=Lun)
   return WEEKDAYS[(dt.getDay()+6)%7];
 }
@@ -185,7 +189,11 @@ function render(rows){
     (byLineWd[l] = byLineWd[l] || {});
     byLineWd[l][wd] = (byLineWd[l][wd]||0) + 1;
   }
-  const dates = [...dateSet].sort();
+  const dates = [...dateSet].sort((a,b)=>{
+    const da=parseDate(a), db=parseDate(b);
+    if(da&&db) return da-db;
+    return String(a).localeCompare(String(b));
+  });
   const lines = [...lineSet].sort();
   const lineTotals = {}, dateTotals = {};
   lines.forEach(l => lineTotals[l] = dates.reduce((s,d)=>s+(matrix[d]?.[l]||0),0));
