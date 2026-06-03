@@ -1739,6 +1739,17 @@ function renderSeriAreaGantt(headId,bodyId,accent){
     }).join('');
     return `<tr><td style="padding:8px 12px;border-top:1px solid #21262d;background:#161b22;position:sticky;left:0"><div style="font-weight:700;font-size:.76rem;color:${accent||'#e6edf3'}" title="${g}">${label}</div><div style="font-size:.6rem;color:#484f58;margin-top:1px">total: ${totG} · ejec: ${realTot} (${pctG}%) · pend: ${pend}</div></td>${cells}</tr>`;
   }).join('');
+  /* Renglón de TOTAL */
+  const grandProg=grupos.reduce((s,g)=>s+(tot[g]||0),0);
+  const grandReal=grupos.reduce((s,g)=>s+MESES_IDX.reduce((a,m)=>a+(real[g][m]||0),0),0);
+  const grandPct=grandProg?Math.round(grandReal/grandProg*100):0;
+  const totCells=MESES_IDX.map(mi=>{
+    const meMonth=grupos.reduce((s,g)=>s+(meta[g][mi]||0),0);
+    const rMonth=grupos.reduce((s,g)=>s+(real[g][mi]||0),0);
+    const val=mi>mesActual?meMonth:(rMonth||meMonth);
+    return `<td style="padding:4px;border-top:2px solid #30363d;text-align:center"><div style="height:34px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.74rem;font-weight:800;background:rgba(0,103,184,.12);color:#58a6ff">${val||'—'}</div></td>`;
+  }).join('');
+  $(bodyId).innerHTML+=`<tr><td style="padding:8px 12px;border-top:2px solid #30363d;background:#0d1117;position:sticky;left:0"><div style="font-weight:800;font-size:.8rem;color:#e6edf3">TOTAL</div><div style="font-size:.62rem;color:#7d8590;margin-top:1px">${grandProg} programadas · ${grandReal} ejecutadas (${grandPct}%)</div></td>${totCells}</tr>`;
 }
 function seriGanttData(){
   const today=new Date();today.setHours(0,0,0,0);
