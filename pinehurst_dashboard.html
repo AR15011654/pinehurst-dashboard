@@ -1759,42 +1759,28 @@ function renderSeriGantt(){
   const host=$('seri-gantt-view');if(!host)return;
   const rows=seriGanttData();
   if(!rows.length){host.innerHTML='<div style="color:#7d8590;padding:18px;background:#161b22;border:1px solid #30363d;border-radius:8px;margin-top:10px">No hay fechas de mantenimiento programadas. Revisa que la pestaña “Fechas de Mantenimiento” esté publicada y tenga las columnas Serie y “fecha inicio Mantenimiento”.</div>';return;}
-  const today=new Date();today.setHours(0,0,0,0);
-  let dates=[today];rows.forEach(r=>{dates.push(r.fp);if(r.exec)dates.push(r.exec);});
-  let min=new Date(Math.min(...dates)),max=new Date(Math.max(...dates));
-  min.setDate(min.getDate()-3);max.setDate(max.getDate()+5);
-  const span=Math.max(1,max-min),pos=d=>(d-min)/span*100;
   const tot=rows.length,ejec=rows.filter(r=>r.estado==='Ejecutado').length,atr=rows.filter(r=>r.estado==='Atrasado').length,prog=rows.filter(r=>r.estado==='Programado').length;
   const cum=tot?Math.round(ejec/tot*100):0;
-  let months=[],m=new Date(min.getFullYear(),min.getMonth(),1);
-  while(m<=max){months.push(new Date(m));m.setMonth(m.getMonth()+1);}
-  const grid=months.map(mo=>`<div style="position:absolute;left:${pos(mo)}%;top:0;bottom:0;border-left:1px solid #21262d"><span style="position:absolute;top:-18px;left:3px;font-size:9px;color:#7d8590;white-space:nowrap">${mo.toLocaleDateString('es-MX',{month:'short',year:'2-digit'})}</span></div>`).join('');
-  const todayLine=`<div style="position:absolute;left:${pos(today)}%;top:-18px;bottom:0;border-left:2px dashed #d29922;z-index:2"><span style="position:absolute;top:-2px;left:4px;font-size:9px;color:#d29922;font-weight:700">HOY</span></div>`;
-  const rowsHTML=[...rows].sort((a,b)=>a.fp-b.fp).map(r=>{
-    let bar;
-    if(r.estado==='Ejecutado'){const l=pos(r.fp),w=Math.max(1.2,pos(r.exec)-pos(r.fp));bar=`<div title="Plan ${fmtDSeri(r.fp)} → Ejecutado ${fmtDSeri(r.exec)}" style="position:absolute;left:${l}%;width:${w}%;top:5px;height:14px;background:${r.color};border-radius:3px"></div><div style="position:absolute;left:${pos(r.exec)}%;top:3px;font-size:10px;color:#3fb950;transform:translateX(3px)">✓</div>`;}
-    else if(r.estado==='Atrasado'){const l=pos(r.fp),w=Math.max(1.2,pos(today)-pos(r.fp));bar=`<div title="Atrasado · plan ${fmtDSeri(r.fp)}" style="position:absolute;left:${l}%;width:${w}%;top:5px;height:14px;background:${r.color};border-radius:3px;opacity:.9;background-image:repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(0,0,0,.18) 4px,rgba(0,0,0,.18) 8px)"></div>`;}
-    else{bar=`<div title="Programado ${fmtDSeri(r.fp)}" style="position:absolute;left:${pos(r.fp)}%;width:10px;top:5px;height:14px;background:${r.color};border-radius:3px"></div>`;}
-    return `<div style="display:flex;align-items:center;border-top:1px solid #161b22">
-      <div style="width:185px;flex:0 0 185px;padding:4px 8px;font-size:11px;color:#e6edf3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${r.serie} · ${r.tipo}">${r.serie}<span style="color:#7d8590"> · ${r.tipo}</span></div>
-      <div style="position:relative;flex:1;height:24px">${bar}</div></div>`;
-  }).join('');
   host.innerHTML=`
     <div style="display:flex;flex-wrap:wrap;gap:12px;margin:14px 0">
       ${seriKpi('Programados',tot,'#0067B8')}${seriKpi('Ejecutados',ejec,'#3fb950')}${seriKpi('Atrasados',atr,'#f85149')}${seriKpi('Por ejecutar',prog,'#58a6ff')}${seriKpi('% Cumplimiento',cum+'%','#d29922')}
     </div>
-    <div style="display:flex;gap:18px;font-size:11px;color:#7d8590;margin:4px 0 8px">
-      <span><span style="display:inline-block;width:11px;height:11px;background:#3fb950;border-radius:2px;vertical-align:-1px"></span> Ejecutado</span>
-      <span><span style="display:inline-block;width:11px;height:11px;background:#f85149;border-radius:2px;vertical-align:-1px"></span> Atrasado</span>
-      <span><span style="display:inline-block;width:11px;height:11px;background:#58a6ff;border-radius:2px;vertical-align:-1px"></span> Programado</span>
-      <span style="margin-left:auto"><button onclick="downloadSeriGantt()" style="background:#0067B8;color:#fff;border:0;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer">⬇ Descargar registros</button></span>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+      <button onclick="downloadSeriGantt()" style="background:#0067B8;color:#fff;border:0;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer">⬇ Descargar registros</button>
     </div>
-    <div style="border:1px solid #30363d;border-radius:8px;padding:26px 12px 8px;overflow:auto;max-height:62vh;position:relative">
-      <div style="position:relative;min-width:680px">
-        <div style="position:absolute;left:185px;right:0;top:0;bottom:0">${grid}${todayLine}</div>
-        <div style="position:relative">${rowsHTML}</div>
-      </div>
+    <div class="gantt-scroll" style="border:1px solid #30363d;border-radius:8px">
+      <table class="gantt-table" style="min-width:600px">
+        <thead id="seri-gantt-head"></thead>
+        <tbody id="seri-gantt-body"></tbody>
+      </table>
+    </div>
+    <div class="gantt-legend">
+      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(63,185,80,.35)"></div>≥100% meta</div>
+      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(210,153,34,.35)"></div>50–99%</div>
+      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(248,81,73,.35)"></div>&lt;50%</div>
+      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:#161b22;border:1px dashed #30363d"></div>Futuro</div>
     </div>`;
+  renderSeriAreaGantt('seri-gantt-head','seri-gantt-body','#e16e00');
 }
 
 function downloadSeriGantt(){
