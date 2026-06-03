@@ -75,6 +75,7 @@
 
 <div class="wrap">
   <div class="kpis" id="kpis"></div>
+  <div class="card"><h2>Diagnóstico de fechas (lo que llega vs. cómo se interpreta)</h2><div class="scroll" id="diag"></div></div>
   <div class="card"><h2>Matriz: línea × día de la semana</h2><div class="scroll" id="wdMatrix"></div></div>
   <div class="card"><h2>Matriz: día × línea (mapa de calor)</h2><div class="scroll" id="matrix"></div></div>
 </div>
@@ -101,9 +102,16 @@ const WD_FULL = {Lun:"Lunes",Mar:"Martes",Mié:"Miércoles",Jue:"Jueves",Vie:"Vi
 // Convierte un texto de fecha en día de la semana (Lun…Dom). Soporta varios formatos.
 // Convierte texto de fecha (americano m/d/aaaa o ISO) a objeto Date.
 function parseDate(str){
-  const s = String(str).trim();
+  let s = String(str).trim();
+  if(!s) return null;
+  // Quitar parte de hora si existe ("03/06/2026 13:24:23" -> "03/06/2026")
+  s = s.split(/[ T]/)[0];
+  // Formato LATINO con barra: d/m/aaaa (acepta también d-m-aaaa)
   let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
-  if(m){ let y=+m[3]; if(y<100) y+=2000; const d=new Date(y,(+m[1])-1,+m[2]); return isNaN(d)?null:d; }
+  if(m){ let y=+m[3]; if(y<100) y+=2000; const d=new Date(y,(+m[2])-1,+m[1]); return isNaN(d)?null:d; }
+  // Formato ISO aaaa-mm-dd (interpretar como fecha local, no UTC)
+  let iso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if(iso){ const d=new Date(+iso[1],(+iso[2])-1,+iso[3]); return isNaN(d)?null:d; }
   const t = new Date(s);
   return isNaN(t) ? null : t;
 }
@@ -223,6 +231,19 @@ function render(rows){
     kpi("Línea más afectada", worstLine||"—", worstLine?lineTotals[worstLine]+" fallas":"", "var(--red)", true) +
     kpi("Día más afectado", worstDay||"—", worstDay?dateTotals[worstDay]+" fallas":"", "var(--red)", true) +
     kpi("Líneas monitoreadas", lines.length, "", "var(--green)");
+
+  // Diagnóstico: cada fecha cruda y cómo se interpreta.
+  let dg = "<table class='matx'><thead><tr><th>Texto recibido</th><th>Interpretado como</th><th>Día de la semana</th></tr></thead><tbody>";
+  dates.forEach(d=>{
+    const dt = parseDate(d);
+    const wd = weekdayOf(d);
+    dg += `<tr><td class="lcol" style="font-family:'IBM Plex Mono',monospace">${d}</td>`+
+          `<td>${dt ? dt.getDate()+"/"+(dt.getMonth()+1)+"/"+dt.getFullYear() : "<span style='color:var(--red)'>no reconocida</span>"}</td>`+
+          `<td style="font-weight:700;color:${wd?'var(--green)':'var(--red)'}">${wd?(WD_FULL[wd]||wd):"—"}</td></tr>`;
+  });
+  dg += "</tbody></table>";
+  document.getElementById("diag").innerHTML = dates.length ? dg :
+    "<div style='color:var(--dim);padding:20px;text-align:center'>Sin fechas.</div>";
 
   // Matriz línea × día de la semana (mapa de calor): líneas en vertical, días arriba.
   const usedDays = WEEKDAYS.filter(w => wdPresent.has(w));
