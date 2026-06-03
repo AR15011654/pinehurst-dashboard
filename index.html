@@ -248,9 +248,11 @@ function render(rows){
     if(da&&db) return da-db;
     return String(a).localeCompare(String(b));
   });
-  const lines = [...lineSet].sort();
+  const lines = [...lineSet];
   const lineTotals = {}, dateTotals = {};
   lines.forEach(l => lineTotals[l] = dates.reduce((s,d)=>s+(matrix[d]?.[l]||0),0));
+  // Ordenar líneas de mayor a menor por cantidad de eventos (empate -> alfabético).
+  lines.sort((a,b)=> (lineTotals[b]-lineTotals[a]) || a.localeCompare(b));
   dates.forEach(d => dateTotals[d] = lines.reduce((s,l)=>s+(matrix[d]?.[l]||0),0));
   const grand = Object.values(lineTotals).reduce((a,b)=>a+b,0);
   const worstLine = lines.reduce((a,l)=>lineTotals[l]>(lineTotals[a]||-1)?l:a, lines[0]);
