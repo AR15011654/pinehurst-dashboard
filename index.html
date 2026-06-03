@@ -14,29 +14,36 @@
     --text:#e7e9ee; --dim:#8b91a0; --amber:#f5a524; --red:#ef4444; --green:#22c55e;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--text);font-family:'IBM Plex Mono',monospace}
-  header{border-bottom:1px solid var(--line);padding:18px 22px;display:flex;align-items:center;
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'IBM Plex Mono',monospace;
+    height:100vh;overflow:hidden;display:flex;flex-direction:column}
+  header{flex:none;border-bottom:1px solid var(--line);padding:14px 22px;display:flex;align-items:center;
     justify-content:space-between;background:linear-gradient(180deg,var(--panel),var(--bg))}
-  h1{font-family:'Oswald',sans-serif;font-size:26px;font-weight:700;letter-spacing:1px;
+  h1{font-family:'Oswald',sans-serif;font-size:24px;font-weight:700;letter-spacing:1px;
     text-transform:uppercase;margin:0;line-height:1}
   .sub{color:var(--dim);font-size:12px;margin-top:4px}
   .badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--dim);
     background:var(--panel2);padding:6px 10px;border-radius:6px;border:1px solid var(--line)}
-  .statusbar{padding:10px 22px;font-size:11px;color:var(--dim);display:flex;gap:18px;
+  .statusbar{flex:none;padding:8px 22px;font-size:11px;color:var(--dim);display:flex;gap:18px;
     align-items:center;border-bottom:1px solid var(--line);flex-wrap:wrap}
   .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
-  .wrap{padding:22px}
-  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:22px}
-  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+  .wrap{flex:1;min-height:0;padding:16px 22px;display:flex;flex-direction:column;gap:14px}
+  .kpis{flex:none;display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
   .kpi .lbl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px}
-  .kpi .val{font-family:'Oswald',sans-serif;font-weight:700;margin-top:6px;line-height:1}
+  .kpi .val{font-family:'Oswald',sans-serif;font-weight:700;margin-top:4px;line-height:1}
   .kpi .subv{font-size:11px;color:var(--dim);margin-top:4px}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:18px}
-  .card h2{font-family:'Oswald',sans-serif;font-size:14px;text-transform:uppercase;letter-spacing:1px;margin:0 0 14px}
+  .content{flex:1;min-height:0;display:grid;grid-template-columns:1.1fr 1fr;gap:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;
+    display:flex;flex-direction:column;min-height:0}
+  .card h2{flex:none;font-family:'Oswald',sans-serif;font-size:14px;text-transform:uppercase;
+    letter-spacing:1px;margin:0 0 12px}
+  .fill{flex:1;min-height:0;overflow:auto}
+  #paretoBox{flex:1;min-height:0;position:relative}
   table{border-collapse:collapse;width:100%;font-size:12px}
   th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:center}
   th{color:var(--dim);font-weight:600;position:sticky;top:0;background:var(--panel)}
-  .scroll{overflow-x:auto}
+  .scroll{overflow:auto}
   /* Matriz profesional */
   .matx{border-collapse:separate;border-spacing:0;width:100%;font-size:12.5px;
     border:1px solid var(--line);border-radius:12px;overflow:hidden}
@@ -54,37 +61,35 @@
   .matx .totalrow td{background:#13161d;font-weight:700;color:var(--amber);border-top:1px solid var(--line)}
   .matx .totalrow .lcol{background:#13161d}
   .err{color:var(--red)}
-  #chartBox{height:260px}
 
-  /* ===== Modo TV: pantallas grandes (proyección) ===== */
+  /* ===== Escalado en pantallas grandes (manteniendo una sola pantalla) ===== */
   @media (min-width:1500px){
-    .wrap{padding:34px 48px}
-    header{padding:28px 48px}
-    .statusbar{padding:16px 48px;font-size:16px;gap:30px}
-    .dot{width:13px;height:13px}
-    h1{font-size:46px;letter-spacing:1.5px}
-    .sub{font-size:18px;margin-top:8px}
-    .badge{font-size:16px;padding:10px 16px;gap:9px}
-    .kpis{gap:24px;margin-bottom:34px}
-    .kpi{padding:26px 28px;border-left-width:5px!important}
-    .kpi .lbl{font-size:17px;letter-spacing:.8px}
-    .kpi .val{font-size:64px!important;margin-top:10px}
-    .kpi .subv{font-size:17px;margin-top:8px}
-    .card{padding:30px 34px;margin-bottom:30px}
-    .card h2{font-size:24px;letter-spacing:1.4px;margin:0 0 22px}
-    .matx{font-size:22px}
-    .matx thead th{font-size:18px;padding:18px 22px;letter-spacing:.8px}
-    .matx tbody td{padding:18px 22px}
-    #paretoBox{height:520px!important}
+    header{padding:18px 40px}
+    .statusbar{padding:12px 40px;font-size:14px;gap:26px}
+    .dot{width:12px;height:12px}
+    h1{font-size:34px;letter-spacing:1.5px}
+    .sub{font-size:15px}
+    .badge{font-size:14px;padding:8px 14px}
+    .wrap{padding:22px 40px;gap:20px}
+    .kpis{gap:20px}
+    .kpi{padding:18px 22px}
+    .kpi .lbl{font-size:15px}
+    .kpi .val{font-size:48px}
+    .kpi .subv{font-size:15px}
+    .content{gap:20px}
+    .card{padding:22px 26px}
+    .card h2{font-size:20px;margin:0 0 16px}
+    .matx{font-size:18px}
+    .matx thead th{font-size:15px;padding:14px 18px}
+    .matx tbody td{padding:14px 18px}
   }
   @media (min-width:2400px){  /* 4K */
-    h1{font-size:64px}
-    .kpi .val{font-size:92px!important}
-    .matx{font-size:30px}
-    .matx thead th{font-size:24px;padding:24px 28px}
-    .matx tbody td{padding:24px 28px}
-    .card h2{font-size:32px}
-    #paretoBox{height:720px!important}
+    h1{font-size:46px}
+    .kpi .val{font-size:68px}
+    .matx{font-size:24px}
+    .matx thead th{font-size:19px;padding:18px 22px}
+    .matx tbody td{padding:18px 22px}
+    .card h2{font-size:26px}
   }
 </style>
 </head>
@@ -106,8 +111,10 @@
 
 <div class="wrap">
   <div class="kpis" id="kpis"></div>
-  <div class="card"><h2>Matriz: línea × día de la semana</h2><div class="scroll" id="wdMatrix"></div></div>
-  <div class="card"><h2>Eventos por día de la semana</h2><div id="paretoBox" style="height:360px"><canvas id="pareto"></canvas></div></div>
+  <div class="content">
+    <div class="card matcard"><h2>Matriz: línea × día de la semana</h2><div class="scroll fill" id="wdMatrix"></div></div>
+    <div class="card chartcard"><h2>Eventos por día de la semana</h2><div id="paretoBox"><canvas id="pareto"></canvas></div></div>
+  </div>
 </div>
 
 <script>
