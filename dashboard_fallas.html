@@ -59,7 +59,7 @@
 
 <div class="wrap">
   <div class="kpis" id="kpis"></div>
-  <div class="card"><h2>Fallas por línea y día de la semana</h2><div id="chartBox"><canvas id="chart"></canvas></div></div>
+  <div class="card"><h2>Matriz: línea × día de la semana</h2><div class="scroll" id="wdMatrix"></div></div>
   <div class="card"><h2>Matriz: día × línea (mapa de calor)</h2><div class="scroll" id="matrix"></div></div>
 </div>
 
@@ -86,9 +86,9 @@ const WD_FULL = {Lun:"Lunes",Mar:"Martes",Mié:"Miércoles",Jue:"Jueves",Vie:"Vi
 function weekdayOf(str){
   const s = String(str).trim();
   let dt = null;
-  // dd/mm/yyyy o dd-mm-yyyy
+  // Formato AMERICANO: m/d/aaaa (también acepta m-d-aaaa)
   let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
-  if(m){ let y=+m[3]; if(y<100) y+=2000; dt=new Date(y,(+m[2])-1,+m[1]); }
+  if(m){ let y=+m[3]; if(y<100) y+=2000; dt=new Date(y,(+m[1])-1,+m[2]); }
   if(!dt){ const t=new Date(s); if(!isNaN(t)) dt=t; }
   if(!dt || isNaN(dt)) return null;
   // getDay(): 0=Dom … 6=Sáb  ->  índice en WEEKDAYS (0=Lun)
@@ -191,34 +191,32 @@ function render(rows){
     kpi("Día más afectado", worstDay||"—", worstDay?dateTotals[worstDay]+" fallas":"", "var(--red)", true) +
     kpi("Líneas monitoreadas", lines.length, "", "var(--green)");
 
-  // Gráfico: barras HORIZONTALES, líneas en eje vertical, ocurrencias en horizontal,
-  // desglosadas y apiladas por DÍA DE LA SEMANA (leyenda arriba).
+  // Matriz línea × día de la semana (mapa de calor): líneas en vertical, días arriba.
   const usedDays = WEEKDAYS.filter(w => wdPresent.has(w));
   if(wdPresent.has("S/F")) usedDays.push("S/F");
-  const datasets = usedDays.map(w => ({
-    label: WD_FULL[w] || "Sin fecha",
-    data: lines.map(l => byLineWd[l]?.[w] || 0),
-    backgroundColor: WD_COLORS[w] || "#8b91a0",
-    borderRadius: 3,
-    borderWidth: 0,
-  }));
-  const ctx = document.getElementById("chart");
-  // Altura proporcional al número de líneas para barras horizontales legibles.
-  document.getElementById("chartBox").style.height = Math.max(220, lines.length * 42 + 70) + "px";
-  if(chart) chart.destroy();
-  chart = new Chart(ctx, {
-    type:"bar",
-    data:{ labels:lines, datasets },
-    options:{ indexAxis:"y", responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ position:"top", labels:{ color:"#e7e9ee", boxWidth:14, font:{size:11} } },
-        tooltip:{ mode:"index" } },
-      scales:{
-        x:{ stacked:true, beginAtZero:true, ticks:{color:"#8b91a0",precision:0},
-            grid:{color:"#2a2f3a"}, title:{display:true,text:"Ocurrencias",color:"#8b91a0",font:{size:11}} },
-        y:{ stacked:true, ticks:{color:"#e7e9ee"}, grid:{display:false},
-            title:{display:true,text:"Línea",color:"#8b91a0",font:{size:11}} }
-      }}
+  const wdTotalByLine = {};
+  lines.forEach(l => wdTotalByLine[l] = usedDays.reduce((s,w)=>s+(byLineWd[l]?.[w]||0),0));
+  const wdColTotal = {};
+  usedDays.forEach(w => wdColTotal[w] = lines.reduce((s,l)=>s+(byLineWd[l]?.[w]||0),0));
+  const wdMax = Math.max(1, ...lines.flatMap(l => usedDays.map(w => byLineWd[l]?.[w]||0)));
+  const hot = v => v ? `rgba(239,68,68,${0.12 + (v/wdMax)*0.78})` : "transparent";
+
+  let wh = "<table><thead><tr><th style='text-align:left'>Línea</th>";
+  usedDays.forEach(w => wh += `<th>${w==="S/F"?"Sin fecha":(WD_FULL[w]||w)}</th>`);
+  wh += "<th style='color:var(--amber)'>Total</th></tr></thead><tbody>";
+  lines.forEach(l=>{
+    wh += `<tr><td style="text-align:left;font-weight:600">${l}</td>`;
+    usedDays.forEach(w=>{
+      const v = byLineWd[l]?.[w]||0;
+      wh += `<td style="background:${hot(v)};font-weight:${v?700:400};color:${v?'#fff':'var(--line)'}">${v||'·'}</td>`;
+    });
+    wh += `<td style="font-weight:700;color:var(--amber)">${wdTotalByLine[l]}</td></tr>`;
   });
+  wh += `<tr><td style="text-align:left;font-weight:700;color:var(--amber)">Total</td>`;
+  usedDays.forEach(w => wh += `<td style="font-weight:700;color:var(--amber)">${wdColTotal[w]}</td>`);
+  wh += `<td style="font-weight:700;color:var(--amber)">${grand}</td></tr></tbody></table>`;
+  document.getElementById("wdMatrix").innerHTML = grand ? wh :
+    "<div style='color:var(--dim);padding:20px;text-align:center'>Sin datos para mostrar.</div>";
 
   // Matriz
   let html = "<table><thead><tr><th style='text-align:left'>Fecha</th>";
