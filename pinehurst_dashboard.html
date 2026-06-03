@@ -1712,7 +1712,7 @@ function renderSeriGantt(){
       <span><span style="display:inline-block;width:11px;height:11px;background:#3fb950;border-radius:2px;vertical-align:-1px"></span> Ejecutado</span>
       <span><span style="display:inline-block;width:11px;height:11px;background:#f85149;border-radius:2px;vertical-align:-1px"></span> Atrasado</span>
       <span><span style="display:inline-block;width:11px;height:11px;background:#58a6ff;border-radius:2px;vertical-align:-1px"></span> Programado</span>
-      <span style="margin-left:auto"><button onclick="downloadSeriCSV()" style="background:#0067B8;color:#fff;border:0;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer">⬇ Descargar registros</button></span>
+      <span style="margin-left:auto"><button onclick="downloadSeriGantt()" style="background:#0067B8;color:#fff;border:0;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer">⬇ Descargar registros</button></span>
     </div>
     <div style="border:1px solid #30363d;border-radius:8px;padding:26px 12px 8px;overflow:auto;max-height:62vh;position:relative">
       <div style="position:relative;min-width:680px">
@@ -1722,6 +1722,23 @@ function renderSeriGantt(){
     </div>`;
 }
 
+function downloadSeriGantt(){
+  const rows=seriGanttData();
+  if(!rows.length){alert('No hay fechas de mantenimiento programadas para descargar.');return;}
+  const headers=['Número de serie','Tipo de máquina','Fecha programada','¿Realizado?','Fecha de ejecución','Estado'];
+  const esc=s=>'"'+(s==null?'':s).toString().replace(/"/g,'""')+'"';
+  const lines=[headers.map(esc).join(',')];
+  [...rows].sort((a,b)=>a.fp-b.fp).forEach(r=>{
+    lines.push([r.serie,r.tipo,r.fp?fmtDSeri(r.fp):'',(r.exec?'Sí':'No'),(r.exec?fmtDSeri(r.exec):''),r.estado].map(esc).join(','));
+  });
+  const csv='\ufeff'+lines.join('\r\n');   /* BOM para acentos en Excel */
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download='calendario_mantenimiento_serigrafia_'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
 function downloadSeriCSV(){
   const recs=seriData.mantto||[];
   if(!recs.length){alert('No hay registros en MANTTO. SERIGRAFIA para descargar.');return;}
