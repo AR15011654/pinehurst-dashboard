@@ -55,6 +55,37 @@
   .matx .totalrow .lcol{background:#13161d}
   .err{color:var(--red)}
   #chartBox{height:260px}
+
+  /* ===== Modo TV: pantallas grandes (proyección) ===== */
+  @media (min-width:1500px){
+    .wrap{padding:34px 48px}
+    header{padding:28px 48px}
+    .statusbar{padding:16px 48px;font-size:16px;gap:30px}
+    .dot{width:13px;height:13px}
+    h1{font-size:46px;letter-spacing:1.5px}
+    .sub{font-size:18px;margin-top:8px}
+    .badge{font-size:16px;padding:10px 16px;gap:9px}
+    .kpis{gap:24px;margin-bottom:34px}
+    .kpi{padding:26px 28px;border-left-width:5px!important}
+    .kpi .lbl{font-size:17px;letter-spacing:.8px}
+    .kpi .val{font-size:64px!important;margin-top:10px}
+    .kpi .subv{font-size:17px;margin-top:8px}
+    .card{padding:30px 34px;margin-bottom:30px}
+    .card h2{font-size:24px;letter-spacing:1.4px;margin:0 0 22px}
+    .matx{font-size:22px}
+    .matx thead th{font-size:18px;padding:18px 22px;letter-spacing:.8px}
+    .matx tbody td{padding:18px 22px}
+    #paretoBox{height:520px!important}
+  }
+  @media (min-width:2400px){  /* 4K */
+    h1{font-size:64px}
+    .kpi .val{font-size:92px!important}
+    .matx{font-size:30px}
+    .matx thead th{font-size:24px;padding:24px 28px}
+    .matx tbody td{padding:24px 28px}
+    .card h2{font-size:32px}
+    #paretoBox{height:720px!important}
+  }
 </style>
 </head>
 <body>
@@ -225,10 +256,11 @@ function render(rows){
     <div class="lbl">${lbl}</div>
     <div class="val" style="font-size:${small?22:34}px;color:${color}">${val}</div>
     ${sub?`<div class="subv">${sub}</div>`:""}</div>`;
+  const worstDayLabel = worstDay ? `${formatLatino(worstDay)}${weekdayOf(worstDay)?" · "+(WD_FULL[weekdayOf(worstDay)]):""}` : "—";
   document.getElementById("kpis").innerHTML =
     kpi("Total de fallas", grand, "", "var(--amber)") +
     kpi("Línea más afectada", worstLine||"—", worstLine?lineTotals[worstLine]+" fallas":"", "var(--red)", true) +
-    kpi("Día más afectado", worstDay||"—", worstDay?dateTotals[worstDay]+" fallas":"", "var(--red)", true) +
+    kpi("Día más afectado", worstDayLabel, worstDay?dateTotals[worstDay]+" fallas":"", "var(--red)", true) +
     kpi("Líneas monitoreadas", lines.length, "", "var(--green)");
 
   // Matriz línea × día de la semana (mapa de calor): líneas en vertical, días arriba.
@@ -265,6 +297,10 @@ function render(rows){
   const dayVals = chartDays.map(w => wdColTotal[w]||0);
   const maxVal = Math.max(...dayVals, 0);
 
+  // Escala de fuentes para TV.
+  const big = window.innerWidth >= 2400 ? 2 : (window.innerWidth >= 1500 ? 1.5 : 1);
+  const valFont = Math.round(14*big), tickFont = Math.round(12*big);
+
   // Plugin para dibujar el número encima de cada columna.
   const valueLabels = {
     id:"valueLabels",
@@ -273,7 +309,7 @@ function render(rows){
       const meta = c.getDatasetMeta(0);
       ctx.save();
       ctx.fillStyle = "#e7e9ee";
-      ctx.font = "600 14px 'IBM Plex Mono', monospace";
+      ctx.font = `600 ${valFont}px 'IBM Plex Mono', monospace`;
       ctx.textAlign = "center";
       meta.data.forEach((bar,i)=>{
         const v = dayVals[i];
@@ -290,13 +326,13 @@ function render(rows){
     data:{ labels:dayLabels, datasets:[{
       data:dayVals,
       backgroundColor: dayVals.map(v => v===maxVal && maxVal>0 ? "#ef4444" : "#f5a524"),
-      borderRadius:4, maxBarThickness:90 }]},
+      borderRadius:4, maxBarThickness:90*big }]},
     options:{ responsive:true, maintainAspectRatio:false,
-      layout:{ padding:{ top:24 } },
+      layout:{ padding:{ top:24*big } },
       plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:c=>`${c.parsed.y} eventos` } } },
       scales:{
-        x:{ ticks:{color:"#e7e9ee",font:{size:12}}, grid:{display:false} },
-        y:{ beginAtZero:true, ticks:{color:"#8b91a0",precision:0,stepSize:1}, grid:{color:"#2a2f3a"} }
+        x:{ ticks:{color:"#e7e9ee",font:{size:tickFont}}, grid:{display:false} },
+        y:{ beginAtZero:true, ticks:{color:"#8b91a0",precision:0,stepSize:1,font:{size:tickFont}}, grid:{color:"#2a2f3a"} }
       }},
     plugins:[valueLabels]
   });
