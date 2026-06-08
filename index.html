@@ -39,7 +39,9 @@
   .card h2{flex:none;font-family:'Oswald',sans-serif;font-size:14px;text-transform:uppercase;
     letter-spacing:1px;margin:0 0 12px}
   .fill{flex:1;min-height:0;overflow:auto}
-  #paretoBox{flex:1;min-height:0;position:relative}
+  .rightcol{min-height:0;display:flex;flex-direction:column;gap:14px}
+  .rightcol .card{flex:1}
+  #paretoBox,#weeklyBox{flex:1;min-height:0;position:relative}
   table{border-collapse:collapse;width:100%;font-size:12px}
   th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:center}
   th{color:var(--dim);font-weight:600;position:sticky;top:0;background:var(--panel)}
@@ -112,8 +114,11 @@
 <div class="wrap">
   <div class="kpis" id="kpis"></div>
   <div class="content">
-    <div class="card matcard"><h2>Matriz: línea × día de la semana</h2><div class="scroll fill" id="wdMatrix"></div></div>
-    <div class="card chartcard"><h2>Eventos por día de la semana</h2><div id="paretoBox"><canvas id="pareto"></canvas></div></div>
+    <div class="card matcard"><h2 id="matTitle">Matriz: línea × día (semana actual)</h2><div class="scroll fill" id="wdMatrix"></div></div>
+    <div class="rightcol">
+      <div class="card chartcard"><h2 id="dayTitle">Eventos por día de la semana</h2><div id="paretoBox"><canvas id="pareto"></canvas></div></div>
+      <div class="card chartcard"><h2>Eventos por semana</h2><div id="weeklyBox"><canvas id="weekly"></canvas></div></div>
+    </div>
   </div>
 </div>
 
@@ -168,7 +173,18 @@ function weekdayOf(str){
   // getDay(): 0=Dom … 6=Sáb  ->  índice en WEEKDAYS (0=Lun)
   return WEEKDAYS[(dt.getDay()+6)%7];
 }
+
+// Lunes (00:00) de la semana a la que pertenece la fecha.
+function weekStart(dt){
+  const d = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+  const off = (d.getDay()+6)%7; // 0=lun
+  d.setDate(d.getDate()-off);
+  d.setHours(0,0,0,0);
+  return d;
+}
+function ddmm(dt){ return String(dt.getDate()).padStart(2,"0")+"/"+String(dt.getMonth()+1).padStart(2,"0"); }
 let chart = null;
+let chart2 = null;
 let hasGoodData = false;
 
 function setStatus(state, msg){
@@ -228,10 +244,38 @@ async function load(){
 }
 
 function render(rows){
+  // --- Semana actual (lunes a domingo) ---
+  const now = new Date();
+  const cws = weekStart(now);
+  const cwe = new Date(cws); cwe.setDate(cws.getDate()+7);
+
+  // Histórico: total de eventos por semana (todos los datos).
+  const weekMap = {};
+  for(const r of rows){
+    const d = String(r[DATE_COL]||"").trim();
+    const l = String(r[LINE_COL]||"").trim();
+    if(!d || !l) continue;
+    const dt = parseDate(d); if(!dt) continue;
+    const ws = weekStart(dt); const key = ws.getTime();
+    (weekMap[key] = weekMap[key] || {start:ws, count:0}).count++;
+  }
+
+  // Solo filas de la semana actual para la matriz, la gráfica de días y los KPIs.
+  const weekRows = rows.filter(r=>{
+    const dt = parseDate(String(r[DATE_COL]||"").trim());
+    return dt && dt>=cws && dt<cwe;
+  });
+
+  // Etiquetas de rango de la semana actual.
+  const cwEnd = new Date(cws); cwEnd.setDate(cws.getDate()+6);
+  const rangeTxt = `Semana actual: ${ddmm(cws)} – ${ddmm(cwEnd)}`;
+  document.getElementById("matTitle").textContent = "Matriz: línea × día — " + rangeTxt;
+  document.getElementById("dayTitle").textContent = "Eventos por día — " + rangeTxt;
+
   const matrix = {}, lineSet = new Set(), dateSet = new Set();
   const byLineWd = {}; // linea -> {Lun:n, Mar:n, ...}
   const wdPresent = new Set();
-  for(const r of rows){
+  for(const r of weekRows){
     const d = String(r[DATE_COL]||"").trim();
     const l = String(r[LINE_COL]||"").trim();
     if(!d || !l) continue;
@@ -344,6 +388,36 @@ function render(rows){
         y:{ beginAtZero:true, ticks:{color:"#8b91a0",precision:0,stepSize:1,font:{size:tickFont}}, grid:{color:"#2a2f3a"} }
       }},
     plugins:[valueLabels]
+  });
+
+  // --- Gráfica lineal: eventos por semana (histórico) ---
+  const wkKeys = Object.keys(weekMap).map(Number).sort((a,b)=>a-b);
+  const wkLabels = wkKeys.map(k=> ddmm(weekMap[k].start));
+  const wkVals = wkKeys.map(k=> weekMap[k].count);
+  const curKey = cws.getTime();
+
+  const wctx = document.getElementById("weekly");
+  if(chart2) chart2.destroy();
+  chart2 = new Chart(wctx, {
+    type:"line",
+    data:{ labels:wkLabels, datasets:[{
+      label:"Eventos por semana",
+      data:wkVals,
+      borderColor:"#60a5fa", backgroundColor:"rgba(96,165,250,.15)",
+      borderWidth:2, fill:true, tension:0.25,
+      pointRadius: wkKeys.map(k=> k===curKey ? 6 : 4),
+      pointBackgroundColor: wkKeys.map(k=> k===curKey ? "#f5a524" : "#60a5fa"),
+      pointBorderColor: wkKeys.map(k=> k===curKey ? "#f5a524" : "#60a5fa")
+    }]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      layout:{ padding:{ top:18*big } },
+      plugins:{ legend:{display:false},
+        tooltip:{ callbacks:{ title:items=>"Semana del "+items[0].label, label:c=>`${c.parsed.y} eventos` } } },
+      scales:{
+        x:{ ticks:{color:"#8b91a0",font:{size:tickFont}}, grid:{display:false},
+            title:{display:true,text:"Inicio de semana (lun)",color:"#8b91a0",font:{size:tickFont}} },
+        y:{ beginAtZero:true, ticks:{color:"#8b91a0",precision:0,font:{size:tickFont}}, grid:{color:"#2a2f3a"} }
+      }}
   });
 }
 
