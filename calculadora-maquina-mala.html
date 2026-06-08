@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calculadora de Tiempo por Máquina Mala</title>
+<style>
+  :root{
+    --bg:#0f1419;
+    --panel:#1a2129;
+    --panel-2:#222b35;
+    --line:#2e3a46;
+    --txt:#e8edf2;
+    --txt-dim:#9aa7b4;
+    --accent:#ff9f1c;
+    --accent-dim:#cc7e16;
+    --good:#3ddc97;
+    --bad:#ff6b6b;
+    --mono:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--txt);
+    font-family:var(--sans);
+    line-height:1.55;
+    min-height:100vh;
+    padding:24px 16px 60px;
+  }
+  .wrap{max-width:760px;margin:0 auto;}
+  header{
+    border-left:4px solid var(--accent);
+    padding-left:14px;
+    margin-bottom:28px;
+  }
+  header h1{font-size:22px;font-weight:600;letter-spacing:-.3px;}
+  header p{color:var(--txt-dim);font-size:14px;margin-top:4px;}
+  .card{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:18px 20px;
+    margin-bottom:18px;
+  }
+  .card h2{
+    font-size:14px;
+    font-weight:600;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    color:var(--accent);
+    margin-bottom:4px;
+  }
+  .card .hint{color:var(--txt-dim);font-size:13px;margin-bottom:14px;}
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
+    gap:10px;
+  }
+  .field label{display:block;font-size:12px;color:var(--txt-dim);margin-bottom:4px;}
+  input[type=number]{
+    width:100%;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:8px;
+    color:var(--txt);
+    font-family:var(--mono);
+    font-size:16px;
+    padding:9px 11px;
+    transition:border-color .15s,box-shadow .15s;
+    -moz-appearance:textfield;
+  }
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+  input[type=number]:focus{
+    outline:none;
+    border-color:var(--accent);
+    box-shadow:0 0 0 3px rgba(255,159,28,.15);
+  }
+  .bad-input{max-width:200px;}
+  .results{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:12px;
+  }
+  .stat{
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:14px 16px;
+  }
+  .stat .lbl{font-size:12px;color:var(--txt-dim);text-transform:uppercase;letter-spacing:.05em;}
+  .stat .val{font-family:var(--mono);font-size:26px;font-weight:600;margin-top:6px;}
+  .stat.highlight{border-color:var(--accent);background:rgba(255,159,28,.08);}
+  .stat.highlight .val{color:var(--accent);}
+  .val.pos{color:var(--good);}
+  .val.neg{color:var(--bad);}
+  .formula{
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--txt-dim);
+    background:var(--panel-2);
+    border:1px dashed var(--line);
+    border-radius:8px;
+    padding:12px 14px;
+    margin-top:8px;
+    line-height:1.7;
+  }
+  .controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;}
+  button{
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    color:var(--txt);
+    border-radius:8px;
+    padding:9px 16px;
+    font-size:14px;
+    font-family:var(--sans);
+    cursor:pointer;
+    transition:background .15s,border-color .15s;
+  }
+  button:hover{background:var(--line);border-color:var(--accent-dim);}
+  button:active{transform:scale(.98);}
+  footer{text-align:center;color:var(--txt-dim);font-size:12px;margin-top:30px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Calculadora de tiempo por máquina mala</h1>
+    <p>Convierte la baja de producción de una hora afectada en minutos perdidos.</p>
+  </header>
+
+  <div class="controls">
+    <button id="add-hour">+ Agregar hora buena</button>
+    <button id="remove-hour">− Quitar hora</button>
+    <button id="clear">Limpiar todo</button>
+  </div>
+
+  <div class="card">
+    <h2>Horarios no afectados</h2>
+    <p class="hint">Captura las piezas producidas en las horas que trabajaron bien. El promedio es tu meta real.</p>
+    <div class="grid" id="good-grid"></div>
+  </div>
+
+  <div class="card">
+    <h2>Horario afectado</h2>
+    <p class="hint">Piezas producidas durante la hora con máquina mala.</p>
+    <div class="field bad-input">
+      <label>Piezas</label>
+      <input type="number" id="bad" min="0" placeholder="Ej. 320" inputmode="numeric">
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Resultado</h2>
+    <div class="results">
+      <div class="stat">
+        <div class="lbl">Promedio horas buenas</div>
+        <div class="val" id="avg-out">—</div>
+      </div>
+      <div class="stat">
+        <div class="lbl">Piezas perdidas</div>
+        <div class="val" id="lost-out">—</div>
+      </div>
+      <div class="stat highlight">
+        <div class="lbl">Tiempo afectado</div>
+        <div class="val" id="min-out">—</div>
+      </div>
+    </div>
+    <div class="formula">
+      tiempo&nbsp;=&nbsp;((promedio&nbsp;−&nbsp;afectado)&nbsp;/&nbsp;promedio)&nbsp;×&nbsp;60&nbsp;min
+    </div>
+  </div>
+
+  <footer>Valor positivo = minutos perdidos · Negativo = se produjo por encima del promedio</footer>
+</div>
+
+<script>
+(function(){
+  var grid = document.getElementById('good-grid');
+  var bad = document.getElementById('bad');
+  var count = 8;
+
+  function buildGrid(){
+    grid.innerHTML = '';
+    for (var i = 1; i <= count; i++){
+      var prev = '';
+      var field = document.createElement('div');
+      field.className = 'field';
+      var lbl = document.createElement('label');
+      lbl.textContent = 'Hora ' + i;
+      var inp = document.createElement('input');
+      inp.type = 'number'; inp.min = '0'; inp.className = 'good';
+      inp.placeholder = '0'; inp.setAttribute('inputmode','numeric');
+      inp.addEventListener('input', calc);
+      field.appendChild(lbl); field.appendChild(inp);
+      grid.appendChild(field);
+    }
+  }
+
+  function fmt(n){ return Math.round(n).toLocaleString('es-MX'); }
+
+  function calc(){
+    var goods = [].slice.call(document.querySelectorAll('.good'))
+      .map(function(el){ return parseFloat(el.value); })
+      .filter(function(v){ return !isNaN(v); });
+
+    var avgEl = document.getElementById('avg-out');
+    var lostEl = document.getElementById('lost-out');
+    var minEl = document.getElementById('min-out');
+
+    minEl.className = 'val';
+
+    if (goods.length === 0){ avgEl.textContent = lostEl.textContent = minEl.textContent = '—'; return; }
+
+    var avg = goods.reduce(function(a,b){ return a+b; }, 0) / goods.length;
+    avgEl.textContent = fmt(avg);
+
+    var b = parseFloat(bad.value);
+    if (isNaN(b) || avg === 0){ lostEl.textContent = minEl.textContent = '—'; return; }
+
+    var lost = avg - b;
+    var minutes = (lost / avg) * 60;
+
+    lostEl.textContent = fmt(lost);
+    if (minutes >= 0){
+      minEl.textContent = fmt(minutes) + ' min';
+    } else {
+      minEl.textContent = '+' + fmt(Math.abs(minutes)) + ' min';
+      minEl.className = 'val pos';
+    }
+  }
+
+  document.getElementById('add-hour').addEventListener('click', function(){
+    var vals = [].slice.call(document.querySelectorAll('.good')).map(function(e){return e.value;});
+    count++; buildGrid();
+    [].slice.call(document.querySelectorAll('.good')).forEach(function(e,i){ if(vals[i]!==undefined) e.value = vals[i]; });
+    calc();
+  });
+  document.getElementById('remove-hour').addEventListener('click', function(){
+    if (count <= 1) return;
+    var vals = [].slice.call(document.querySelectorAll('.good')).map(function(e){return e.value;});
+    count--; buildGrid();
+    [].slice.call(document.querySelectorAll('.good')).forEach(function(e,i){ if(vals[i]!==undefined) e.value = vals[i]; });
+    calc();
+  });
+  document.getElementById('clear').addEventListener('click', function(){
+    buildGrid(); bad.value = ''; calc();
+  });
+
+  bad.addEventListener('input', calc);
+  buildGrid();
+})();
+</script>
+</body>
+</html>
