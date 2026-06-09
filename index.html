@@ -1784,7 +1784,19 @@ function seriGanttData(){
 function renderSeriGantt(){
   const host=$('seri-gantt-view');if(!host)return;
   const rows=seriGanttData();
-  if(!rows.length){host.innerHTML='<div style="color:#7d8590;padding:18px;background:#161b22;border:1px solid #30363d;border-radius:8px;margin-top:10px">No hay fechas de mantenimiento programadas. Revisa que la pestaña “Fechas de Mantenimiento” esté publicada y tenga las columnas Serie y “fecha inicio Mantenimiento”.</div>';return;}
+  if(!rows.length){
+    const fch=seriData.fechas||[];
+    const cols=fch.length?Object.keys(fch[0]).map(k=>k.trim()).filter(Boolean).join(' · '):'(ninguna)';
+    const motivo=fch.length
+      ?'Las filas llegaron pero no se reconoció la <b>fecha</b> ("fecha inicio Mantenimiento") o el <b>número de serie</b>. Revisa esos encabezados arriba.'
+      :'No llegó ninguna fila. Publica esa hoja (Archivo → Compartir → Publicar en la web → “Todo el documento”) o verifica que el gid sea correcto.';
+    host.innerHTML=`<div style="color:#e6edf3;padding:18px;background:#161b22;border:1px solid #30363d;border-left:3px solid #d29922;border-radius:8px;margin-top:10px;font-size:13px;line-height:1.7">
+      <strong style="color:#d29922">No se detectaron fechas de mantenimiento programadas.</strong><br>
+      Filas leídas de “Fechas de Mantenimiento” (gid ${SERI_GIDS.fechas}): <b style="color:${fch.length?'#3fb950':'#f85149'}">${fch.length}</b><br>
+      Columnas detectadas: <span style="color:#8b949e">${cols}</span><br>
+      <span style="color:#8b949e;font-size:12px">${motivo}</span>
+    </div>`;return;
+  }
   const tot=rows.length,ejec=rows.filter(r=>r.estado==='Ejecutado').length,atr=rows.filter(r=>r.estado==='Atrasado').length,prog=rows.filter(r=>r.estado==='Programado').length;
   const cum=tot?Math.round(ejec/tot*100):0;
   host.innerHTML=`
