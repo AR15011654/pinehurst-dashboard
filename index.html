@@ -1776,7 +1776,24 @@ function seriGanttData(){
 function renderSeriGantt(){
   const host=$('seri-gantt-view');if(!host)return;
   const rows=seriGanttData();
-  if(!rows.length){host.innerHTML='<div style="color:#7d8590;padding:18px;background:#161b22;border:1px solid #30363d;border-radius:8px;margin-top:10px">No hay fechas de mantenimiento programadas. Revisa que la pestaña “Fechas de Mantenimiento” esté publicada y tenga las columnas Serie y “fecha inicio Mantenimiento”.</div>';return;}
+  if(!rows.length){
+    const fd=seriData.fechas||[];
+    const cols=fd.length?Object.keys(fd[0]).join(' | '):'(ninguna)';
+    const sample=fd.length?JSON.stringify(fd[0]).substring(0,300):'(vacio)';
+    const serieVal=fd.length?scol(fd[0],SC.serie):'';
+    const fechaVal=fd.length?scol(fd[0],SC.fechaPlan):'';
+    host.innerHTML='<div style="color:#e6edf3;padding:18px;background:#161b22;border:1px solid #30363d;border-radius:8px;margin-top:10px;font-size:.78rem;line-height:1.8">'
+      +'<div style="color:#f85149;font-weight:700;font-size:.9rem;margin-bottom:8px">Gantt sin datos - Diagnostico</div>'
+      +'<div><b>Filas recibidas de Fechas de Mantenimiento:</b> '+fd.length+'</div>'
+      +'<div><b>Columnas detectadas:</b> <span style="color:#58a6ff">'+cols+'</span></div>'
+      +'<div><b>Primera fila (raw):</b> <span style="color:#d29922">'+sample+'</span></div>'
+      +'<div><b>Valor columna Serie:</b> <span style="color:#3fb950">'+(serieVal||'--- NO encontrado')+'</span></div>'
+      +'<div><b>Valor fecha inicio Mantenimiento:</b> <span style="color:#3fb950">'+(fechaVal||'--- NO encontrado')+'</span></div>'
+      +'<hr style="border-color:#30363d;margin:10px 0">'
+      +'<div style="color:#7d8590">Si Filas=0 la pestana NO esta publicada en la web. Si columna sale como NO encontrado el nombre no coincide exactamente.</div>'
+      +'</div>';
+    return;
+  }
   const tot=rows.length,ejec=rows.filter(r=>r.estado==='Ejecutado').length,atr=rows.filter(r=>r.estado==='Atrasado').length,prog=rows.filter(r=>r.estado==='Programado').length;
   const cum=tot?Math.round(ejec/tot*100):0;
   host.innerHTML=`
