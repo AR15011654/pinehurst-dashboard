@@ -1727,8 +1727,10 @@ function renderSeriAreaGantt(headId,bodyId,accent){
   grupos.forEach(g=>{meta[g]={};real[g]={};tot[g]=0;MESES_IDX.forEach(m=>{meta[g][m]=0;real[g][m]=0});});
   plan.forEach(p=>{
     if(!p.tipo||!meta[p.tipo])return;tot[p.tipo]++;
-    if(p.fp&&p.fp.getFullYear()===2026){const m=p.fp.getMonth()+1;if(m>=2&&m<=12)meta[p.tipo][m]++;}
-    if(p.exec&&p.exec.getFullYear()===2026){const m=p.exec.getMonth()+1;if(m>=2&&m<=12)real[p.tipo][m]++;}
+    /* meta: mes de la fecha PROGRAMADA */
+    if(p.fp){const m=p.fp.getMonth()+1;if(m>=2&&m<=12)meta[p.tipo][m]++;}
+    /* real: solo máquinas con estado Ejecutado, contadas en su mes programado */
+    if(p.exec&&p.estado==='Ejecutado'&&p.fp){const m=p.fp.getMonth()+1;if(m>=2&&m<=12)real[p.tipo][m]++;}
   });
   $(headId).innerHTML=`<tr>
     <th style="padding:8px 12px;font-size:.62rem;text-transform:uppercase;color:#7d8590;text-align:left;border-bottom:2px solid #30363d;min-width:160px;background:#0d1117;position:sticky;left:0">Tipo de Máquina</th>
