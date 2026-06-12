@@ -1501,7 +1501,7 @@ let seriData={maquinas:[],frec:[],mantto:[]},_seriLoaded=false,_seriRows=[];
 
 const SC={
   serie:['Número de serie','Numero de serie','No. de serie','No de serie','SERIE','Serie'],
-  tipo:['Tipo de máquina','Tipo de maquina','TIPO DE MAQUINA','MAQUINA','Tipo'],
+  tipo:['Tipo de máquina','Tipo de maquina','TIPO DE MAQUINA','MAQUINA','Maquina','Grupo de Maquina','Grupo de máquina','Tipo'],
   modelo:['Modelo','MODEL','Model'],fab:['Fabricante','FABRICANTE'],
   ubic:['Ubicación','Ubicacion','home location','Home Location','HOME LOCATION'],
   estado:['Estado','ESTADO'],
@@ -1518,13 +1518,20 @@ function scol(r,names){for(const n of names){for(const k in r){if(k.trim().toLow
 
 function parseFechaSeri(s){
   s=(s||'').toString().trim();if(!s)return null;
-  s=s.split(' ')[0].split('T')[0];let m;
-  if(m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))return new Date(+m[1],+m[2]-1,+m[3]);
-  if(m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/)){
+  /* formato largo inglés: "Wednesday, May 6, 2026" o "May 6, 2026" */
+  const MONTHS={january:0,february:1,march:2,april:3,may:4,june:5,july:6,august:7,september:8,october:9,november:10,december:11};
+  const mLong=s.match(/(?:\w+,\s+)?(\w+)\s+(\d{1,2}),?\s+(\d{4})/i);
+  if(mLong){const mo=MONTHS[mLong[1].toLowerCase()];if(mo!==undefined)return new Date(+mLong[3],mo,+mLong[2]);}
+  /* ISO: 2026-05-06 */
+  let m;
+  const sClean=s.split('T')[0];
+  if(m=sClean.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))return new Date(+m[1],+m[2]-1,+m[3]);
+  /* DD/MM/YYYY o MM/DD/YYYY */
+  if(m=s.split(' ')[0].match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/)){
     let a=+m[1],b=+m[2],y=+m[3];if(y<100)y+=2000;
-    let d=a,mo=b;                       /* asume D/M/A (Latino) */
-    if(a>12&&b<=12){d=a;mo=b;}          /* a no puede ser mes */
-    else if(b>12&&a<=12){d=b;mo=a;}     /* b no puede ser mes -> a es mes */
+    let d=a,mo=b;
+    if(a>12&&b<=12){d=a;mo=b;}
+    else if(b>12&&a<=12){d=b;mo=a;}
     return new Date(y,mo-1,d);
   }
   const dt=new Date(s);return isNaN(dt)?null:dt;
@@ -1541,9 +1548,6 @@ async function fetchCSV(url){
 function computeSeri(){
   const fmap={};
   seriData.frec.forEach(r=>{const t=scol(r,SC.tipo).toUpperCase();if(t)fmap[t]={txt:scol(r,SC.frecTxt),dias:parseInt(scol(r,SC.dias))||0};});
-  /* fecha programada por número de serie (hoja "Fechas de Mantenimiento") */
-  const planMap={};
-  (seriData.fechas||[]).forEach(r=>{const s=scol(r,SC.serie),f=parseFechaSeri(scol(r,SC.fechaPlan));if(s&&f&&!planMap[s])planMap[s]=f;});
   const today=new Date();today.setHours(0,0,0,0);
   return seriData.maquinas.map(r=>{
     const serie=scol(r,SC.serie),tipo=scol(r,SC.tipo);
@@ -1552,21 +1556,9 @@ function computeSeri(){
       .sort((a,b)=>b.f-a.f);
     const ultimo=recs[0]?recs[0].f:null,tec=recs[0]?recs[0].tec:'';
     const fr=fmap[tipo.toUpperCase()]||{txt:'Sin definir',dias:0};
-    const planned=planMap[serie]||null;
     let prox=null,dias=null,estado='Sin registro';
-    if(planned){
-      /* ¿ya se ejecutó el plan? (mantenimiento en/después de la fecha programada) */
-      const exec=recs.map(x=>x.f).filter(f=>f>=planned).sort((a,b)=>a-b)[0]||null;
-      if(exec&&fr.dias>0){prox=new Date(exec);prox.setDate(prox.getDate()+fr.dias);}  /* avanza al siguiente ciclo */
-      else{prox=new Date(planned);}                                                    /* plan pendiente: toca en la fecha programada */
-      dias=Math.round((prox-today)/86400000);
-      estado=dias<0?'Vencido':dias<=7?'Próximo a vencer':'Al día';
-    }else if(ultimo&&fr.dias>0){
-      prox=new Date(ultimo);prox.setDate(prox.getDate()+fr.dias);
-      dias=Math.round((prox-today)/86400000);
-      estado=dias<0?'Vencido':dias<=7?'Próximo a vencer':'Al día';
-    }
-    return {serie,tipo,modelo:scol(r,SC.modelo),fab:scol(r,SC.fab),ubic:scol(r,SC.ubic),estadoMaq:scol(r,SC.estado),frec:fr.txt,ultimo,prox,dias,estado,tec,nMant:recs.length,planned};
+    if(ultimo&&fr.dias>0){prox=new Date(ultimo);prox.setDate(prox.getDate()+fr.dias);dias=Math.round((prox-today)/86400000);estado=dias<0?'Vencido':dias<=7?'Próximo a vencer':'Al día';}
+    return {serie,tipo,modelo:scol(r,SC.modelo),fab:scol(r,SC.fab),ubic:scol(r,SC.ubic),estadoMaq:scol(r,SC.estado),frec:fr.txt,ultimo,prox,dias,estado,tec,nMant:recs.length};
   });
 }
 
@@ -1784,19 +1776,7 @@ function seriGanttData(){
 function renderSeriGantt(){
   const host=$('seri-gantt-view');if(!host)return;
   const rows=seriGanttData();
-  if(!rows.length){
-    const fch=seriData.fechas||[];
-    const cols=fch.length?Object.keys(fch[0]).map(k=>k.trim()).filter(Boolean).join(' · '):'(ninguna)';
-    const motivo=fch.length
-      ?'Las filas llegaron pero no se reconoció la <b>fecha</b> ("fecha inicio Mantenimiento") o el <b>número de serie</b>. Revisa esos encabezados arriba.'
-      :'No llegó ninguna fila. Publica esa hoja (Archivo → Compartir → Publicar en la web → “Todo el documento”) o verifica que el gid sea correcto.';
-    host.innerHTML=`<div style="color:#e6edf3;padding:18px;background:#161b22;border:1px solid #30363d;border-left:3px solid #d29922;border-radius:8px;margin-top:10px;font-size:13px;line-height:1.7">
-      <strong style="color:#d29922">No se detectaron fechas de mantenimiento programadas.</strong><br>
-      Filas leídas de “Fechas de Mantenimiento” (gid ${SERI_GIDS.fechas}): <b style="color:${fch.length?'#3fb950':'#f85149'}">${fch.length}</b><br>
-      Columnas detectadas: <span style="color:#8b949e">${cols}</span><br>
-      <span style="color:#8b949e;font-size:12px">${motivo}</span>
-    </div>`;return;
-  }
+  if(!rows.length){host.innerHTML='<div style="color:#7d8590;padding:18px;background:#161b22;border:1px solid #30363d;border-radius:8px;margin-top:10px">No hay fechas de mantenimiento programadas. Revisa que la pestaña “Fechas de Mantenimiento” esté publicada y tenga las columnas Serie y “fecha inicio Mantenimiento”.</div>';return;}
   const tot=rows.length,ejec=rows.filter(r=>r.estado==='Ejecutado').length,atr=rows.filter(r=>r.estado==='Atrasado').length,prog=rows.filter(r=>r.estado==='Programado').length;
   const cum=tot?Math.round(ejec/tot*100):0;
   host.innerHTML=`
