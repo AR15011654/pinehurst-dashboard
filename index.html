@@ -1548,17 +1548,43 @@ async function fetchCSV(url){
 function computeSeri(){
   const fmap={};
   seriData.frec.forEach(r=>{const t=scol(r,SC.tipo).toUpperCase();if(t)fmap[t]={txt:scol(r,SC.frecTxt),dias:parseInt(scol(r,SC.dias))||0};});
+  /* Mapa de fecha base por serie (pestaña Fechas de Mantenimiento) */
+  const fechaBaseMap={};
+  (seriData.fechas||[]).forEach(r=>{
+    const s=scol(r,SC.serie);const f=parseFechaSeri(scol(r,SC.fechaPlan));
+    if(s&&f)fechaBaseMap[s]=f;
+  });
   const today=new Date();today.setHours(0,0,0,0);
   return seriData.maquinas.map(r=>{
     const serie=scol(r,SC.serie),tipo=scol(r,SC.tipo);
+    /* Registros reales de MANTTO.SERIGRAFIA */
     const recs=seriData.mantto.filter(x=>scol(x,SC.serie)===serie)
       .map(x=>({f:parseFechaSeri(scol(x,SC.fecMP)),tec:scol(x,SC.tec)})).filter(x=>x.f)
       .sort((a,b)=>b.f-a.f);
-    const ultimo=recs[0]?recs[0].f:null,tec=recs[0]?recs[0].tec:'';
     const fr=fmap[tipo.toUpperCase()]||{txt:'Sin definir',dias:0};
+    /* Determinar último mantenimiento:
+       1) Si hay registros en MANTTO → el más reciente
+       2) Si no hay registros pero la fecha base ya pasó → la fecha base cuenta como ejecutado
+       3) Si no hay nada → Sin registro */
+    let ultimo=null,tec='',fuenteUltimo='mantto';
+    if(recs.length>0){
+      ultimo=recs[0].f;tec=recs[0].tec;fuenteUltimo='mantto';
+    } else {
+      const fb=fechaBaseMap[serie];
+      if(fb&&fb<=today){ultimo=fb;tec='';fuenteUltimo='base';}
+    }
+    /* Si hay registro MANTTO pero también hay fecha base más reciente (no debería pasar, pero por si acaso) */
+    if(recs.length>0&&fechaBaseMap[serie]&&fechaBaseMap[serie]>recs[0].f){
+      /* La fecha base es más reciente que el último MANTTO registrado — usar la base */
+      ultimo=fechaBaseMap[serie];tec='';fuenteUltimo='base';
+    }
     let prox=null,dias=null,estado='Sin registro';
-    if(ultimo&&fr.dias>0){prox=new Date(ultimo);prox.setDate(prox.getDate()+fr.dias);dias=Math.round((prox-today)/86400000);estado=dias<0?'Vencido':dias<=7?'Próximo a vencer':'Al día';}
-    return {serie,tipo,modelo:scol(r,SC.modelo),fab:scol(r,SC.fab),ubic:scol(r,SC.ubic),estadoMaq:scol(r,SC.estado),frec:fr.txt,ultimo,prox,dias,estado,tec,nMant:recs.length};
+    if(ultimo&&fr.dias>0){
+      prox=new Date(ultimo);prox.setDate(prox.getDate()+fr.dias);
+      dias=Math.round((prox-today)/86400000);
+      estado=dias<0?'Vencido':dias<=7?'Próximo a vencer':'Al día';
+    }
+    return {serie,tipo,modelo:scol(r,SC.modelo),fab:scol(r,SC.fab),ubic:scol(r,SC.ubic),estadoMaq:scol(r,SC.estado),frec:fr.txt,ultimo,prox,dias,estado,tec,nMant:recs.length,fuenteUltimo};
   });
 }
 
@@ -1762,17 +1788,41 @@ function renderSeriAreaGantt(headId,bodyId,accent){
 }
 function seriGanttData(){
   const today=new Date();today.setHours(0,0,0,0);
+  /* Mapa de frecuencias por tipo */
+  const fmap={};
+  (seriData.frec||[]).forEach(r=>{const t=scol(r,SC.tipo).toUpperCase();if(t)fmap[t]=parseInt(scol(r,SC.dias))||0;});
   const plan=(seriData.fechas||[]).map(r=>({
-    serie:scol(r,SC.serie),tipo:scol(r,SC.tipo)||scol(r,SC.frecTxt),area:scol(r,SC.area),fp:parseFechaSeri(scol(r,SC.fechaPlan))
+    serie:scol(r,SC.serie),
+    tipo:(scol(r,SC.tipo)||scol(r,SC.frecTxt)).toUpperCase(),
+    tipoDisplay:scol(r,SC.tipo)||scol(r,SC.frecTxt),
+    area:scol(r,SC.area),
+    fp:parseFechaSeri(scol(r,SC.fechaPlan))
   })).filter(p=>p.serie&&p.fp&&(!p.area||p.area.toUpperCase().includes(SERI_HOME_MATCH)));
   return plan.map(p=>{
-    const recs=(seriData.mantto||[]).filter(x=>scol(x,SC.serie)===p.serie).map(x=>parseFechaSeri(scol(x,SC.fecMP))).filter(Boolean);
-    const exec=recs.filter(d=>d>=p.fp).sort((a,b)=>a-b)[0]||null;   /* primer mantenimiento en/después del plan */
+    /* Registros reales de MANTTO */
+    const recs=(seriData.mantto||[]).filter(x=>scol(x,SC.serie)===p.serie)
+      .map(x=>parseFechaSeri(scol(x,SC.fecMP))).filter(Boolean).sort((a,b)=>b-a);
+    /* La fecha base (fp) ya pasada = ejecutada automáticamente */
+    const fpPasada=p.fp<=today;
+    /* Exec: el registro MANTTO más reciente, o la fecha base si ya pasó y no hay registro */
+    const execMantto=recs[0]||null;
+    const exec=execMantto||(fpPasada?p.fp:null);
+    const ultimoEjec=execMantto||(fpPasada?p.fp:null);
+    /* Calcular próxima fecha según frecuencia */
+    let proxFecha=null;
+    const diasFrec=fmap[p.tipo]||0;
+    if(ultimoEjec&&diasFrec>0){proxFecha=new Date(ultimoEjec);proxFecha.setDate(proxFecha.getDate()+diasFrec);}
     let estado,color;
-    if(exec){estado='Ejecutado';color='#3fb950';}
-    else if(p.fp<today){estado='Atrasado';color='#f85149';}
+    if(exec){
+      /* Ya ejecutado: la fecha relevante para el Gantt es la PRÓXIMA */
+      if(proxFecha&&proxFecha>=today){estado='Programado';color='#58a6ff';}
+      else if(proxFecha&&proxFecha<today){estado='Atrasado';color='#f85149';}
+      else{estado='Ejecutado';color='#3fb950';}
+    } else if(p.fp<today){estado='Atrasado';color='#f85149';}
     else{estado='Programado';color='#58a6ff';}
-    return {...p,exec,estado,color};
+    /* fp para el Gantt: si ya fue ejecutado, usar la próxima fecha proyectada */
+    const fpGantt=exec&&proxFecha?proxFecha:p.fp;
+    return {...p,tipo:p.tipoDisplay,exec,execMantto,proxFecha,fpGantt,fp:fpGantt,estado,color};
   });
 }
 function renderSeriGantt(){
