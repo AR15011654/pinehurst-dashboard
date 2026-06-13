@@ -447,11 +447,11 @@ footer strong{color:#58a6ff}
     <div style="overflow:auto;max-height:420px;border:1px solid #30363d;border-radius:8px;margin-bottom:18px">
       <table id="seri-table" style="width:100%;border-collapse:collapse;font-size:12px"></table>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">
-      <div class="cs-chart-card" style="display:flex;flex-direction:column;height:260px"><div class="cs-chart-title">Mantenimientos por tipo de máquina</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-tipo"></canvas></div></div>
-      <div class="cs-chart-card" style="display:flex;flex-direction:column;height:260px"><div class="cs-chart-title">Mantenimientos realizados por mes</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-mes"></canvas></div></div>
-      <div class="cs-chart-card" style="display:flex;flex-direction:column;height:260px"><div class="cs-chart-title">Máquinas por ubicación</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-ubic"></canvas></div></div>
-      <div class="cs-chart-card" style="display:flex;flex-direction:column;height:320px"><div class="cs-chart-title">Máquinas por estado de mantenimiento</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-estado"></canvas></div></div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px">
+      <div class="cs-chart-card" style="display:flex;flex-direction:column;height:300px"><div class="cs-chart-title">Mantenimientos por tipo de máquina</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-tipo"></canvas></div></div>
+      <div class="cs-chart-card" style="display:flex;flex-direction:column;height:300px"><div class="cs-chart-title">Mantenimientos realizados por mes</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-mes"></canvas></div></div>
+      <div class="cs-chart-card" style="display:flex;flex-direction:column;height:300px"><div class="cs-chart-title">Máquinas por ubicación</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-ubic"></canvas></div></div>
+      <div class="cs-chart-card" style="display:flex;flex-direction:column;height:300px"><div class="cs-chart-title">Máquinas por estado de mantenimiento</div><div style="flex:1;position:relative;padding:4px 8px 0"><canvas id="seri-ch-estado"></canvas></div></div>
     </div>
   </div>
 </div>
@@ -1651,7 +1651,7 @@ function resetSeriFilters(){['sf-tipo','sf-ubic','sf-estado','sf-tec','sf-from',
 function destroySeriChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
 function seriChartBar(id,labels,data,color,horizontal){destroySeriChart(id);const c=$(id);if(!c)return;charts[id]=new Chart(c,{type:'bar',data:{labels,datasets:[{data,backgroundColor:color,borderRadius:5,borderSkipped:false}]},options:{indexAxis:horizontal?'y':'x',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#161b22',borderColor:'#30363d',borderWidth:1,padding:8}},scales:{x:{grid:{display:false},ticks:{color:'#7d8590',font:{size:10,family:'Barlow'}}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#7d8590',font:{size:10,family:'Barlow'},precision:0},beginAtZero:true}}}});}
 function seriChartLine(id,labels,data){destroySeriChart(id);const c=$(id);if(!c)return;charts[id]=new Chart(c,{type:'line',data:{labels,datasets:[{data,borderColor:'#0067B8',backgroundColor:'rgba(0,103,184,.15)',fill:true,tension:.35,pointRadius:3,pointBackgroundColor:'#0067B8'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#161b22',borderColor:'#30363d',borderWidth:1,padding:8}},scales:{x:{grid:{display:false},ticks:{color:'#7d8590',font:{size:10,family:'Barlow'}}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#7d8590',font:{size:10,family:'Barlow'},precision:0},beginAtZero:true}}}});}
-function seriChartPie(id,labels,data,colors){destroySeriChart(id);const c=$(id);if(!c)return;charts[id]=new Chart(c,{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:2,borderColor:'#161b22',hoverOffset:8}]},options:{responsive:true,maintainAspectRatio:false,cutout:'58%',plugins:{legend:{position:'bottom',labels:{color:'#7d8590',font:{size:10,family:'Barlow'},padding:8,boxWidth:10}},tooltip:{backgroundColor:'#161b22',borderColor:'#30363d',borderWidth:1,padding:8}}}});}
+function seriChartPie(id,labels,data,colors){destroySeriChart(id);const c=$(id);if(!c)return;charts[id]=new Chart(c,{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:2,borderColor:'#161b22',hoverOffset:8}]},options:{responsive:true,maintainAspectRatio:false,cutout:'55%',layout:{padding:{bottom:4}},plugins:{legend:{position:'bottom',labels:{color:'#8b949e',font:{size:11,family:'Barlow'},padding:12,boxWidth:12,usePointStyle:true,pointStyle:'circle'}},tooltip:{backgroundColor:'#161b22',borderColor:'#30363d',borderWidth:1,padding:8}}}});}
 
 function renderSeriCharts(rows,filt){
   filt=filt||{};
