@@ -439,7 +439,7 @@ footer strong{color:#58a6ff}
     <strong style="color:#d29922">⚙️ Falta configurar las hojas de Serigrafía.</strong><br>
     Publica en Google Sheets (<b>Archivo → Compartir → Publicar en la web</b>) las hojas <b>MAQUINAS</b>, <b>Frecuencia de MP Serigrafía</b> y <b>MANTTO. SERIGRAFIA</b>, y pega el <b>gid</b> de cada una en la constante <code style="color:#58a6ff">SERI_GIDS</code> al inicio del script.
   </div>
-  <div id="seri-diag" style="display:none;margin-top:10px"></div>
+  <div id="seri-diag" style="display:none"></div>
   <div id="seri-body" style="display:none">
     <div id="seri-banner" style="margin:6px 0 14px"></div>
     <div id="seri-kpis" style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px"></div>
@@ -451,7 +451,7 @@ footer strong{color:#58a6ff}
       <div class="cs-chart-card" style="display:flex;flex-direction:column;height:260px"><div class="cs-chart-title">Mantenimientos por tipo de máquina</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-tipo"></canvas></div></div>
       <div class="cs-chart-card" style="display:flex;flex-direction:column;height:260px"><div class="cs-chart-title">Mantenimientos realizados por mes</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-mes"></canvas></div></div>
       <div class="cs-chart-card" style="display:flex;flex-direction:column;height:260px"><div class="cs-chart-title">Máquinas por ubicación</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-ubic"></canvas></div></div>
-      <div class="cs-chart-card" style="display:flex;flex-direction:column;height:260px"><div class="cs-chart-title">Máquinas por estado de mantenimiento</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-estado"></canvas></div></div>
+      <div class="cs-chart-card" style="display:flex;flex-direction:column;height:320px"><div class="cs-chart-title">Máquinas por estado de mantenimiento</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-estado"></canvas></div></div>
     </div>
   </div>
 </div>
@@ -1679,28 +1679,8 @@ function renderSeriCharts(rows,filt){
 
 function seriHeaders(rows){return rows.length?Object.keys(rows[0]).map(k=>k.trim()).filter(Boolean):[];}
 function seriDistinct(rows,names,top){const m={};rows.forEach(r=>{const x=scol(r,names);if(x)m[x]=(m[x]||0)+1;});return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,top||15);}
-function buildSeriDiag(maquinas,maqF,frec,mantto){
-  const row=(lbl,n,okColor)=>`<tr><td style="padding:2px 14px 2px 0;color:#7d8590">${lbl}</td><td><b style="color:${n?(okColor||'#3fb950'):'#f85149'}">${n} filas</b></td></tr>`;
-  const homeVals=seriDistinct(maquinas,SC.ubic,15);
-  const mqHdr=seriHeaders(maquinas),mtHdr=seriHeaders(mantto);
-  $('seri-diag').innerHTML=`<div style="background:#161b22;border:1px solid #30363d;border-left:3px solid #58a6ff;border-radius:8px;padding:14px 18px;color:#e6edf3;font-size:12.5px;line-height:1.7">
-    <strong style="color:#58a6ff">🔌 Diagnóstico de conexión por pestaña</strong>
-    <table style="margin-top:8px;border-collapse:collapse;font-size:12px">
-      ${row('MAQUINAS · gid '+SERI_GIDS.maquinas,maquinas.length)}
-      ${row('&nbsp;&nbsp;↳ de serigrafía (HOME LOCATION ∋ "'+SERI_HOME_MATCH+'")',maqF.length)}
-      ${row('FRECUENCIA · gid '+SERI_GIDS.frecuencia,frec.length,'#d29922')}
-      ${row('MANTTO. SERIGRAFIA · gid '+SERI_GIDS.mantto,mantto.length)}
-    </table>
-    <div style="margin-top:8px;color:#7d8590">Columnas leídas en MAQUINAS: <span style="color:#e6edf3">${mqHdr.join(' · ')||'(ninguna)'}</span></div>
-    <div style="margin-top:4px;color:#7d8590">Columnas leídas en MANTTO: <span style="color:#e6edf3">${mtHdr.join(' · ')||'(ninguna)'}</span></div>
-    ${homeVals.length?`<div style="margin-top:4px;color:#7d8590">Valores de HOME LOCATION: <span style="color:#e6edf3">${homeVals.map(([k,c])=>k+' ('+c+')').join(' · ')}</span></div>`:''}
-    <div style="margin-top:10px;color:#8b949e;font-size:11.5px">
-      • Si una pestaña dice <b style="color:#f85149">0 filas</b>: el gid es incorrecto o el documento no está publicado como “Todo el documento” (Archivo → Compartir → Publicar en la web).<br>
-      • Si <b>MAQUINAS</b> trae filas pero las “de serigrafía” dan 0: el valor que identifica al área en HOME LOCATION no contiene “${SERI_HOME_MATCH}”. Mira arriba qué valores hay y ajusto el filtro.<br>
-      • Si las columnas no son las que esperabas, el gid de esa pestaña está cambiado de orden.
-    </div>
-  </div>`;
-}
+function buildSeriDiag(){/* diagnóstico desactivado */}
+
 
 let _seriView='tablero',_seriDisp={cfg:false,diag:false,body:false};
 function showSeri(cfg,diag,body){_seriDisp={cfg,diag,body};if(_seriView!=='tablero')return;$('seri-config').style.display=cfg?'block':'none';$('seri-diag').style.display=diag?'block':'none';$('seri-body').style.display=body?'block':'none';}
@@ -1924,11 +1904,10 @@ async function renderSerigrafia(){
     SERI_GIDS.fechas?fetchCSV(cb(SERI_BASE+SERI_GIDS.fechas)):Promise.resolve([])
   ]);
   const maqF=maquinas.filter(r=>scol(r,SC.ubic).toUpperCase().includes(SERI_HOME_MATCH));
-  buildSeriDiag(maquinas,maqF,frec,mantto);
-  const problema=!maqF.length||!mantto.length;
+  /* diagnóstico desactivado */
   if(maqF.length||mantto.length)seriData={maquinas:maqF,frec,mantto,fechas};   /* solo sustituye si llegó algo */
-  if(!seriData.maquinas.length){showSeri(false,true,false);$('seri-sub').textContent='No llegaron máquinas de serigrafía — revisa el diagnóstico de abajo.';return;}
-  showSeri(false,problema,true);
+  if(!seriData.maquinas.length){showSeri(false,false,true);$('seri-sub').textContent='No llegaron máquinas de serigrafía — revisa el diagnóstico de abajo.';return;}
+  showSeri(false,false,true);
   _seriRows=computeSeri();
   const upd=new Date().toLocaleString('es-MX',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
   $('seri-sub').textContent=`${_seriRows.length} máquinas · ${seriData.mantto.length} mantenimientos registrados · actualizado ${upd}`;
