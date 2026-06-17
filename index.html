@@ -428,7 +428,7 @@ footer strong{color:#58a6ff}
     <button class="seri-subtab" onclick="seriSubView('gantt',this)">📅 Gantt y cumplimiento</button>
     <button class="seri-subtab" onclick="seriSubView('pasos',this)">📋 Pasos de mantenimiento</button>
   </div>
-  <div id="seri-gantt-view" style="display:none"></div>
+  <div id="seri-gantt-view" style="display:none;margin-top:6px"></div>
   <div id="seri-pasos-view" style="display:none">
     <div style="margin-top:10px;border:1px solid #30363d;border-radius:8px;overflow:hidden;background:#fff">
       <iframe id="seri-pasos-frame" title="Pasos de mantenimiento serigrafía" style="width:100%;height:76vh;border:0;background:#fff;display:block" src="about:blank"></iframe>
@@ -1829,7 +1829,7 @@ function renderSeriGantt(){
   const tot=rows.length,ejec=rows.filter(r=>r.estado==='Ejecutado').length,atr=rows.filter(r=>r.estado==='Atrasado').length,prog=rows.filter(r=>r.estado==='Programado').length;
   const cum=tot?Math.round(ejec/tot*100):0;
   host.innerHTML=`
-    <div style="display:flex;flex-wrap:wrap;gap:12px;margin:14px 0">
+    <div style="display:flex;flex-wrap:wrap;gap:12px;margin:6px 0 14px">
       ${seriKpi('Programados',tot,'#0067B8')}${seriKpi('Ejecutados',ejec,'#3fb950')}${seriKpi('Atrasados',atr,'#f85149')}${seriKpi('Por ejecutar',prog,'#58a6ff')}${seriKpi('% Cumplimiento',cum+'%','#d29922')}
     </div>
     <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
