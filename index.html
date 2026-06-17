@@ -1700,7 +1700,7 @@ function seriSubView(view,btn){
 function renderSeriPasos(){const f=$('seri-pasos-frame');if(f&&(!f.src||f.src==='about:blank'||!f.src.includes('gid=')))f.src=SERI_PUBHTML+SERI_PASOS_GID;}
 
 function seriSummary(){
-  if(!(seriData.fechas&&seriData.fechas.length))return null;
+  if(!_seriRows||!_seriRows.length)return null;
   const rows=seriGanttData();
   if(!rows.length)return null;
   const tot=rows.length,done=rows.filter(r=>r.estado==='Ejecutado').length;
@@ -1724,86 +1724,137 @@ async function ensureSeriData(){
   return await loadSeriData();
 }
 function renderSeriAreaGantt(headId,bodyId,accent){
-  const MESES_SHOW=['FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'],MESES_IDX=[2,3,4,5,6,7,8,9,10,11,12];
+  const MESES_SHOW=['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+  const MESES_IDX=[1,2,3,4,5,6,7,8,9,10,11,12];
   const mesActual=new Date().getMonth()+1;
   const plan=seriGanttData();
   let grupos=[...new Set(plan.map(p=>p.tipo).filter(Boolean))].sort();
-  if(!grupos.length){$(headId).innerHTML='';$(bodyId).innerHTML='<tr><td colspan="12" style="padding:18px;color:#7d8590;font-size:.72rem;text-align:center;background:#161b22">Sin fechas de mantenimiento programadas</td></tr>';return;}
-  const meta={},real={},tot={};
-  grupos.forEach(g=>{meta[g]={};real[g]={};tot[g]=0;MESES_IDX.forEach(m=>{meta[g][m]=0;real[g][m]=0});});
+  if(!grupos.length){
+    $(headId).innerHTML='';
+    $(bodyId).innerHTML='<tr><td colspan="13" style="padding:18px;color:#7d8590;font-size:.72rem;text-align:center;background:#161b22">Sin fechas proyectadas — revisa el Tablero de MP</td></tr>';
+    return;
+  }
+  /* meta[tipo][mes] = cuántos mantenimientos programados/proyectados ese mes
+     real[tipo][mes] = cuántos ejecutados ese mes
+     uniq[tipo]      = series únicas (para el total de máquinas) */
+  const meta={},real={},uniq={};
+  grupos.forEach(g=>{meta[g]={};real[g]={};uniq[g]=new Set();MESES_IDX.forEach(m=>{meta[g][m]=0;real[g][m]=0;});});
   plan.forEach(p=>{
-    if(!p.tipo||!meta[p.tipo])return;tot[p.tipo]++;
-    /* meta: mes de la fecha PROGRAMADA */
-    if(p.fp){const m=p.fp.getMonth()+1;if(m>=2&&m<=12)meta[p.tipo][m]++;}
-    /* real: solo máquinas con estado Ejecutado, contadas en su mes programado */
-    if(p.exec&&p.estado==='Ejecutado'&&p.fp){const m=p.fp.getMonth()+1;if(m>=2&&m<=12)real[p.tipo][m]++;}
+    if(!p.tipo||!meta[p.tipo])return;
+    uniq[p.tipo].add(p.serie);
+    if(p.fp){const m=p.fp.getMonth()+1;if(m>=1&&m<=12){
+      if(p.estado==='Ejecutado') real[p.tipo][m]++;
+      else meta[p.tipo][m]++;
+    }}
   });
   $(headId).innerHTML=`<tr>
     <th style="padding:8px 12px;font-size:.62rem;text-transform:uppercase;color:#7d8590;text-align:left;border-bottom:2px solid #30363d;min-width:160px;background:#0d1117;position:sticky;left:0">Tipo de Máquina</th>
-    ${MESES_SHOW.map(m=>`<th style="padding:8px 6px;font-size:.62rem;text-transform:uppercase;color:#7d8590;text-align:center;border-bottom:2px solid #30363d;background:#0d1117;">${m}</th>`).join('')}
+    ${MESES_SHOW.map((m,i)=>{
+      const mi=i+1;
+      const esActual=mi===mesActual;
+      return `<th style="padding:8px 6px;font-size:.62rem;text-transform:uppercase;color:${esActual?'#58a6ff':'#7d8590'};text-align:center;border-bottom:2px solid #30363d;background:#0d1117;${esActual?'border-bottom:2px solid #58a6ff;':''}">${m}${esActual?' ◀':''}</th>`;
+    }).join('')}
   </tr>`;
   $(bodyId).innerHTML=grupos.map(g=>{
-    const totG=tot[g]||0,realTot=MESES_IDX.reduce((s,m)=>s+real[g][m],0),pend=Math.max(0,totG-realTot),pctG=totG?Math.round(realTot/totG*100):0;
+    const totG=uniq[g].size;
+    const realTot=MESES_IDX.reduce((s,m)=>s+(real[g][m]||0),0);
+    const metaTot=MESES_IDX.reduce((s,m)=>s+(meta[g][m]||0),0);
+    const pctG=totG?Math.round(realTot/totG*100):0;
     const label=g.length>22?g.slice(0,22)+'…':g;
     const cells=MESES_IDX.map(mi=>{
-      const esFut=mi>mesActual,r=real[g][mi]||0,me=meta[g][mi]||0;let bg,color,txt;
-      if(esFut){if(me>0){bg='rgba(125,133,144,.08)';color='#7d8590';txt=`<span style="font-size:.65rem;font-weight:700">${me}</span>`;}else{bg='rgba(125,133,144,.06)';color='#484f58';txt='—';}}
-      else if(me===0&&r===0){bg='rgba(125,133,144,.06)';color='#484f58';txt='—';}
-      else{const pct=me>0?Math.round(r/me*100):(r>0?100:0);if(pct>=100){bg='rgba(63,185,80,.2)';color='#3fb950';}else if(pct>=50){bg='rgba(210,153,34,.18)';color='#d29922';}else{bg='rgba(248,81,73,.15)';color='#f85149';}txt=`${r}<br><span style="font-size:.56rem">${pct}%</span>`;}
-      return `<td style="padding:4px;border-top:1px solid #21262d;text-align:center;"><div style="height:36px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;background:${bg};color:${color};line-height:1.2;">${txt}</div></td>`;
+      const esFut=mi>mesActual;
+      const r=real[g][mi]||0;
+      const me=meta[g][mi]||0;
+      let bg,color,txt;
+      if(esFut||mi===mesActual){
+        /* Meses futuros o actual: mostrar proyección */
+        if(me>0||r>0){
+          if(r>0){bg='rgba(63,185,80,.2)';color='#3fb950';txt=`${r}<br><span style="font-size:.56rem">Ejec</span>`;}
+          else{bg='rgba(88,166,255,.12)';color='#58a6ff';txt=`<span style="font-size:.65rem;font-weight:700">${me}</span><br><span style="font-size:.5rem">prog</span>`;}
+        } else {bg='rgba(125,133,144,.06)';color='#484f58';txt='—';}
+      } else {
+        /* Meses pasados: ejecutado vs meta */
+        if(me===0&&r===0){bg='rgba(125,133,144,.06)';color='#484f58';txt='—';}
+        else{
+          const pct=me>0?Math.round(r/me*100):(r>0?100:0);
+          if(pct>=100){bg='rgba(63,185,80,.2)';color='#3fb950';}
+          else if(pct>=50){bg='rgba(210,153,34,.18)';color='#d29922';}
+          else{bg='rgba(248,81,73,.15)';color='#f85149';}
+          txt=`${r}<br><span style="font-size:.56rem">${pct}%</span>`;
+        }
+      }
+      return `<td style="padding:4px;border-top:1px solid #21262d;text-align:center;${mi===mesActual?'border-left:1px solid #58a6ff33;border-right:1px solid #58a6ff33;':''}"><div style="height:36px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;background:${bg};color:${color};line-height:1.2;">${txt}</div></td>`;
     }).join('');
-    return `<tr><td style="padding:8px 12px;border-top:1px solid #21262d;background:#161b22;position:sticky;left:0"><div style="font-weight:700;font-size:.76rem;color:${accent||'#e6edf3'}" title="${g}">${label}</div><div style="font-size:.6rem;color:#484f58;margin-top:1px">total: ${totG} · ejec: ${realTot} (${pctG}%) · pend: ${pend}</div></td>${cells}</tr>`;
+    return `<tr><td style="padding:8px 12px;border-top:1px solid #21262d;background:#161b22;position:sticky;left:0"><div style="font-weight:700;font-size:.76rem;color:${accent||'#e6edf3'}" title="${g}">${label}</div><div style="font-size:.6rem;color:#484f58;margin-top:1px">${totG} máq · ejec: ${realTot} (${pctG}%) · prox: ${metaTot}</div></td>${cells}</tr>`;
   }).join('');
-  /* Renglón de TOTAL */
-  const grandProg=grupos.reduce((s,g)=>s+(tot[g]||0),0);
+  /* Fila TOTAL */
+  const grandMaq=new Set(plan.map(p=>p.serie)).size;
   const grandReal=grupos.reduce((s,g)=>s+MESES_IDX.reduce((a,m)=>a+(real[g][m]||0),0),0);
-  const grandPct=grandProg?Math.round(grandReal/grandProg*100):0;
+  const grandMeta=grupos.reduce((s,g)=>s+MESES_IDX.reduce((a,m)=>a+(meta[g][m]||0),0),0);
+  const grandPct=grandMaq?Math.round(grandReal/grandMaq*100):0;
   const totCells=MESES_IDX.map(mi=>{
-    const meMonth=grupos.reduce((s,g)=>s+(meta[g][mi]||0),0);
-    const rMonth=grupos.reduce((s,g)=>s+(real[g][mi]||0),0);
-    const val=mi>mesActual?meMonth:(rMonth||meMonth);
-    return `<td style="padding:4px;border-top:2px solid #30363d;text-align:center"><div style="height:34px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.74rem;font-weight:800;background:rgba(0,103,184,.12);color:#58a6ff">${val||'—'}</div></td>`;
+    const r=grupos.reduce((s,g)=>s+(real[g][mi]||0),0);
+    const me=grupos.reduce((s,g)=>s+(meta[g][mi]||0),0);
+    const val=mi>mesActual?(me||'—'):(r||me||'—');
+    const color=mi<=mesActual&&r>0?'#3fb950':'#58a6ff';
+    return `<td style="padding:4px;border-top:2px solid #30363d;text-align:center;${mi===mesActual?'border-left:1px solid #58a6ff33;border-right:1px solid #58a6ff33;':''}"><div style="height:34px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.74rem;font-weight:800;background:rgba(0,103,184,.12);color:${color}">${val}</div></td>`;
   }).join('');
-  $(bodyId).innerHTML+=`<tr><td style="padding:8px 12px;border-top:2px solid #30363d;background:#0d1117;position:sticky;left:0"><div style="font-weight:800;font-size:.8rem;color:#e6edf3">TOTAL</div><div style="font-size:.62rem;color:#7d8590;margin-top:1px">${grandProg} programadas · ${grandReal} ejecutadas (${grandPct}%)</div></td>${totCells}</tr>`;
+  $(bodyId).innerHTML+=`<tr><td style="padding:8px 12px;border-top:2px solid #30363d;background:#0d1117;position:sticky;left:0"><div style="font-weight:800;font-size:.8rem;color:#e6edf3">TOTAL</div><div style="font-size:.62rem;color:#7d8590;margin-top:1px">${grandMaq} máq · ${grandReal} ejec (${grandPct}%) · ${grandMeta} próx</div></td>${totCells}</tr>`;
 }
 function seriGanttData(){
+  /* Usa _seriRows (Tablero MP) como fuente — misma verdad */
+  if(!_seriRows||!_seriRows.length)return [];
   const today=new Date();today.setHours(0,0,0,0);
-  /* Mapa de frecuencias por tipo */
-  const fmap={};
-  (seriData.frec||[]).forEach(r=>{const t=scol(r,SC.tipo).toUpperCase();if(t)fmap[t]=parseInt(scol(r,SC.dias))||0;});
-  const plan=(seriData.fechas||[]).map(r=>({
-    serie:scol(r,SC.serie),
-    tipo:(scol(r,SC.tipo)||scol(r,SC.frecTxt)).toUpperCase(),
-    tipoDisplay:scol(r,SC.tipo)||scol(r,SC.frecTxt),
-    area:scol(r,SC.area),
-    fp:parseFechaSeri(scol(r,SC.fechaPlan))
-  })).filter(p=>p.serie&&p.fp&&(!p.area||p.area.toUpperCase().includes(SERI_HOME_MATCH)));
-  return plan.map(p=>{
-    /* Registros reales de MANTTO */
-    const recs=(seriData.mantto||[]).filter(x=>scol(x,SC.serie)===p.serie)
-      .map(x=>parseFechaSeri(scol(x,SC.fecMP))).filter(Boolean).sort((a,b)=>b-a);
-    /* La fecha base (fp) ya pasada = ejecutada automáticamente */
-    const fpPasada=p.fp<=today;
-    /* Exec: el registro MANTTO más reciente, o la fecha base si ya pasó y no hay registro */
-    const execMantto=recs[0]||null;
-    const exec=execMantto||(fpPasada?p.fp:null);
-    const ultimoEjec=execMantto||(fpPasada?p.fp:null);
-    /* Calcular próxima fecha según frecuencia */
-    let proxFecha=null;
-    const diasFrec=fmap[p.tipo]||0;
-    if(ultimoEjec&&diasFrec>0){proxFecha=new Date(ultimoEjec);proxFecha.setDate(proxFecha.getDate()+diasFrec);}
-    let estado,color;
-    if(exec){
-      /* Ya ejecutado: la fecha relevante para el Gantt es la PRÓXIMA */
-      if(proxFecha&&proxFecha>=today){estado='Programado';color='#58a6ff';}
-      else if(proxFecha&&proxFecha<today){estado='Atrasado';color='#f85149';}
-      else{estado='Ejecutado';color='#3fb950';}
-    } else if(p.fp<today){estado='Atrasado';color='#f85149';}
-    else{estado='Programado';color='#58a6ff';}
-    /* fp para el Gantt: si ya fue ejecutado, usar la próxima fecha proyectada */
-    const fpGantt=exec&&proxFecha?proxFecha:p.fp;
-    return {...p,tipo:p.tipoDisplay,exec,execMantto,proxFecha,fpGantt,fp:fpGantt,estado,color};
+  const YEAR=2026;
+  const result=[];
+  _seriRows.forEach(r=>{
+    if(!r.tipo)return;
+    /* Frecuencia en días */
+    const diasFrec=r.prox&&r.ultimo?Math.round((r.prox-r.ultimo)/86400000):0;
+    /* --- REGISTRO DEL ÚLTIMO MANTENIMIENTO (ya ejecutado) --- */
+    if(r.ultimo){
+      result.push({
+        serie:r.serie, tipo:r.tipo,
+        fp:r.ultimo,       /* mes en que ocurrió */
+        exec:r.ultimo,     /* sí ejecutado */
+        estado:'Ejecutado', color:'#3fb950'
+      });
+    }
+    /* --- PRÓXIMA FECHA (lo que el tablero sugiere) --- */
+    if(r.prox){
+      let estado,color;
+      const diff=Math.round((r.prox-today)/86400000);
+      if(diff<0){estado='Atrasado';color='#f85149';}
+      else if(diff<=7){estado='Próximo a vencer';color='#d29922';}
+      else{estado='Programado';color='#58a6ff';}
+      result.push({
+        serie:r.serie, tipo:r.tipo,
+        fp:r.prox,
+        exec:null,
+        estado, color
+      });
+      /* --- PROYECCIÓN EN CASCADA para el resto del año --- */
+      if(diasFrec>0){
+        let fechaSig=new Date(r.prox);
+        for(let i=0;i<24;i++){
+          fechaSig=new Date(fechaSig);
+          fechaSig.setDate(fechaSig.getDate()+diasFrec);
+          if(fechaSig.getFullYear()>YEAR)break;
+          result.push({
+            serie:r.serie, tipo:r.tipo,
+            fp:new Date(fechaSig),
+            exec:null,
+            estado:'Programado', color:'#58a6ff'
+          });
+        }
+      }
+    }
+    /* Máquina sin último ni próximo: Sin registro */
+    if(!r.ultimo&&!r.prox){
+      result.push({serie:r.serie,tipo:r.tipo,fp:null,exec:null,estado:'Sin registro',color:'#7d8590'});
+    }
   });
+  return result.filter(p=>p.fp&&p.fp.getFullYear()===YEAR);
 }
 function renderSeriGantt(){
   const host=$('seri-gantt-view');if(!host)return;
