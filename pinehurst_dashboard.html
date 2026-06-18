@@ -428,7 +428,7 @@ footer strong{color:#58a6ff}
     <button class="seri-subtab" onclick="seriSubView('gantt',this)">📅 Gantt y cumplimiento</button>
     <button class="seri-subtab" onclick="seriSubView('pasos',this)">📋 Pasos de mantenimiento</button>
   </div>
-  <div id="seri-gantt-view" style="display:none"></div>
+  <div id="seri-gantt-view" style="display:none;margin-top:6px"></div>
   <div id="seri-pasos-view" style="display:none">
     <div style="margin-top:10px;border:1px solid #30363d;border-radius:8px;overflow:hidden;background:#fff">
       <iframe id="seri-pasos-frame" title="Pasos de mantenimiento serigrafía" style="width:100%;height:76vh;border:0;background:#fff;display:block" src="about:blank"></iframe>
@@ -439,7 +439,7 @@ footer strong{color:#58a6ff}
     <strong style="color:#d29922">⚙️ Falta configurar las hojas de Serigrafía.</strong><br>
     Publica en Google Sheets (<b>Archivo → Compartir → Publicar en la web</b>) las hojas <b>MAQUINAS</b>, <b>Frecuencia de MP Serigrafía</b> y <b>MANTTO. SERIGRAFIA</b>, y pega el <b>gid</b> de cada una en la constante <code style="color:#58a6ff">SERI_GIDS</code> al inicio del script.
   </div>
-  <div id="seri-diag" style="display:none;margin-top:10px"></div>
+  <div id="seri-diag" style="display:none"></div>
   <div id="seri-body" style="display:none">
     <div id="seri-banner" style="margin:6px 0 14px"></div>
     <div id="seri-kpis" style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px"></div>
@@ -447,11 +447,11 @@ footer strong{color:#58a6ff}
     <div style="overflow:auto;max-height:420px;border:1px solid #30363d;border-radius:8px;margin-bottom:18px">
       <table id="seri-table" style="width:100%;border-collapse:collapse;font-size:12px"></table>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">
-      <div class="cs-chart-card" style="display:flex;flex-direction:column;height:260px"><div class="cs-chart-title">Mantenimientos por tipo de máquina</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-tipo"></canvas></div></div>
-      <div class="cs-chart-card" style="display:flex;flex-direction:column;height:260px"><div class="cs-chart-title">Mantenimientos realizados por mes</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-mes"></canvas></div></div>
-      <div class="cs-chart-card" style="display:flex;flex-direction:column;height:260px"><div class="cs-chart-title">Máquinas por ubicación</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-ubic"></canvas></div></div>
-      <div class="cs-chart-card" style="display:flex;flex-direction:column;height:260px"><div class="cs-chart-title">Máquinas por estado de mantenimiento</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-estado"></canvas></div></div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px">
+      <div class="cs-chart-card" style="display:flex;flex-direction:column;height:300px"><div class="cs-chart-title">Mantenimientos por tipo de máquina</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-tipo"></canvas></div></div>
+      <div class="cs-chart-card" style="display:flex;flex-direction:column;height:300px"><div class="cs-chart-title">Mantenimientos realizados por mes</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-mes"></canvas></div></div>
+      <div class="cs-chart-card" style="display:flex;flex-direction:column;height:300px"><div class="cs-chart-title">Máquinas por ubicación</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-ubic"></canvas></div></div>
+      <div class="cs-chart-card" style="display:flex;flex-direction:column;height:300px"><div class="cs-chart-title">Máquinas por estado de mantenimiento</div><div style="flex:1;position:relative;padding:4px 8px 0"><canvas id="seri-ch-estado"></canvas></div></div>
     </div>
   </div>
 </div>
@@ -1501,7 +1501,7 @@ let seriData={maquinas:[],frec:[],mantto:[]},_seriLoaded=false,_seriRows=[];
 
 const SC={
   serie:['Número de serie','Numero de serie','No. de serie','No de serie','SERIE','Serie'],
-  tipo:['Tipo de máquina','Tipo de maquina','TIPO DE MAQUINA','MAQUINA','Tipo'],
+  tipo:['Tipo de máquina','Tipo de maquina','TIPO DE MAQUINA','MAQUINA','Maquina','Grupo de Maquina','Grupo de máquina','Tipo'],
   modelo:['Modelo','MODEL','Model'],fab:['Fabricante','FABRICANTE'],
   ubic:['Ubicación','Ubicacion','home location','Home Location','HOME LOCATION'],
   estado:['Estado','ESTADO'],
@@ -1518,13 +1518,20 @@ function scol(r,names){for(const n of names){for(const k in r){if(k.trim().toLow
 
 function parseFechaSeri(s){
   s=(s||'').toString().trim();if(!s)return null;
-  s=s.split(' ')[0].split('T')[0];let m;
-  if(m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))return new Date(+m[1],+m[2]-1,+m[3]);
-  if(m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/)){
+  /* formato largo inglés: "Wednesday, May 6, 2026" o "May 6, 2026" */
+  const MONTHS={january:0,february:1,march:2,april:3,may:4,june:5,july:6,august:7,september:8,october:9,november:10,december:11};
+  const mLong=s.match(/(?:\w+,\s+)?(\w+)\s+(\d{1,2}),?\s+(\d{4})/i);
+  if(mLong){const mo=MONTHS[mLong[1].toLowerCase()];if(mo!==undefined)return new Date(+mLong[3],mo,+mLong[2]);}
+  /* ISO: 2026-05-06 */
+  let m;
+  const sClean=s.split('T')[0];
+  if(m=sClean.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))return new Date(+m[1],+m[2]-1,+m[3]);
+  /* DD/MM/YYYY o MM/DD/YYYY */
+  if(m=s.split(' ')[0].match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/)){
     let a=+m[1],b=+m[2],y=+m[3];if(y<100)y+=2000;
-    let d=a,mo=b;                       /* asume D/M/A (Latino) */
-    if(a>12&&b<=12){d=a;mo=b;}          /* a no puede ser mes */
-    else if(b>12&&a<=12){d=b;mo=a;}     /* b no puede ser mes -> a es mes */
+    let d=a,mo=b;
+    if(a>12&&b<=12){d=a;mo=b;}
+    else if(b>12&&a<=12){d=b;mo=a;}
     return new Date(y,mo-1,d);
   }
   const dt=new Date(s);return isNaN(dt)?null:dt;
@@ -1541,17 +1548,43 @@ async function fetchCSV(url){
 function computeSeri(){
   const fmap={};
   seriData.frec.forEach(r=>{const t=scol(r,SC.tipo).toUpperCase();if(t)fmap[t]={txt:scol(r,SC.frecTxt),dias:parseInt(scol(r,SC.dias))||0};});
+  /* Mapa de fecha base por serie (pestaña Fechas de Mantenimiento) */
+  const fechaBaseMap={};
+  (seriData.fechas||[]).forEach(r=>{
+    const s=scol(r,SC.serie);const f=parseFechaSeri(scol(r,SC.fechaPlan));
+    if(s&&f)fechaBaseMap[s]=f;
+  });
   const today=new Date();today.setHours(0,0,0,0);
   return seriData.maquinas.map(r=>{
     const serie=scol(r,SC.serie),tipo=scol(r,SC.tipo);
+    /* Registros reales de MANTTO.SERIGRAFIA */
     const recs=seriData.mantto.filter(x=>scol(x,SC.serie)===serie)
       .map(x=>({f:parseFechaSeri(scol(x,SC.fecMP)),tec:scol(x,SC.tec)})).filter(x=>x.f)
       .sort((a,b)=>b.f-a.f);
-    const ultimo=recs[0]?recs[0].f:null,tec=recs[0]?recs[0].tec:'';
     const fr=fmap[tipo.toUpperCase()]||{txt:'Sin definir',dias:0};
+    /* Determinar último mantenimiento:
+       1) Si hay registros en MANTTO → el más reciente
+       2) Si no hay registros pero la fecha base ya pasó → la fecha base cuenta como ejecutado
+       3) Si no hay nada → Sin registro */
+    let ultimo=null,tec='',fuenteUltimo='mantto';
+    if(recs.length>0){
+      ultimo=recs[0].f;tec=recs[0].tec;fuenteUltimo='mantto';
+    } else {
+      const fb=fechaBaseMap[serie];
+      if(fb&&fb<=today){ultimo=fb;tec='';fuenteUltimo='base';}
+    }
+    /* Si hay registro MANTTO pero también hay fecha base más reciente (no debería pasar, pero por si acaso) */
+    if(recs.length>0&&fechaBaseMap[serie]&&fechaBaseMap[serie]>recs[0].f){
+      /* La fecha base es más reciente que el último MANTTO registrado — usar la base */
+      ultimo=fechaBaseMap[serie];tec='';fuenteUltimo='base';
+    }
     let prox=null,dias=null,estado='Sin registro';
-    if(ultimo&&fr.dias>0){prox=new Date(ultimo);prox.setDate(prox.getDate()+fr.dias);dias=Math.round((prox-today)/86400000);estado=dias<0?'Vencido':dias<=7?'Próximo a vencer':'Al día';}
-    return {serie,tipo,modelo:scol(r,SC.modelo),fab:scol(r,SC.fab),ubic:scol(r,SC.ubic),estadoMaq:scol(r,SC.estado),frec:fr.txt,ultimo,prox,dias,estado,tec,nMant:recs.length};
+    if(ultimo&&fr.dias>0){
+      prox=new Date(ultimo);prox.setDate(prox.getDate()+fr.dias);
+      dias=Math.round((prox-today)/86400000);
+      estado=dias<0?'Vencido':dias<=7?'Próximo a vencer':'Al día';
+    }
+    return {serie,tipo,modelo:scol(r,SC.modelo),fab:scol(r,SC.fab),ubic:scol(r,SC.ubic),estadoMaq:scol(r,SC.estado),frec:fr.txt,ultimo,prox,dias,estado,tec,nMant:recs.length,fuenteUltimo};
   });
 }
 
@@ -1566,11 +1599,15 @@ function seriBadge(estado){const c=estado==='Al día'?'#3fb950':estado==='Próxi
 function fmtDSeri(d){return d?`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`:'—';}
 function renderSeriTable(rows){
   rows=[...rows].sort((a,b)=>(a.dias==null?99999:a.dias)-(b.dias==null?99999:b.dias));
+  window._seriTableRows=rows;
+  const thCk=`<th style="position:sticky;top:0;left:0;z-index:3;background:#0067B8;color:#fff;padding:8px 6px;text-align:center;width:36px"><input type="checkbox" id="seri-chk-all" title="Seleccionar todo" onchange="seriToggleAll(this.checked)" style="cursor:pointer;width:14px;height:14px;accent-color:#58a6ff"></th>`;
   const cols=['Núm. de serie','Tipo de máquina','Ubicación','Último MP','Próximo MP','Días rest.','Estado','Técnico'];
-  const head=`<thead><tr>${cols.map(h=>`<th style="position:sticky;top:0;background:#0067B8;color:#fff;padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.04em">${h}</th>`).join('')}</tr></thead>`;
-  const body=rows.map(r=>{const dc=r.dias==null?'#7d8590':r.dias<0?'#f85149':r.dias<=7?'#d29922':'#e6edf3';
-    return `<tr style="border-top:1px solid #21262d">
-      <td style="padding:7px 10px;font-weight:700;color:#e6edf3">${r.serie}</td>
+  const head=`<thead><tr>${thCk}${cols.map(h=>`<th style="position:sticky;top:0;background:#0067B8;color:#fff;padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.04em">${h}</th>`).join('')}</tr></thead>`;
+  const body=rows.map((r,i)=>{
+    const dc=r.dias==null?'#7d8590':r.dias<0?'#f85149':r.dias<=7?'#d29922':'#e6edf3';
+    return `<tr class="seri-row" style="border-top:1px solid #21262d;cursor:pointer" onclick="seriToggleRow(${i})" id="seri-row-${i}">
+      <td style="padding:7px 6px;text-align:center;position:sticky;left:0;z-index:1;background:#0d1117" onclick="event.stopPropagation()"><input type="checkbox" class="seri-chk" data-idx="${i}" onchange="seriChkChange()" style="cursor:pointer;width:14px;height:14px;accent-color:#58a6ff"></td>
+      <td style="padding:7px 10px;font-weight:700;color:#e6edf3;position:sticky;left:36px;z-index:1;background:inherit">${r.serie}</td>
       <td style="padding:7px 10px;color:#8b949e">${r.tipo||'—'}</td>
       <td style="padding:7px 10px;color:#8b949e">${r.ubic||'—'}</td>
       <td style="padding:7px 10px;color:#8b949e">${fmtDSeri(r.ultimo)}</td>
@@ -1578,7 +1615,34 @@ function renderSeriTable(rows){
       <td style="padding:7px 10px;font-weight:700;color:${dc}">${r.dias==null?'—':r.dias}</td>
       <td style="padding:7px 10px">${seriBadge(r.estado)}</td>
       <td style="padding:7px 10px;color:#8b949e">${r.tec||'—'}</td></tr>`;}).join('');
-  $('seri-table').innerHTML=head+'<tbody>'+(body||'<tr><td style="padding:14px;color:#7d8590">Sin resultados para los filtros aplicados.</td></tr>')+'</tbody>';
+  $('seri-table').innerHTML=head+'<tbody>'+(body||'<tr><td colspan="9" style="padding:14px;color:#7d8590">Sin resultados para los filtros aplicados.</td></tr>')+'</tbody>';
+  seriChkChange();
+}
+function seriToggleRow(i){
+  const chk=document.querySelector(`.seri-chk[data-idx="${i}"]`);
+  if(chk){chk.checked=!chk.checked;seriChkChange();}
+}
+function seriToggleAll(checked){
+  document.querySelectorAll('.seri-chk').forEach(c=>c.checked=checked);
+  seriChkChange();
+}
+function seriChkChange(){
+  const all=document.querySelectorAll('.seri-chk');
+  const sel=document.querySelectorAll('.seri-chk:checked');
+  /* resaltar filas seleccionadas */
+  all.forEach(c=>{
+    const row=document.getElementById('seri-row-'+c.dataset.idx);
+    if(row)row.style.background=c.checked?'rgba(88,166,255,.07)':'';
+  });
+  /* actualizar checkbox master */
+  const master=$('seri-chk-all');
+  if(master){master.checked=sel.length>0&&sel.length===all.length;master.indeterminate=sel.length>0&&sel.length<all.length;}
+  /* actualizar texto del botón */
+  const btn=$('seri-dl-btn');
+  if(btn){
+    if(sel.length>0){btn.textContent=`⬇ Descargar seleccionadas (${sel.length})`;btn.style.background='#2ea043';btn.style.borderColor='#2ea043';}
+    else{btn.textContent='⬇ Descargar registros';btn.style.background='#0067B8';btn.style.borderColor='#0067B8';}
+  }
 }
 
 function renderSeriBanner(rows){
@@ -1601,7 +1665,7 @@ function buildSeriFilters(rows){
     seriSel('sf-tec','Técnico',seriUniq(seriData.mantto.map(r=>scol(r,SC.tec))))+
     seriDate('sf-from','Último MP desde')+seriDate('sf-to','Último MP hasta')+
     `<button onclick="resetSeriFilters()" style="background:#21262d;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:7px 14px;font-size:12px;cursor:pointer;height:32px">Limpiar</button>`+
-    `<button onclick="downloadSeriCSV()" style="background:#0067B8;color:#fff;border:1px solid #0067B8;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;height:32px">⬇ Descargar registros</button>`;
+    `<button id="seri-dl-btn" onclick="downloadSeriCSV()" style="background:#0067B8;color:#fff;border:1px solid #0067B8;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;height:32px">⬇ Descargar registros</button>`;
 }
 function getSeriFiltered(){
   const g=id=>{const el=$(id);return el?el.value:'';};
@@ -1618,7 +1682,7 @@ function resetSeriFilters(){['sf-tipo','sf-ubic','sf-estado','sf-tec','sf-from',
 function destroySeriChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
 function seriChartBar(id,labels,data,color,horizontal){destroySeriChart(id);const c=$(id);if(!c)return;charts[id]=new Chart(c,{type:'bar',data:{labels,datasets:[{data,backgroundColor:color,borderRadius:5,borderSkipped:false}]},options:{indexAxis:horizontal?'y':'x',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#161b22',borderColor:'#30363d',borderWidth:1,padding:8}},scales:{x:{grid:{display:false},ticks:{color:'#7d8590',font:{size:10,family:'Barlow'}}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#7d8590',font:{size:10,family:'Barlow'},precision:0},beginAtZero:true}}}});}
 function seriChartLine(id,labels,data){destroySeriChart(id);const c=$(id);if(!c)return;charts[id]=new Chart(c,{type:'line',data:{labels,datasets:[{data,borderColor:'#0067B8',backgroundColor:'rgba(0,103,184,.15)',fill:true,tension:.35,pointRadius:3,pointBackgroundColor:'#0067B8'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#161b22',borderColor:'#30363d',borderWidth:1,padding:8}},scales:{x:{grid:{display:false},ticks:{color:'#7d8590',font:{size:10,family:'Barlow'}}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#7d8590',font:{size:10,family:'Barlow'},precision:0},beginAtZero:true}}}});}
-function seriChartPie(id,labels,data,colors){destroySeriChart(id);const c=$(id);if(!c)return;charts[id]=new Chart(c,{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:2,borderColor:'#161b22',hoverOffset:8}]},options:{responsive:true,maintainAspectRatio:false,cutout:'58%',plugins:{legend:{position:'bottom',labels:{color:'#7d8590',font:{size:10,family:'Barlow'},padding:8,boxWidth:10}},tooltip:{backgroundColor:'#161b22',borderColor:'#30363d',borderWidth:1,padding:8}}}});}
+function seriChartPie(id,labels,data,colors){destroySeriChart(id);const c=$(id);if(!c)return;charts[id]=new Chart(c,{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:2,borderColor:'#161b22',hoverOffset:8}]},options:{responsive:true,maintainAspectRatio:false,cutout:'55%',layout:{padding:{bottom:4}},plugins:{legend:{position:'bottom',labels:{color:'#8b949e',font:{size:11,family:'Barlow'},padding:12,boxWidth:12,usePointStyle:true,pointStyle:'circle'}},tooltip:{backgroundColor:'#161b22',borderColor:'#30363d',borderWidth:1,padding:8}}}});}
 
 function renderSeriCharts(rows,filt){
   filt=filt||{};
@@ -1646,28 +1710,8 @@ function renderSeriCharts(rows,filt){
 
 function seriHeaders(rows){return rows.length?Object.keys(rows[0]).map(k=>k.trim()).filter(Boolean):[];}
 function seriDistinct(rows,names,top){const m={};rows.forEach(r=>{const x=scol(r,names);if(x)m[x]=(m[x]||0)+1;});return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,top||15);}
-function buildSeriDiag(maquinas,maqF,frec,mantto){
-  const row=(lbl,n,okColor)=>`<tr><td style="padding:2px 14px 2px 0;color:#7d8590">${lbl}</td><td><b style="color:${n?(okColor||'#3fb950'):'#f85149'}">${n} filas</b></td></tr>`;
-  const homeVals=seriDistinct(maquinas,SC.ubic,15);
-  const mqHdr=seriHeaders(maquinas),mtHdr=seriHeaders(mantto);
-  $('seri-diag').innerHTML=`<div style="background:#161b22;border:1px solid #30363d;border-left:3px solid #58a6ff;border-radius:8px;padding:14px 18px;color:#e6edf3;font-size:12.5px;line-height:1.7">
-    <strong style="color:#58a6ff">🔌 Diagnóstico de conexión por pestaña</strong>
-    <table style="margin-top:8px;border-collapse:collapse;font-size:12px">
-      ${row('MAQUINAS · gid '+SERI_GIDS.maquinas,maquinas.length)}
-      ${row('&nbsp;&nbsp;↳ de serigrafía (HOME LOCATION ∋ "'+SERI_HOME_MATCH+'")',maqF.length)}
-      ${row('FRECUENCIA · gid '+SERI_GIDS.frecuencia,frec.length,'#d29922')}
-      ${row('MANTTO. SERIGRAFIA · gid '+SERI_GIDS.mantto,mantto.length)}
-    </table>
-    <div style="margin-top:8px;color:#7d8590">Columnas leídas en MAQUINAS: <span style="color:#e6edf3">${mqHdr.join(' · ')||'(ninguna)'}</span></div>
-    <div style="margin-top:4px;color:#7d8590">Columnas leídas en MANTTO: <span style="color:#e6edf3">${mtHdr.join(' · ')||'(ninguna)'}</span></div>
-    ${homeVals.length?`<div style="margin-top:4px;color:#7d8590">Valores de HOME LOCATION: <span style="color:#e6edf3">${homeVals.map(([k,c])=>k+' ('+c+')').join(' · ')}</span></div>`:''}
-    <div style="margin-top:10px;color:#8b949e;font-size:11.5px">
-      • Si una pestaña dice <b style="color:#f85149">0 filas</b>: el gid es incorrecto o el documento no está publicado como “Todo el documento” (Archivo → Compartir → Publicar en la web).<br>
-      • Si <b>MAQUINAS</b> trae filas pero las “de serigrafía” dan 0: el valor que identifica al área en HOME LOCATION no contiene “${SERI_HOME_MATCH}”. Mira arriba qué valores hay y ajusto el filtro.<br>
-      • Si las columnas no son las que esperabas, el gid de esa pestaña está cambiado de orden.
-    </div>
-  </div>`;
-}
+function buildSeriDiag(){/* diagnóstico desactivado */}
+
 
 let _seriView='tablero',_seriDisp={cfg:false,diag:false,body:false};
 function showSeri(cfg,diag,body){_seriDisp={cfg,diag,body};if(_seriView!=='tablero')return;$('seri-config').style.display=cfg?'block':'none';$('seri-diag').style.display=diag?'block':'none';$('seri-body').style.display=body?'block':'none';}
@@ -1687,7 +1731,7 @@ function seriSubView(view,btn){
 function renderSeriPasos(){const f=$('seri-pasos-frame');if(f&&(!f.src||f.src==='about:blank'||!f.src.includes('gid=')))f.src=SERI_PUBHTML+SERI_PASOS_GID;}
 
 function seriSummary(){
-  if(!(seriData.fechas&&seriData.fechas.length))return null;
+  if(!_seriRows||!_seriRows.length)return null;
   const rows=seriGanttData();
   if(!rows.length)return null;
   const tot=rows.length,done=rows.filter(r=>r.estado==='Ejecutado').length;
@@ -1711,87 +1755,178 @@ async function ensureSeriData(){
   return await loadSeriData();
 }
 function renderSeriAreaGantt(headId,bodyId,accent){
-  const MESES_SHOW=['FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'],MESES_IDX=[2,3,4,5,6,7,8,9,10,11,12];
+  const MESES_SHOW=['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+  const MESES_IDX=[1,2,3,4,5,6,7,8,9,10,11,12];
   const mesActual=new Date().getMonth()+1;
   const plan=seriGanttData();
   let grupos=[...new Set(plan.map(p=>p.tipo).filter(Boolean))].sort();
-  if(!grupos.length){$(headId).innerHTML='';$(bodyId).innerHTML='<tr><td colspan="12" style="padding:18px;color:#7d8590;font-size:.72rem;text-align:center;background:#161b22">Sin fechas de mantenimiento programadas</td></tr>';return;}
-  const meta={},real={},tot={};
-  grupos.forEach(g=>{meta[g]={};real[g]={};tot[g]=0;MESES_IDX.forEach(m=>{meta[g][m]=0;real[g][m]=0});});
+  if(!grupos.length){
+    $(headId).innerHTML='';
+    $(bodyId).innerHTML='<tr><td colspan="13" style="padding:18px;color:#7d8590;font-size:.72rem;text-align:center;background:#161b22">Sin fechas proyectadas — revisa el Tablero de MP</td></tr>';
+    return;
+  }
+  /* meta[tipo][mes] = cuántos mantenimientos programados/proyectados ese mes
+     real[tipo][mes] = cuántos ejecutados ese mes
+     uniq[tipo]      = series únicas (para el total de máquinas) */
+  const meta={},real={},uniq={};
+  grupos.forEach(g=>{meta[g]={};real[g]={};uniq[g]=new Set();MESES_IDX.forEach(m=>{meta[g][m]=0;real[g][m]=0;});});
   plan.forEach(p=>{
-    if(!p.tipo||!meta[p.tipo])return;tot[p.tipo]++;
-    if(p.fp&&p.fp.getFullYear()===2026){const m=p.fp.getMonth()+1;if(m>=2&&m<=12)meta[p.tipo][m]++;}
-    if(p.exec&&p.exec.getFullYear()===2026){const m=p.exec.getMonth()+1;if(m>=2&&m<=12)real[p.tipo][m]++;}
+    if(!p.tipo||!meta[p.tipo])return;
+    uniq[p.tipo].add(p.serie);
+    if(p.fp){const m=p.fp.getMonth()+1;if(m>=1&&m<=12){
+      if(p.estado==='Ejecutado') real[p.tipo][m]++;
+      else meta[p.tipo][m]++;
+    }}
   });
   $(headId).innerHTML=`<tr>
     <th style="padding:8px 12px;font-size:.62rem;text-transform:uppercase;color:#7d8590;text-align:left;border-bottom:2px solid #30363d;min-width:160px;background:#0d1117;position:sticky;left:0">Tipo de Máquina</th>
-    ${MESES_SHOW.map(m=>`<th style="padding:8px 6px;font-size:.62rem;text-transform:uppercase;color:#7d8590;text-align:center;border-bottom:2px solid #30363d;background:#0d1117;">${m}</th>`).join('')}
+    ${MESES_SHOW.map((m,i)=>{
+      const mi=i+1;
+      const esActual=mi===mesActual;
+      return `<th style="padding:8px 6px;font-size:.62rem;text-transform:uppercase;color:${esActual?'#58a6ff':'#7d8590'};text-align:center;border-bottom:2px solid #30363d;background:#0d1117;${esActual?'border-bottom:2px solid #58a6ff;':''}">${m}${esActual?' ◀':''}</th>`;
+    }).join('')}
   </tr>`;
   $(bodyId).innerHTML=grupos.map(g=>{
-    const totG=tot[g]||0,realTot=MESES_IDX.reduce((s,m)=>s+real[g][m],0),pend=Math.max(0,totG-realTot),pctG=totG?Math.round(realTot/totG*100):0;
+    const totG=uniq[g].size;
+    const realTot=MESES_IDX.reduce((s,m)=>s+(real[g][m]||0),0);
+    const metaTot=MESES_IDX.reduce((s,m)=>s+(meta[g][m]||0),0);
+    const pctG=totG?Math.round(realTot/totG*100):0;
     const label=g.length>22?g.slice(0,22)+'…':g;
     const cells=MESES_IDX.map(mi=>{
-      const esFut=mi>mesActual,r=real[g][mi]||0,me=meta[g][mi]||0;let bg,color,txt;
-      if(esFut){if(me>0){bg='rgba(125,133,144,.08)';color='#7d8590';txt=`<span style="font-size:.65rem;font-weight:700">${me}</span>`;}else{bg='rgba(125,133,144,.06)';color='#484f58';txt='—';}}
-      else if(me===0&&r===0){bg='rgba(125,133,144,.06)';color='#484f58';txt='—';}
-      else{const pct=me>0?Math.round(r/me*100):(r>0?100:0);if(pct>=100){bg='rgba(63,185,80,.2)';color='#3fb950';}else if(pct>=50){bg='rgba(210,153,34,.18)';color='#d29922';}else{bg='rgba(248,81,73,.15)';color='#f85149';}txt=`${r}<br><span style="font-size:.56rem">${pct}%</span>`;}
-      return `<td style="padding:4px;border-top:1px solid #21262d;text-align:center;"><div style="height:36px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;background:${bg};color:${color};line-height:1.2;">${txt}</div></td>`;
+      const esFut=mi>mesActual;
+      const r=real[g][mi]||0;
+      const me=meta[g][mi]||0;
+      let bg,color,txt;
+      if(esFut||mi===mesActual){
+        /* Meses futuros o actual: mostrar proyección */
+        if(me>0||r>0){
+          if(r>0){bg='rgba(63,185,80,.2)';color='#3fb950';txt=`${r}<br><span style="font-size:.56rem">Ejec</span>`;}
+          else{bg='rgba(88,166,255,.12)';color='#58a6ff';txt=`<span style="font-size:.65rem;font-weight:700">${me}</span><br><span style="font-size:.5rem">prog</span>`;}
+        } else {bg='rgba(125,133,144,.06)';color='#484f58';txt='—';}
+      } else {
+        /* Meses pasados: ejecutado vs meta */
+        if(me===0&&r===0){bg='rgba(125,133,144,.06)';color='#484f58';txt='—';}
+        else{
+          const pct=me>0?Math.round(r/me*100):(r>0?100:0);
+          if(pct>=100){bg='rgba(63,185,80,.2)';color='#3fb950';}
+          else if(pct>=50){bg='rgba(210,153,34,.18)';color='#d29922';}
+          else{bg='rgba(248,81,73,.15)';color='#f85149';}
+          txt=`${r}<br><span style="font-size:.56rem">${pct}%</span>`;
+        }
+      }
+      return `<td style="padding:4px;border-top:1px solid #21262d;text-align:center;${mi===mesActual?'border-left:1px solid #58a6ff33;border-right:1px solid #58a6ff33;':''}"><div style="height:36px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;background:${bg};color:${color};line-height:1.2;">${txt}</div></td>`;
     }).join('');
-    return `<tr><td style="padding:8px 12px;border-top:1px solid #21262d;background:#161b22;position:sticky;left:0"><div style="font-weight:700;font-size:.76rem;color:${accent||'#e6edf3'}" title="${g}">${label}</div><div style="font-size:.6rem;color:#484f58;margin-top:1px">total: ${totG} · ejec: ${realTot} (${pctG}%) · pend: ${pend}</div></td>${cells}</tr>`;
+    return `<tr><td style="padding:8px 12px;border-top:1px solid #21262d;background:#161b22;position:sticky;left:0"><div style="font-weight:700;font-size:.76rem;color:${accent||'#e6edf3'}" title="${g}">${label}</div><div style="font-size:.6rem;color:#484f58;margin-top:1px">${totG} máq · ejec: ${realTot} (${pctG}%) · prox: ${metaTot}</div></td>${cells}</tr>`;
   }).join('');
-  /* Renglón de TOTAL */
-  const grandProg=grupos.reduce((s,g)=>s+(tot[g]||0),0);
+  /* Fila TOTAL */
+  const grandMaq=new Set(plan.map(p=>p.serie)).size;
   const grandReal=grupos.reduce((s,g)=>s+MESES_IDX.reduce((a,m)=>a+(real[g][m]||0),0),0);
-  const grandPct=grandProg?Math.round(grandReal/grandProg*100):0;
+  const grandMeta=grupos.reduce((s,g)=>s+MESES_IDX.reduce((a,m)=>a+(meta[g][m]||0),0),0);
+  const grandPct=grandMaq?Math.round(grandReal/grandMaq*100):0;
   const totCells=MESES_IDX.map(mi=>{
-    const meMonth=grupos.reduce((s,g)=>s+(meta[g][mi]||0),0);
-    const rMonth=grupos.reduce((s,g)=>s+(real[g][mi]||0),0);
-    const val=mi>mesActual?meMonth:(rMonth||meMonth);
-    return `<td style="padding:4px;border-top:2px solid #30363d;text-align:center"><div style="height:34px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.74rem;font-weight:800;background:rgba(0,103,184,.12);color:#58a6ff">${val||'—'}</div></td>`;
+    const r=grupos.reduce((s,g)=>s+(real[g][mi]||0),0);
+    const me=grupos.reduce((s,g)=>s+(meta[g][mi]||0),0);
+    const val=mi>mesActual?(me||'—'):(r||me||'—');
+    const color=mi<=mesActual&&r>0?'#3fb950':'#58a6ff';
+    return `<td style="padding:4px;border-top:2px solid #30363d;text-align:center;${mi===mesActual?'border-left:1px solid #58a6ff33;border-right:1px solid #58a6ff33;':''}"><div style="height:34px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.74rem;font-weight:800;background:rgba(0,103,184,.12);color:${color}">${val}</div></td>`;
   }).join('');
-  $(bodyId).innerHTML+=`<tr><td style="padding:8px 12px;border-top:2px solid #30363d;background:#0d1117;position:sticky;left:0"><div style="font-weight:800;font-size:.8rem;color:#e6edf3">TOTAL</div><div style="font-size:.62rem;color:#7d8590;margin-top:1px">${grandProg} programadas · ${grandReal} ejecutadas (${grandPct}%)</div></td>${totCells}</tr>`;
+  $(bodyId).innerHTML+=`<tr><td style="padding:8px 12px;border-top:2px solid #30363d;background:#0d1117;position:sticky;left:0"><div style="font-weight:800;font-size:.8rem;color:#e6edf3">TOTAL</div><div style="font-size:.62rem;color:#7d8590;margin-top:1px">${grandMaq} máq · ${grandReal} ejec (${grandPct}%) · ${grandMeta} próx</div></td>${totCells}</tr>`;
 }
 function seriGanttData(){
+  /* Usa _seriRows (Tablero MP) como fuente — misma verdad */
+  if(!_seriRows||!_seriRows.length)return [];
   const today=new Date();today.setHours(0,0,0,0);
-  const plan=(seriData.fechas||[]).map(r=>({
-    serie:scol(r,SC.serie),tipo:scol(r,SC.tipo)||scol(r,SC.frecTxt),area:scol(r,SC.area),fp:parseFechaSeri(scol(r,SC.fechaPlan))
-  })).filter(p=>p.serie&&p.fp&&(!p.area||p.area.toUpperCase().includes(SERI_HOME_MATCH)));
-  return plan.map(p=>{
-    const recs=(seriData.mantto||[]).filter(x=>scol(x,SC.serie)===p.serie).map(x=>parseFechaSeri(scol(x,SC.fecMP))).filter(Boolean);
-    const exec=recs.filter(d=>d>=p.fp).sort((a,b)=>a-b)[0]||null;   /* primer mantenimiento en/después del plan */
-    let estado,color;
-    if(exec){estado='Ejecutado';color='#3fb950';}
-    else if(p.fp<today){estado='Atrasado';color='#f85149';}
-    else{estado='Programado';color='#58a6ff';}
-    return {...p,exec,estado,color};
+  const YEAR=2026;
+  const result=[];
+  _seriRows.forEach(r=>{
+    if(!r.tipo)return;
+    /* Frecuencia en días */
+    const diasFrec=r.prox&&r.ultimo?Math.round((r.prox-r.ultimo)/86400000):0;
+    /* --- REGISTRO DEL ÚLTIMO MANTENIMIENTO (ya ejecutado) --- */
+    if(r.ultimo){
+      result.push({
+        serie:r.serie, tipo:r.tipo,
+        fp:r.ultimo,       /* mes en que ocurrió */
+        exec:r.ultimo,     /* sí ejecutado */
+        estado:'Ejecutado', color:'#3fb950'
+      });
+    }
+    /* --- PRÓXIMA FECHA (lo que el tablero sugiere) --- */
+    if(r.prox){
+      let estado,color;
+      const diff=Math.round((r.prox-today)/86400000);
+      if(diff<0){estado='Atrasado';color='#f85149';}
+      else if(diff<=7){estado='Próximo a vencer';color='#d29922';}
+      else{estado='Programado';color='#58a6ff';}
+      result.push({
+        serie:r.serie, tipo:r.tipo,
+        fp:r.prox,
+        exec:null,
+        estado, color
+      });
+      /* --- PROYECCIÓN EN CASCADA para el resto del año --- */
+      if(diasFrec>0){
+        let fechaSig=new Date(r.prox);
+        for(let i=0;i<24;i++){
+          fechaSig=new Date(fechaSig);
+          fechaSig.setDate(fechaSig.getDate()+diasFrec);
+          if(fechaSig.getFullYear()>YEAR)break;
+          result.push({
+            serie:r.serie, tipo:r.tipo,
+            fp:new Date(fechaSig),
+            exec:null,
+            estado:'Programado', color:'#58a6ff'
+          });
+        }
+      }
+    }
+    /* Máquina sin último ni próximo: Sin registro */
+    if(!r.ultimo&&!r.prox){
+      result.push({serie:r.serie,tipo:r.tipo,fp:null,exec:null,estado:'Sin registro',color:'#7d8590'});
+    }
   });
+  return result.filter(p=>p.fp&&p.fp.getFullYear()===YEAR);
 }
 function renderSeriGantt(){
   const host=$('seri-gantt-view');if(!host)return;
+  /* Si _seriRows aún no está listo, esperar */
+  if(!_seriRows||!_seriRows.length){
+    host.innerHTML='<div style="color:#7d8590;padding:18px;text-align:center;font-size:.8rem">Cargando datos del Tablero de MP…</div>';
+    setTimeout(renderSeriGantt,800);
+    return;
+  }
   const rows=seriGanttData();
-  if(!rows.length){host.innerHTML='<div style="color:#7d8590;padding:18px;background:#161b22;border:1px solid #30363d;border-radius:8px;margin-top:10px">No hay fechas de mantenimiento programadas. Revisa que la pestaña “Fechas de Mantenimiento” esté publicada y tenga las columnas Serie y “fecha inicio Mantenimiento”.</div>';return;}
-  const tot=rows.length,ejec=rows.filter(r=>r.estado==='Ejecutado').length,atr=rows.filter(r=>r.estado==='Atrasado').length,prog=rows.filter(r=>r.estado==='Programado').length;
+  if(!rows.length){
+    host.innerHTML='<div style="color:#7d8590;padding:18px;background:#161b22;border:1px solid #30363d;border-radius:8px;margin-top:10px">Sin fechas proyectadas — revisa el Tablero de MP.</div>';
+    return;
+  }
+  /* KPIs */
+  const tot=new Set(rows.map(p=>p.serie)).size;
+  const ejec=new Set(rows.filter(p=>p.estado==='Ejecutado').map(p=>p.serie)).size;
+  const prog=new Set(rows.filter(p=>p.estado==='Programado').map(p=>p.serie)).size;
+  const atr=new Set(rows.filter(p=>p.estado==='Atrasado').map(p=>p.serie)).size;
   const cum=tot?Math.round(ejec/tot*100):0;
-  host.innerHTML=`
-    <div style="display:flex;flex-wrap:wrap;gap:12px;margin:14px 0">
-      ${seriKpi('Programados',tot,'#0067B8')}${seriKpi('Ejecutados',ejec,'#3fb950')}${seriKpi('Atrasados',atr,'#f85149')}${seriKpi('Por ejecutar',prog,'#58a6ff')}${seriKpi('% Cumplimiento',cum+'%','#d29922')}
-    </div>
-    <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
-      <button onclick="downloadSeriGantt()" style="background:#0067B8;color:#fff;border:0;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer">⬇ Descargar registros</button>
-    </div>
-    <div class="gantt-scroll" style="border:1px solid #30363d;border-radius:8px">
-      <table class="gantt-table" style="min-width:600px">
-        <thead id="seri-gantt-head"></thead>
-        <tbody id="seri-gantt-body"></tbody>
-      </table>
-    </div>
-    <div class="gantt-legend">
-      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(63,185,80,.35)"></div>≥100% meta</div>
-      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(210,153,34,.35)"></div>50–99%</div>
-      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(248,81,73,.35)"></div>&lt;50%</div>
-      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:#161b22;border:1px dashed #30363d"></div>Futuro</div>
-    </div>`;
-  renderSeriAreaGantt('seri-gantt-head','seri-gantt-body','#e16e00');
+  host.innerHTML=
+    '<div style="display:flex;flex-wrap:wrap;gap:12px;margin:6px 0 14px">'+
+    seriKpi('Programadas',tot,'#0067B8')+
+    seriKpi('Ejecutadas',ejec,'#3fb950')+
+    seriKpi('Atrasadas',atr,'#f85149')+
+    seriKpi('Por ejecutar',prog,'#58a6ff')+
+    seriKpi('% Cumplimiento',cum+'%','#d29922')+
+    '</div>'+
+    '<div style="overflow-x:auto;border:1px solid #30363d;border-radius:8px">'+
+    '<table style="width:100%;border-collapse:collapse;min-width:900px">'+
+    '<thead id="seri-gantt-head"></thead>'+
+    '<tbody id="seri-gantt-body"></tbody>'+
+    '</table></div>'+
+    '<div style="margin-top:10px;font-size:.7rem;color:#484f58;display:flex;gap:16px;flex-wrap:wrap">'+
+    '<span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:rgba(63,185,80,.2);display:inline-block"></span>Ejecutado</span>'+
+    '<span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:rgba(88,166,255,.12);display:inline-block"></span>Programado (futuro)</span>'+
+    '<span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:rgba(248,81,73,.15);display:inline-block"></span>Atrasado</span>'+
+    '<span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:rgba(210,153,34,.18);display:inline-block"></span>Próximo a vencer</span>'+
+    '</div>'+
+    '<div style="margin-top:8px;text-align:right"><button onclick="downloadSeriGantt()" style="background:#21262d;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:6px 14px;font-size:11px;cursor:pointer">⬇ Descargar Gantt CSV</button></div>';
+  renderSeriAreaGantt('seri-gantt-head','seri-gantt-body','#58a6ff');
 }
 
 function downloadSeriGantt(){
@@ -1812,30 +1947,24 @@ function downloadSeriGantt(){
   setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 function downloadSeriCSV(){
-  const recs=seriData.mantto||[];
-  if(!recs.length){alert('No hay registros en MANTTO. SERIGRAFIA para descargar.');return;}
-  const headers=Object.keys(recs[0]).filter(Boolean);
-  /* frecuencia por tipo de máquina (días) para calcular el próximo mantenimiento */
-  const fmap={};(seriData.frec||[]).forEach(r=>{const t=scol(r,SC.tipo).toUpperCase();if(t)fmap[t]=parseInt(scol(r,SC.dias))||0;});
-  const esc=s=>'"'+(s==null?'':s).toString().replace(/"/g,'""')+'"';
-  const extra='Próximo mantenimiento (calculado)';
-  const lines=[headers.concat([extra]).map(esc).join(',')];
-  recs.forEach(r=>{
-    const f=parseFechaSeri(scol(r,SC.fecMP));
-    const dias=fmap[(scol(r,SC.tipo)||'').toUpperCase()]||0;
-    let prox='';
-    if(f&&dias>0){const p=new Date(f);p.setDate(p.getDate()+dias);prox=fmtDSeri(p);}
-    lines.push(headers.map(h=>esc(r[h])).concat([esc(prox)]).join(','));
-  });
-  const csv='\ufeff'+lines.join('\r\n');   /* BOM para acentos en Excel */
-  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;a.download='mantto_serigrafia_'+new Date().toISOString().slice(0,10)+'.csv';
-  document.body.appendChild(a);a.click();document.body.removeChild(a);
-  setTimeout(()=>URL.revokeObjectURL(url),1000);
-}
+  const sel=document.querySelectorAll('.seri-chk:checked');
+  let rows;
+  if(sel.length>0){
+    /* Descargar solo las seleccionadas */
+    const idxs=[...sel].map(c=>parseInt(c.dataset.idx));
+    rows=idxs.map(i=>window._seriTableRows[i]).filter(Boolean);
+  } else {
+    /* Sin selección: descarga filtradas (comportamiento anterior) */
+    rows=getSeriFiltered().rows;
+  }
+  const cols=['Serie','Tipo','Ubicación','Último MP','Próximo MP','Días restantes','Estado','Técnico'];
+  const lines=[cols.join(','),...rows.map(r=>[r.serie,r.tipo||'',r.ubic||'',fmtDSeri(r.ultimo),fmtDSeri(r.prox),r.dias==null?'':r.dias,r.estado,r.tec||''].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','))];
+  const blob=new Blob(['﻿'+lines.join('\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=sel.length>0?`MP_Serigrafia_seleccion_${sel.length}_maquinas.csv`:'MP_Serigrafia_completo.csv';
+  a.click();URL.revokeObjectURL(a.href);
 
+}
 async function renderSerigrafia(){
   const cfg=$('seri-config'),body=$('seri-body'),diag=$('seri-diag');
   if(!SERI_GIDS.maquinas||!SERI_GIDS.mantto){showSeri(true,false,false);$('seri-sub').textContent='Configura los enlaces de tus hojas para activar el panel.';return;}
@@ -1848,11 +1977,10 @@ async function renderSerigrafia(){
     SERI_GIDS.fechas?fetchCSV(cb(SERI_BASE+SERI_GIDS.fechas)):Promise.resolve([])
   ]);
   const maqF=maquinas.filter(r=>scol(r,SC.ubic).toUpperCase().includes(SERI_HOME_MATCH));
-  buildSeriDiag(maquinas,maqF,frec,mantto);
-  const problema=!maqF.length||!mantto.length;
+  /* diagnóstico desactivado */
   if(maqF.length||mantto.length)seriData={maquinas:maqF,frec,mantto,fechas};   /* solo sustituye si llegó algo */
-  if(!seriData.maquinas.length){showSeri(false,true,false);$('seri-sub').textContent='No llegaron máquinas de serigrafía — revisa el diagnóstico de abajo.';return;}
-  showSeri(false,problema,true);
+  if(!seriData.maquinas.length){showSeri(false,false,true);$('seri-sub').textContent='No llegaron máquinas de serigrafía — revisa el diagnóstico de abajo.';return;}
+  showSeri(false,false,true);
   _seriRows=computeSeri();
   const upd=new Date().toLocaleString('es-MX',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
   $('seri-sub').textContent=`${_seriRows.length} máquinas · ${seriData.mantto.length} mantenimientos registrados · actualizado ${upd}`;
