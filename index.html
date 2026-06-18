@@ -1600,14 +1600,14 @@ function fmtDSeri(d){return d?`${String(d.getDate()).padStart(2,'0')}/${String(d
 function renderSeriTable(rows){
   rows=[...rows].sort((a,b)=>(a.dias==null?99999:a.dias)-(b.dias==null?99999:b.dias));
   window._seriTableRows=rows;
-  const thCk=`<th style="position:sticky;top:0;background:#0067B8;color:#fff;padding:8px 6px;text-align:center;width:32px"><input type="checkbox" id="seri-chk-all" title="Seleccionar todo" onchange="seriToggleAll(this.checked)" style="cursor:pointer;width:14px;height:14px;accent-color:#58a6ff"></th>`;
+  const thCk=`<th style="position:sticky;top:0;left:0;z-index:3;background:#0067B8;color:#fff;padding:8px 6px;text-align:center;width:36px"><input type="checkbox" id="seri-chk-all" title="Seleccionar todo" onchange="seriToggleAll(this.checked)" style="cursor:pointer;width:14px;height:14px;accent-color:#58a6ff"></th>`;
   const cols=['Núm. de serie','Tipo de máquina','Ubicación','Último MP','Próximo MP','Días rest.','Estado','Técnico'];
   const head=`<thead><tr>${thCk}${cols.map(h=>`<th style="position:sticky;top:0;background:#0067B8;color:#fff;padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.04em">${h}</th>`).join('')}</tr></thead>`;
   const body=rows.map((r,i)=>{
     const dc=r.dias==null?'#7d8590':r.dias<0?'#f85149':r.dias<=7?'#d29922':'#e6edf3';
     return `<tr class="seri-row" style="border-top:1px solid #21262d;cursor:pointer" onclick="seriToggleRow(${i})" id="seri-row-${i}">
-      <td style="padding:7px 6px;text-align:center" onclick="event.stopPropagation()"><input type="checkbox" class="seri-chk" data-idx="${i}" onchange="seriChkChange()" style="cursor:pointer;width:14px;height:14px;accent-color:#58a6ff"></td>
-      <td style="padding:7px 10px;font-weight:700;color:#e6edf3">${r.serie}</td>
+      <td style="padding:7px 6px;text-align:center;position:sticky;left:0;z-index:1;background:#0d1117" onclick="event.stopPropagation()"><input type="checkbox" class="seri-chk" data-idx="${i}" onchange="seriChkChange()" style="cursor:pointer;width:14px;height:14px;accent-color:#58a6ff"></td>
+      <td style="padding:7px 10px;font-weight:700;color:#e6edf3;position:sticky;left:36px;z-index:1;background:inherit">${r.serie}</td>
       <td style="padding:7px 10px;color:#8b949e">${r.tipo||'—'}</td>
       <td style="padding:7px 10px;color:#8b949e">${r.ubic||'—'}</td>
       <td style="padding:7px 10px;color:#8b949e">${fmtDSeri(r.ultimo)}</td>
