@@ -1889,47 +1889,44 @@ function seriGanttData(){
 }
 function renderSeriGantt(){
   const host=$('seri-gantt-view');if(!host)return;
-  const rows=seriGanttData();
-  if(!rows.length){
-    const fd=seriData.fechas||[];
-    const cols=fd.length?Object.keys(fd[0]).join(' | '):'(ninguna)';
-    const sample=fd.length?JSON.stringify(fd[0]).substring(0,300):'(vacio)';
-    const serieVal=fd.length?scol(fd[0],SC.serie):'';
-    const fechaVal=fd.length?scol(fd[0],SC.fechaPlan):'';
-    host.innerHTML='<div style="color:#e6edf3;padding:18px;background:#161b22;border:1px solid #30363d;border-radius:8px;margin-top:10px;font-size:.78rem;line-height:1.8">'
-      +'<div style="color:#f85149;font-weight:700;font-size:.9rem;margin-bottom:8px">Gantt sin datos - Diagnostico</div>'
-      +'<div><b>Filas recibidas de Fechas de Mantenimiento:</b> '+fd.length+'</div>'
-      +'<div><b>Columnas detectadas:</b> <span style="color:#58a6ff">'+cols+'</span></div>'
-      +'<div><b>Primera fila (raw):</b> <span style="color:#d29922">'+sample+'</span></div>'
-      +'<div><b>Valor columna Serie:</b> <span style="color:#3fb950">'+(serieVal||'--- NO encontrado')+'</span></div>'
-      +'<div><b>Valor fecha inicio Mantenimiento:</b> <span style="color:#3fb950">'+(fechaVal||'--- NO encontrado')+'</span></div>'
-      +'<hr style="border-color:#30363d;margin:10px 0">'
-      +'<div style="color:#7d8590">Si Filas=0 la pestana NO esta publicada en la web. Si columna sale como NO encontrado el nombre no coincide exactamente.</div>'
-      +'</div>';
+  /* Si _seriRows aún no está listo, esperar */
+  if(!_seriRows||!_seriRows.length){
+    host.innerHTML='<div style="color:#7d8590;padding:18px;text-align:center;font-size:.8rem">Cargando datos del Tablero de MP…</div>';
+    setTimeout(renderSeriGantt,800);
     return;
   }
-  const tot=rows.length,ejec=rows.filter(r=>r.estado==='Ejecutado').length,atr=rows.filter(r=>r.estado==='Atrasado').length,prog=rows.filter(r=>r.estado==='Programado').length;
+  const rows=seriGanttData();
+  if(!rows.length){
+    host.innerHTML='<div style="color:#7d8590;padding:18px;background:#161b22;border:1px solid #30363d;border-radius:8px;margin-top:10px">Sin fechas proyectadas — revisa el Tablero de MP.</div>';
+    return;
+  }
+  /* KPIs */
+  const tot=new Set(rows.map(p=>p.serie)).size;
+  const ejec=new Set(rows.filter(p=>p.estado==='Ejecutado').map(p=>p.serie)).size;
+  const prog=new Set(rows.filter(p=>p.estado==='Programado').map(p=>p.serie)).size;
+  const atr=new Set(rows.filter(p=>p.estado==='Atrasado').map(p=>p.serie)).size;
   const cum=tot?Math.round(ejec/tot*100):0;
-  host.innerHTML=`
-    <div style="display:flex;flex-wrap:wrap;gap:12px;margin:6px 0 14px">
-      ${seriKpi('Programados',tot,'#0067B8')}${seriKpi('Ejecutados',ejec,'#3fb950')}${seriKpi('Atrasados',atr,'#f85149')}${seriKpi('Por ejecutar',prog,'#58a6ff')}${seriKpi('% Cumplimiento',cum+'%','#d29922')}
-    </div>
-    <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
-      <button onclick="downloadSeriGantt()" style="background:#0067B8;color:#fff;border:0;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer">⬇ Descargar registros</button>
-    </div>
-    <div class="gantt-scroll" style="border:1px solid #30363d;border-radius:8px">
-      <table class="gantt-table" style="min-width:600px">
-        <thead id="seri-gantt-head"></thead>
-        <tbody id="seri-gantt-body"></tbody>
-      </table>
-    </div>
-    <div class="gantt-legend">
-      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(63,185,80,.35)"></div>≥100% meta</div>
-      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(210,153,34,.35)"></div>50–99%</div>
-      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:rgba(248,81,73,.35)"></div>&lt;50%</div>
-      <div class="gantt-leg-item"><div class="gantt-leg-box" style="background:#161b22;border:1px dashed #30363d"></div>Futuro</div>
-    </div>`;
-  renderSeriAreaGantt('seri-gantt-head','seri-gantt-body','#e16e00');
+  host.innerHTML=
+    '<div style="display:flex;flex-wrap:wrap;gap:12px;margin:6px 0 14px">'+
+    seriKpi('Programadas',tot,'#0067B8')+
+    seriKpi('Ejecutadas',ejec,'#3fb950')+
+    seriKpi('Atrasadas',atr,'#f85149')+
+    seriKpi('Por ejecutar',prog,'#58a6ff')+
+    seriKpi('% Cumplimiento',cum+'%','#d29922')+
+    '</div>'+
+    '<div style="overflow-x:auto;border:1px solid #30363d;border-radius:8px">'+
+    '<table style="width:100%;border-collapse:collapse;min-width:900px">'+
+    '<thead id="seri-gantt-head"></thead>'+
+    '<tbody id="seri-gantt-body"></tbody>'+
+    '</table></div>'+
+    '<div style="margin-top:10px;font-size:.7rem;color:#484f58;display:flex;gap:16px;flex-wrap:wrap">'+
+    '<span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:rgba(63,185,80,.2);display:inline-block"></span>Ejecutado</span>'+
+    '<span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:rgba(88,166,255,.12);display:inline-block"></span>Programado (futuro)</span>'+
+    '<span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:rgba(248,81,73,.15);display:inline-block"></span>Atrasado</span>'+
+    '<span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:rgba(210,153,34,.18);display:inline-block"></span>Próximo a vencer</span>'+
+    '</div>'+
+    '<div style="margin-top:8px;text-align:right"><button onclick="downloadSeriGantt()" style="background:#21262d;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:6px 14px;font-size:11px;cursor:pointer">⬇ Descargar Gantt CSV</button></div>';
+  renderSeriAreaGantt('seri-gantt-head','seri-gantt-body','#58a6ff');
 }
 
 function downloadSeriGantt(){
@@ -1967,6 +1964,7 @@ function downloadSeriCSV(){
   a.download=sel.length>0?`MP_Serigrafia_seleccion_${sel.length}_maquinas.csv`:'MP_Serigrafia_completo.csv';
   a.click();URL.revokeObjectURL(a.href);
 
+}
 async function renderSerigrafia(){
   const cfg=$('seri-config'),body=$('seri-body'),diag=$('seri-diag');
   if(!SERI_GIDS.maquinas||!SERI_GIDS.mantto){showSeri(true,false,false);$('seri-sub').textContent='Configura los enlaces de tus hojas para activar el panel.';return;}
@@ -1991,7 +1989,6 @@ async function renderSerigrafia(){
   Object.keys(keep).forEach(id=>{const el=$(id);if(el)el.value=keep[id];});
   applySeriFilters();
   if(_seriView==='gantt')renderSeriGantt();
-}
 }
 /* =================== FIN SERIGRAFÍA · MP =================== */
 
