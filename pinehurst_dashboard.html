@@ -450,7 +450,7 @@ footer strong{color:#58a6ff}
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px">
       <div class="cs-chart-card" style="display:flex;flex-direction:column;height:300px"><div class="cs-chart-title">Mantenimientos por tipo de máquina</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-tipo"></canvas></div></div>
       <div class="cs-chart-card" style="display:flex;flex-direction:column;height:300px"><div class="cs-chart-title">Mantenimientos realizados por mes</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-mes"></canvas></div></div>
-      <div class="cs-chart-card" style="display:flex;flex-direction:column;height:300px"><div class="cs-chart-title">Máquinas por ubicación</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-ubic"></canvas></div></div>
+      <div class="cs-chart-card" style="display:flex;flex-direction:column;height:300px"><div class="cs-chart-title">Top 10 — Más días vencidas</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-top10"></canvas></div></div>
       <div class="cs-chart-card" style="display:flex;flex-direction:column;height:300px"><div class="cs-chart-title">Máquinas por estado de mantenimiento</div><div style="flex:1;position:relative;padding:4px 8px 0"><canvas id="seri-ch-estado"></canvas></div></div>
     </div>
   </div>
@@ -1700,9 +1700,14 @@ function renderSeriCharts(rows,filt){
   for(let i=11;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1);labels.push(d.toLocaleDateString('es-MX',{month:'short',year:'2-digit'}));keys.push(d.getFullYear()+'-'+d.getMonth());}
   const mc={};mant.forEach(x=>{if(x.f)mc[x.f.getFullYear()+'-'+x.f.getMonth()]=(mc[x.f.getFullYear()+'-'+x.f.getMonth()]||0)+1;});
   seriChartLine('seri-ch-mes',labels,keys.map(k=>mc[k]||0));
-  // 3) por ubicación
-  const byU={};rows.forEach(r=>{const u=r.ubic||'—';byU[u]=(byU[u]||0)+1;});
-  seriChartBar('seri-ch-ubic',Object.keys(byU),Object.values(byU),'#58a6ff',true);
+  // 3) Top 10 más vencidas (mayor días negativos)
+  const vencidas=rows.filter(r=>r.dias!=null&&r.dias<0).sort((a,b)=>a.dias-b.dias).slice(0,10);
+  const top10labels=vencidas.map(r=>{const s=r.serie||'';return s.length>12?s.slice(0,12)+'…':s;});
+  const top10data=vencidas.map(r=>Math.abs(r.dias));
+  const top10colors=vencidas.map(r=>r.dias<-90?'#f85149':r.dias<-30?'#d29922':'#e6a817');
+  destroySeriChart('seri-ch-top10');
+  const ctxTop=$('seri-ch-top10');
+  if(ctxTop){charts['seri-ch-top10']=new Chart(ctxTop,{type:'bar',data:{labels:top10labels,datasets:[{label:'Días vencida',data:top10data,backgroundColor:top10colors,borderRadius:4,borderSkipped:false}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#161b22',borderColor:'#30363d',borderWidth:1,padding:10,callbacks:{label:ctx=>`-${ctx.raw} días`}}},scales:{x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#484f58',font:{size:10,family:'Barlow'}},beginAtZero:true},y:{grid:{display:false},ticks:{color:'#e6edf3',font:{size:10,family:'Barlow'}}}}}})}
   // 4) por estado MP
   const est=['Al día','Próximo a vencer','Vencido','Sin registro'],ec=['#3fb950','#d29922','#f85149','#7d8590'];
   seriChartPie('seri-ch-estado',est,est.map(e=>rows.filter(r=>r.estado===e).length),ec);
