@@ -1599,10 +1599,14 @@ function seriBadge(estado){const c=estado==='Al día'?'#3fb950':estado==='Próxi
 function fmtDSeri(d){return d?`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`:'—';}
 function renderSeriTable(rows){
   rows=[...rows].sort((a,b)=>(a.dias==null?99999:a.dias)-(b.dias==null?99999:b.dias));
+  window._seriTableRows=rows;
+  const thCk=`<th style="position:sticky;top:0;background:#0067B8;color:#fff;padding:8px 6px;text-align:center;width:32px"><input type="checkbox" id="seri-chk-all" title="Seleccionar todo" onchange="seriToggleAll(this.checked)" style="cursor:pointer;width:14px;height:14px;accent-color:#58a6ff"></th>`;
   const cols=['Núm. de serie','Tipo de máquina','Ubicación','Último MP','Próximo MP','Días rest.','Estado','Técnico'];
-  const head=`<thead><tr>${cols.map(h=>`<th style="position:sticky;top:0;background:#0067B8;color:#fff;padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.04em">${h}</th>`).join('')}</tr></thead>`;
-  const body=rows.map(r=>{const dc=r.dias==null?'#7d8590':r.dias<0?'#f85149':r.dias<=7?'#d29922':'#e6edf3';
-    return `<tr style="border-top:1px solid #21262d">
+  const head=`<thead><tr>${thCk}${cols.map(h=>`<th style="position:sticky;top:0;background:#0067B8;color:#fff;padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.04em">${h}</th>`).join('')}</tr></thead>`;
+  const body=rows.map((r,i)=>{
+    const dc=r.dias==null?'#7d8590':r.dias<0?'#f85149':r.dias<=7?'#d29922':'#e6edf3';
+    return `<tr class="seri-row" style="border-top:1px solid #21262d;cursor:pointer" onclick="seriToggleRow(${i})" id="seri-row-${i}">
+      <td style="padding:7px 6px;text-align:center" onclick="event.stopPropagation()"><input type="checkbox" class="seri-chk" data-idx="${i}" onchange="seriChkChange()" style="cursor:pointer;width:14px;height:14px;accent-color:#58a6ff"></td>
       <td style="padding:7px 10px;font-weight:700;color:#e6edf3">${r.serie}</td>
       <td style="padding:7px 10px;color:#8b949e">${r.tipo||'—'}</td>
       <td style="padding:7px 10px;color:#8b949e">${r.ubic||'—'}</td>
@@ -1611,7 +1615,34 @@ function renderSeriTable(rows){
       <td style="padding:7px 10px;font-weight:700;color:${dc}">${r.dias==null?'—':r.dias}</td>
       <td style="padding:7px 10px">${seriBadge(r.estado)}</td>
       <td style="padding:7px 10px;color:#8b949e">${r.tec||'—'}</td></tr>`;}).join('');
-  $('seri-table').innerHTML=head+'<tbody>'+(body||'<tr><td style="padding:14px;color:#7d8590">Sin resultados para los filtros aplicados.</td></tr>')+'</tbody>';
+  $('seri-table').innerHTML=head+'<tbody>'+(body||'<tr><td colspan="9" style="padding:14px;color:#7d8590">Sin resultados para los filtros aplicados.</td></tr>')+'</tbody>';
+  seriChkChange();
+}
+function seriToggleRow(i){
+  const chk=document.querySelector(`.seri-chk[data-idx="${i}"]`);
+  if(chk){chk.checked=!chk.checked;seriChkChange();}
+}
+function seriToggleAll(checked){
+  document.querySelectorAll('.seri-chk').forEach(c=>c.checked=checked);
+  seriChkChange();
+}
+function seriChkChange(){
+  const all=document.querySelectorAll('.seri-chk');
+  const sel=document.querySelectorAll('.seri-chk:checked');
+  /* resaltar filas seleccionadas */
+  all.forEach(c=>{
+    const row=document.getElementById('seri-row-'+c.dataset.idx);
+    if(row)row.style.background=c.checked?'rgba(88,166,255,.07)':'';
+  });
+  /* actualizar checkbox master */
+  const master=$('seri-chk-all');
+  if(master){master.checked=sel.length>0&&sel.length===all.length;master.indeterminate=sel.length>0&&sel.length<all.length;}
+  /* actualizar texto del botón */
+  const btn=$('seri-dl-btn');
+  if(btn){
+    if(sel.length>0){btn.textContent=`⬇ Descargar seleccionadas (${sel.length})`;btn.style.background='#2ea043';btn.style.borderColor='#2ea043';}
+    else{btn.textContent='⬇ Descargar registros';btn.style.background='#0067B8';btn.style.borderColor='#0067B8';}
+  }
 }
 
 function renderSeriBanner(rows){
@@ -1634,7 +1665,7 @@ function buildSeriFilters(rows){
     seriSel('sf-tec','Técnico',seriUniq(seriData.mantto.map(r=>scol(r,SC.tec))))+
     seriDate('sf-from','Último MP desde')+seriDate('sf-to','Último MP hasta')+
     `<button onclick="resetSeriFilters()" style="background:#21262d;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:7px 14px;font-size:12px;cursor:pointer;height:32px">Limpiar</button>`+
-    `<button onclick="downloadSeriCSV()" style="background:#0067B8;color:#fff;border:1px solid #0067B8;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;height:32px">⬇ Descargar registros</button>`;
+    `<button id="seri-dl-btn" onclick="downloadSeriCSV()" style="background:#0067B8;color:#fff;border:1px solid #0067B8;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;height:32px">⬇ Descargar registros</button>`;
 }
 function getSeriFiltered(){
   const g=id=>{const el=$(id);return el?el.value:'';};
@@ -1919,6 +1950,23 @@ function downloadSeriGantt(){
   setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 function downloadSeriCSV(){
+  const sel=document.querySelectorAll('.seri-chk:checked');
+  let rows;
+  if(sel.length>0){
+    /* Descargar solo las seleccionadas */
+    const idxs=[...sel].map(c=>parseInt(c.dataset.idx));
+    rows=idxs.map(i=>window._seriTableRows[i]).filter(Boolean);
+  } else {
+    /* Sin selección: descarga filtradas (comportamiento anterior) */
+    rows=getSeriFiltered().rows;
+  }
+  const cols=['Serie','Tipo','Ubicación','Último MP','Próximo MP','Días restantes','Estado','Técnico'];
+  const lines=[cols.join(','),...rows.map(r=>[r.serie,r.tipo||'',r.ubic||'',fmtDSeri(r.ultimo),fmtDSeri(r.prox),r.dias==null?'':r.dias,r.estado,r.tec||''].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','))];
+  const blob=new Blob(['﻿'+lines.join('\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=sel.length>0?`MP_Serigrafia_seleccion_${sel.length}_maquinas.csv`:'MP_Serigrafia_completo.csv';
+  a.click();URL.revokeObjectURL(a.href);
+}nction downloadSeriCSV(){
   const recs=seriData.mantto||[];
   if(!recs.length){alert('No hay registros en MANTTO. SERIGRAFIA para descargar.');return;}
   const headers=Object.keys(recs[0]).filter(Boolean);
