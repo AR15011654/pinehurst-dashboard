@@ -1966,30 +1966,6 @@ function downloadSeriCSV(){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download=sel.length>0?`MP_Serigrafia_seleccion_${sel.length}_maquinas.csv`:'MP_Serigrafia_completo.csv';
   a.click();URL.revokeObjectURL(a.href);
-}nction downloadSeriCSV(){
-  const recs=seriData.mantto||[];
-  if(!recs.length){alert('No hay registros en MANTTO. SERIGRAFIA para descargar.');return;}
-  const headers=Object.keys(recs[0]).filter(Boolean);
-  /* frecuencia por tipo de máquina (días) para calcular el próximo mantenimiento */
-  const fmap={};(seriData.frec||[]).forEach(r=>{const t=scol(r,SC.tipo).toUpperCase();if(t)fmap[t]=parseInt(scol(r,SC.dias))||0;});
-  const esc=s=>'"'+(s==null?'':s).toString().replace(/"/g,'""')+'"';
-  const extra='Próximo mantenimiento (calculado)';
-  const lines=[headers.concat([extra]).map(esc).join(',')];
-  recs.forEach(r=>{
-    const f=parseFechaSeri(scol(r,SC.fecMP));
-    const dias=fmap[(scol(r,SC.tipo)||'').toUpperCase()]||0;
-    let prox='';
-    if(f&&dias>0){const p=new Date(f);p.setDate(p.getDate()+dias);prox=fmtDSeri(p);}
-    lines.push(headers.map(h=>esc(r[h])).concat([esc(prox)]).join(','));
-  });
-  const csv='\ufeff'+lines.join('\r\n');   /* BOM para acentos en Excel */
-  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;a.download='mantto_serigrafia_'+new Date().toISOString().slice(0,10)+'.csv';
-  document.body.appendChild(a);a.click();document.body.removeChild(a);
-  setTimeout(()=>URL.revokeObjectURL(url),1000);
-}
 
 async function renderSerigrafia(){
   const cfg=$('seri-config'),body=$('seri-body'),diag=$('seri-diag');
@@ -2015,6 +1991,7 @@ async function renderSerigrafia(){
   Object.keys(keep).forEach(id=>{const el=$(id);if(el)el.value=keep[id];});
   applySeriFilters();
   if(_seriView==='gantt')renderSeriGantt();
+}
 }
 /* =================== FIN SERIGRAFÍA · MP =================== */
 
