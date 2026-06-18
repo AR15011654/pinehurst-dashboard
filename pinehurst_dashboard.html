@@ -1731,11 +1731,14 @@ function seriSubView(view,btn){
 function renderSeriPasos(){const f=$('seri-pasos-frame');if(f&&(!f.src||f.src==='about:blank'||!f.src.includes('gid=')))f.src=SERI_PUBHTML+SERI_PASOS_GID;}
 
 function seriSummary(){
+  /* Usa _seriRows (72 máquinas únicas) — misma fuente que el Tablero de MP */
   if(!_seriRows||!_seriRows.length)return null;
-  const rows=seriGanttData();
-  if(!rows.length)return null;
-  const tot=rows.length,done=rows.filter(r=>r.estado==='Ejecutado').length;
-  return {tot,done,pend:tot-done,pct:tot?Math.round(done/tot*100):0,rows};
+  const tot=_seriRows.length;
+  const done=_seriRows.filter(r=>r.estado==='Al día').length;
+  const prox=_seriRows.filter(r=>r.estado==='Próximo a vencer').length;
+  const venc=_seriRows.filter(r=>r.estado==='Vencido').length;
+  const sinReg=_seriRows.filter(r=>r.estado==='Sin registro').length;
+  return {tot,done,pend:tot-done,pct:tot?Math.round(done/tot*100):0,prox,venc,sinReg};
 }
 async function loadSeriData(){
   if(!SERI_GIDS.maquinas)return seriData;
