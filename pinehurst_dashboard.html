@@ -532,7 +532,8 @@ function renderTabs(){
   const bar=$('area-tabs');
   bar.innerHTML='<button class="area-tab active" onclick="filterArea(\'TODAS\',this)">TODAS LAS ÁREAS</button>';
   bar.innerHTML+='<button class="area-tab" onclick="filterArea(\'SERIGRAFÍA MP\',this)">🖨 SERIGRAFÍA MP</button>';
-  areas.forEach(a=>{const btn=document.createElement('button');btn.className='area-tab';btn.textContent=a;btn.onclick=()=>filterArea(a,btn);bar.appendChild(btn)});
+  const AREA_ICONS={'COSTURA':'🧵','PD':'🔬','SUBLIMADO':'🎨','BORDADO':'🪡','CORTE':'✂️','BODEGA':'📦'};
+  areas.forEach(a=>{const btn=document.createElement('button');btn.className='area-tab';const icon=AREA_ICONS[a.toUpperCase()]||'';btn.textContent=icon?(icon+' '+a):a;btn.onclick=()=>filterArea(a,btn);bar.appendChild(btn)});
   /* Áreas adicionales fijas */
   const extraAreas=[{key:'SUBLIMADO',label:'🎨 SUBLIMADO'},{key:'BORDADO',label:'🪡 BORDADO'},{key:'CORTE',label:'✂️ CORTE'},{key:'BODEGA',label:'📦 BODEGA DE TELAS'}];
   extraAreas.forEach(a=>{const btn=document.createElement('button');btn.className='area-tab';btn.textContent=a.label;btn.onclick=()=>filterArea(a.key,btn);bar.appendChild(btn);});
