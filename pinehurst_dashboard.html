@@ -424,6 +424,26 @@ footer strong{color:#58a6ff}
   </div>
 </div>
 
+<div class="sec-wrap" id="sublimado-section" style="display:none">
+  <div class="sec-title">SUBLIMADO</div>
+  <div class="sec-sub" id="sublimado-sub"></div>
+  <div id="sublimado-body"></div>
+</div>
+<div class="sec-wrap" id="bordado-section" style="display:none">
+  <div class="sec-title">BORDADO</div>
+  <div class="sec-sub" id="bordado-sub"></div>
+  <div id="bordado-body"></div>
+</div>
+<div class="sec-wrap" id="corte-section" style="display:none">
+  <div class="sec-title">CORTE</div>
+  <div class="sec-sub" id="corte-sub"></div>
+  <div id="corte-body"></div>
+</div>
+<div class="sec-wrap" id="bodega-section" style="display:none">
+  <div class="sec-title">BODEGA DE TELAS</div>
+  <div class="sec-sub" id="bodega-sub"></div>
+  <div id="bodega-body"></div>
+</div>
 <div class="sec-wrap" id="serigrafia-section" style="display:none">
   <div class="sec-title">SERIGRAFÍA · MANTENIMIENTO PREVENTIVO</div>
   <div class="sec-sub" id="seri-sub"></div>
@@ -513,6 +533,9 @@ function renderTabs(){
   bar.innerHTML='<button class="area-tab active" onclick="filterArea(\'TODAS\',this)">TODAS LAS ÁREAS</button>';
   bar.innerHTML+='<button class="area-tab" onclick="filterArea(\'SERIGRAFÍA MP\',this)">🖨 SERIGRAFÍA MP</button>';
   areas.forEach(a=>{const btn=document.createElement('button');btn.className='area-tab';btn.textContent=a;btn.onclick=()=>filterArea(a,btn);bar.appendChild(btn)});
+  /* Áreas adicionales fijas */
+  const extraAreas=[{key:'SUBLIMADO',label:'🎨 SUBLIMADO'},{key:'BORDADO',label:'🪡 BORDADO'},{key:'CORTE',label:'✂️ CORTE'},{key:'BODEGA',label:'📦 BODEGA DE TELAS'}];
+  extraAreas.forEach(a=>{const btn=document.createElement('button');btn.className='area-tab';btn.textContent=a.label;btn.onclick=()=>filterArea(a.key,btn);bar.appendChild(btn);});
 }
 
 function filterArea(area,btn){
@@ -522,10 +545,18 @@ function filterArea(area,btn){
   $('main-section').style.display='none';
   $('costura-section').style.display='none';
   $('pd-section').style.display='none';
+  $('sublimado-section').style.display='none';
+  $('bordado-section').style.display='none';
+  $('corte-section').style.display='none';
+  $('bodega-section').style.display='none';
   $('serigrafia-section').style.display='none';
   const up=area.toUpperCase();
   if(up.includes('COSTURA')){$('costura-section').style.display='block';renderCosturaSection(allData.filter(r=>getArea(r).toUpperCase().includes('COSTURA')))}
   else if(up==='PD'){$('pd-section').style.display='block';renderPDSection(allData.filter(r=>getArea(r).toUpperCase()==='PD'))}
+  else if(up==='SUBLIMADO'){$('sublimado-section').style.display='block';renderGenericSection('sublimado',allData.filter(r=>getArea(r).toUpperCase().includes('SUBLIMADO')),'SUBLIMADO','#e16e00')}
+  else if(up==='BORDADO'){$('bordado-section').style.display='block';renderGenericSection('bordado',allData.filter(r=>getArea(r).toUpperCase().includes('BORDADO')),'BORDADO','#39c5cf')}
+  else if(up==='CORTE'){$('corte-section').style.display='block';renderGenericSection('corte',allData.filter(r=>getArea(r).toUpperCase().includes('CORTE')),'CORTE','#bc8cff')}
+  else if(up==='BODEGA'){$('bodega-section').style.display='block';renderGenericSection('bodega',allData.filter(r=>getArea(r).toUpperCase().includes('BODEGA')),'BODEGA DE TELAS','#58a6ff')}
   else if(up.includes('SERIGRAF')){$('serigrafia-section').style.display='block';renderSerigrafia()}
   else{$('main-section').style.display='block';renderMain(area==='TODAS'?allData:allData.filter(r=>getArea(r)===area))}
 }
@@ -2002,6 +2033,54 @@ async function renderSerigrafia(){
   applySeriFilters();
   if(_seriView==='gantt')renderSeriGantt();
 }
+/* =================== ÁREAS GENÉRICAS =================== */
+function renderGenericSection(id,data,title,color){
+  const sub=$(id+'-sub'),body=$(id+'-body');
+  if(!sub||!body)return;
+  const tot=data.length;
+  sub.textContent=`${title} · ${tot} registros · 2026`;
+  if(!tot){
+    body.innerHTML=`<div style="padding:32px;text-align:center;color:#7d8590;font-size:.85rem">No hay registros para el área <b>${title}</b> en los datos cargados.<br><span style="font-size:.75rem;color:#484f58">Verifica que la columna HOME LOCATION o AREA contenga "${title}".</span></div>`;
+    return;
+  }
+  /* KPIs básicos */
+  const grupos={};
+  data.forEach(r=>{const g=r['GRUPO DE MAQUINA']||r['Grupo de Maquina']||r['TIPO DE MAQUINA']||'Sin grupo';grupos[g]=(grupos[g]||0)+1;});
+  const topGrupos=Object.entries(grupos).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const kpiHtml=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:16px">
+    <div class="kpi-card"><div class="kpi-label">Total Máquinas</div><div class="kpi-val" style="color:${color}">${tot}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Tipos distintos</div><div class="kpi-val" style="color:#58a6ff">${Object.keys(grupos).length}</div></div>
+  </div>`;
+  /* Tabla de máquinas por grupo */
+  const tableRows=topGrupos.map(([g,n])=>`<tr style="border-top:1px solid #21262d">
+    <td style="padding:8px 12px;color:#e6edf3;font-weight:600">${g}</td>
+    <td style="padding:8px 12px;text-align:center;color:${color};font-weight:700">${n}</td>
+    <td style="padding:8px 12px">
+      <div style="background:#21262d;border-radius:4px;height:8px;overflow:hidden">
+        <div style="height:100%;width:${Math.round(n/tot*100)}%;background:${color};border-radius:4px"></div>
+      </div>
+    </td>
+    <td style="padding:8px 12px;color:#7d8590;font-size:.75rem">${Math.round(n/tot*100)}%</td>
+  </tr>`).join('');
+  body.innerHTML=kpiHtml+`
+    <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;overflow:hidden;margin-bottom:18px">
+      <div style="padding:12px 16px;border-bottom:1px solid #30363d;font-size:.72rem;font-weight:700;color:#7d8590;text-transform:uppercase;letter-spacing:.08em">Máquinas por Grupo</div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr>
+          <th style="padding:8px 12px;background:#0d1117;color:#7d8590;font-size:.65rem;text-transform:uppercase;text-align:left">Grupo</th>
+          <th style="padding:8px 12px;background:#0d1117;color:#7d8590;font-size:.65rem;text-transform:uppercase;text-align:center">Máquinas</th>
+          <th style="padding:8px 12px;background:#0d1117;color:#7d8590;font-size:.65rem;text-transform:uppercase">Proporción</th>
+          <th style="padding:8px 12px;background:#0d1117;color:#7d8590;font-size:.65rem;text-transform:uppercase">%</th>
+        </tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+    <div style="padding:16px;background:#161b22;border:1px solid #21262d;border-radius:8px;color:#484f58;font-size:.75rem;text-align:center">
+      📋 Panel de mantenimiento preventivo para <b style="color:${color}">${title}</b> — próximamente disponible cuando se configure la fuente de datos.
+    </div>`;
+}
+/* =================== FIN ÁREAS GENÉRICAS =================== */
+
 /* =================== FIN SERIGRAFÍA · MP =================== */
 
 </script>
