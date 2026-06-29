@@ -130,15 +130,14 @@
 <script>
 // ====== CONFIGURACIÓN ======
 const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTDfzsKuj9Vn6eBYhkHM89hWBp3CTM4lL7I1Ia1eVweZKGosuBRvzheWMLIWUZTqKD3UxtM1cR5lLOf/pub?output=csv";
-// Segunda pestaña "% mm" (se lee del mismo libro por nombre de hoja).
-const SHEET_ID = "1tgYT6sAJojwig7VPY_8VvsnYvdOAGpFI6xPaCbFDh9o";
-const MM_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent("% mm")}`;
+// Segunda pestaña "% mm" (mismo libro publicado, por gid de esa hoja).
+const MM_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTDfzsKuj9Vn6eBYhkHM89hWBp3CTM4lL7I1Ia1eVweZKGosuBRvzheWMLIWUZTqKD3UxtM1cR5lLOf/pub?gid=1050428836&single=true&output=csv";
 const REFRESH_SECONDS = 60;
 // Si la autodetección falla, fija los nombres aquí (ej. "Fecha", "Linea"):
 let DATE_COL = "";   // se autodetecta
 let LINE_COL = "";   // se autodetecta
-let MM_MONTH_COL = ""; // columna de mes en la pestaña % mm (autodetecta)
-let MM_PCT_COL = "";   // columna de % en la pestaña % mm (autodetecta)
+let MM_MONTH_COL = "MES";  // columna de mes en la pestaña % mm
+let MM_PCT_COL = "%mm";    // columna de % en la pestaña % mm
 const FILTER_COL = ""; // opcional, ej. "Estatus"
 const FILTER_VAL = ""; // opcional, ej. "Falla"
 // ============================
