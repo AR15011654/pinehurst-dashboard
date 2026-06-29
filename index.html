@@ -122,7 +122,7 @@
     <div class="card matcard"><h2 id="matTitle">Matriz: línea × día (semana actual)</h2><div class="scroll fill" id="wdMatrix"></div></div>
     <div class="rightcol">
       <div class="card chartcard"><h2 id="dayTitle">Eventos por día de la semana</h2><div id="paretoBox"><canvas id="pareto"></canvas></div></div>
-      <div class="card chartcard"><h2>Eventos por semana</h2><div id="weeklyBox"><canvas id="weekly"></canvas></div></div>
+      <div class="card chartcard"><h2>% MM por mes</h2><div id="weeklyBox"><canvas id="weekly"></canvas></div></div>
     </div>
   </div>
 </div>
@@ -130,13 +130,20 @@
 <script>
 // ====== CONFIGURACIÓN ======
 const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTDfzsKuj9Vn6eBYhkHM89hWBp3CTM4lL7I1Ia1eVweZKGosuBRvzheWMLIWUZTqKD3UxtM1cR5lLOf/pub?output=csv";
+// Segunda pestaña "% mm" (se lee del mismo libro por nombre de hoja).
+const SHEET_ID = "1tgYT6sAJojwig7VPY_8VvsnYvdOAGpFI6xPaCbFDh9o";
+const MM_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent("% mm")}`;
 const REFRESH_SECONDS = 60;
 // Si la autodetección falla, fija los nombres aquí (ej. "Fecha", "Linea"):
 let DATE_COL = "";   // se autodetecta
 let LINE_COL = "";   // se autodetecta
+let MM_MONTH_COL = ""; // columna de mes en la pestaña % mm (autodetecta)
+let MM_PCT_COL = "";   // columna de % en la pestaña % mm (autodetecta)
 const FILTER_COL = ""; // opcional, ej. "Estatus"
 const FILTER_VAL = ""; // opcional, ej. "Falla"
 // ============================
+
+let mmData = null; // {headers, rows} de la pestaña % mm
 
 const norm = s => String(s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
 const guess = (hdrs, kws) => hdrs.find(h => kws.some(k => norm(h).includes(k))) || "";
@@ -246,6 +253,22 @@ async function load(){
       setStatus("ok");
       return;
     }
+
+    // Leer la pestaña "% mm" (no bloquea el tablero si falla).
+    try{
+      const r2 = await fetch(MM_URL, {cache:"no-store"});
+      if(r2.ok){
+        const t2 = await r2.text();
+        if(!/^\s*</.test(t2)){
+          const p2 = Papa.parse(t2, {header:true, skipEmptyLines:true});
+          const h2 = p2.meta.fields || [];
+          const rows2 = p2.data.filter(x => Object.values(x).some(v => v!==""));
+          if(!MM_MONTH_COL) MM_MONTH_COL = guess(h2, ["mes","month"]);
+          if(!MM_PCT_COL)   MM_PCT_COL   = guess(h2, ["%","porc","mm","valor","indice","índice"]);
+          mmData = { headers:h2, rows:rows2 };
+        }
+      }
+    }catch(_){ /* mantener lo último si falla */ }
 
     render(usable);
     if(usable.length > 0) hasGoodData = true;
@@ -405,52 +428,59 @@ function render(rows){
     plugins:[valueLabels]
   });
 
-  // --- Gráfica lineal: eventos por semana (histórico) ---
-  const wkKeys = Object.keys(weekMap).map(Number).sort((a,b)=>a-b);
-  const wkLabels = wkKeys.map(k=> "Sem " + isoWeek(weekMap[k].start));
-  const wkRanges = wkKeys.map(k=>{ const s=weekMap[k].start; const e=new Date(s); e.setDate(s.getDate()+6); return ddmm(s)+"–"+ddmm(e); });
-  const wkVals = wkKeys.map(k=> weekMap[k].count);
-  const curKey = cws.getTime();
+  // --- Gráfica: % MM por mes (pestaña "% mm") ---
+  const wctx = document.getElementById("weekly");
+  const parsePct = v => { const n = parseFloat(String(v).replace("%","").replace(",",".")); return isNaN(n)?null:n; };
 
-  // Plugin para mostrar el número de fallos sobre cada punto.
-  const weeklyLabels = {
-    id:"weeklyLabels",
+  let mmMonths = [], mmVals = [];
+  if(mmData && MM_MONTH_COL && MM_PCT_COL){
+    mmData.rows.forEach(r=>{
+      const mes = String(r[MM_MONTH_COL]||"").trim();
+      const val = parsePct(r[MM_PCT_COL]);
+      if(mes && val!=null){ mmMonths.push(mes); mmVals.push(val); }
+    });
+  }
+  // Si los % vienen como fracción (0–1), pasarlos a porcentaje.
+  if(mmVals.length && Math.max(...mmVals) <= 1) mmVals = mmVals.map(v=>+(v*100).toFixed(2));
+
+  // Plugin: mostrar el valor encima de cada punto.
+  const mmLabels = {
+    id:"mmLabels",
     afterDatasetsDraw(c){
-      const {ctx} = c;
-      const meta = c.getDatasetMeta(0);
-      ctx.save();
-      ctx.fillStyle = "#43AF2A";
-      ctx.font = `600 ${valFont}px 'IBM Plex Mono', monospace`;
-      ctx.textAlign = "center";
-      meta.data.forEach((pt,i)=>{ ctx.fillText(wkVals[i], pt.x, pt.y - 12); });
+      const {ctx} = c; const meta = c.getDatasetMeta(0);
+      ctx.save(); ctx.fillStyle = "#43AF2A";
+      ctx.font = `600 ${valFont}px 'IBM Plex Mono', monospace`; ctx.textAlign = "center";
+      meta.data.forEach((pt,i)=>{ ctx.fillText(mmVals[i]+"%", pt.x, pt.y - 12); });
       ctx.restore();
     }
   };
 
-  const wctx = document.getElementById("weekly");
   if(chart2) chart2.destroy();
-  chart2 = new Chart(wctx, {
-    type:"line",
-    data:{ labels:wkLabels, datasets:[{
-      label:"Eventos por semana",
-      data:wkVals,
-      borderColor:"#60a5fa", backgroundColor:"rgba(96,165,250,.15)",
-      borderWidth:2, fill:true, tension:0.25,
-      pointRadius: wkKeys.map(k=> k===curKey ? 6 : 4),
-      pointBackgroundColor: wkKeys.map(k=> k===curKey ? "#f5a524" : "#60a5fa"),
-      pointBorderColor: wkKeys.map(k=> k===curKey ? "#f5a524" : "#60a5fa")
-    }]},
-    options:{ responsive:true, maintainAspectRatio:false,
-      layout:{ padding:{ top:26*big } },
-      plugins:{ legend:{display:false},
-        tooltip:{ callbacks:{ title:items=>wkLabels[items[0].dataIndex]+" ("+wkRanges[items[0].dataIndex]+")", label:c=>`${c.parsed.y} eventos` } } },
-      scales:{
-        x:{ ticks:{color:"#9FC3D6",font:{size:tickFont}}, grid:{display:false},
-            title:{display:true,text:"Número de semana",color:"#9FC3D6",font:{size:tickFont}} },
-        y:{ beginAtZero:true, ticks:{color:"#9FC3D6",precision:0,font:{size:tickFont}}, grid:{color:"#0A567E"} }
-      }},
-    plugins:[weeklyLabels]
-  });
+  if(mmMonths.length === 0){
+    // Sin datos legibles aún: dejar el panel vacío sin romper nada.
+    const cx = wctx.getContext("2d"); cx.clearRect(0,0,wctx.width,wctx.height);
+  } else {
+    chart2 = new Chart(wctx, {
+      type:"line",
+      data:{ labels:mmMonths, datasets:[{
+        label:"% MM",
+        data:mmVals,
+        borderColor:"#60a5fa", backgroundColor:"rgba(96,165,250,.15)",
+        borderWidth:2, fill:true, tension:0.25,
+        pointRadius:4, pointBackgroundColor:"#f5a524", pointBorderColor:"#f5a524"
+      }]},
+      options:{ responsive:true, maintainAspectRatio:false,
+        layout:{ padding:{ top:26*big } },
+        plugins:{ legend:{display:false},
+          tooltip:{ callbacks:{ label:c=>`${c.parsed.y}% MM` } } },
+        scales:{
+          x:{ ticks:{color:"#9FC3D6",font:{size:tickFont}}, grid:{display:false},
+              title:{display:true,text:"Mes",color:"#9FC3D6",font:{size:tickFont}} },
+          y:{ beginAtZero:true, ticks:{color:"#9FC3D6",font:{size:tickFont},callback:v=>v+"%"}, grid:{color:"#0A567E"} }
+        }},
+      plugins:[mmLabels]
+    });
+  }
 }
 
 load();
