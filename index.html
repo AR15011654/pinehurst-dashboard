@@ -34,15 +34,13 @@
   .kpi .lbl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px}
   .kpi .val{font-family:'Oswald',sans-serif;font-weight:700;margin-top:4px;line-height:1}
   .kpi .subv{font-size:11px;color:var(--dim);margin-top:4px}
-  .content{flex:1;min-height:0;display:grid;grid-template-columns:1.1fr 1fr;gap:14px}
+  .content{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:14px}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;
     display:flex;flex-direction:column;min-height:0}
   .card h2{flex:none;font-family:'Oswald',sans-serif;font-size:14px;text-transform:uppercase;
     letter-spacing:1px;margin:0 0 12px}
   .fill{flex:1;min-height:0;overflow:auto}
-  .rightcol{min-height:0;display:flex;flex-direction:column;gap:14px}
-  .rightcol .card{flex:1}
-  #paretoBox,#weeklyBox{flex:1;min-height:0;position:relative}
+  #paretoBox,#weeklyBox,#efiBox{flex:1;min-height:0;position:relative}
   table{border-collapse:collapse;width:100%;font-size:12px}
   th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:center}
   th{color:var(--dim);font-weight:600;position:sticky;top:0;background:var(--panel)}
@@ -120,10 +118,9 @@
   <div class="kpis" id="kpis"></div>
   <div class="content">
     <div class="card matcard"><h2 id="matTitle">Matriz: línea × día (semana actual)</h2><div class="scroll fill" id="wdMatrix"></div></div>
-    <div class="rightcol">
-      <div class="card chartcard"><h2 id="dayTitle">Eventos por día de la semana</h2><div id="paretoBox"><canvas id="pareto"></canvas></div></div>
-      <div class="card chartcard"><h2>% MM por mes</h2><div id="weeklyBox"><canvas id="weekly"></canvas></div></div>
-    </div>
+    <div class="card chartcard"><h2 id="dayTitle">Eventos por día de la semana</h2><div id="paretoBox"><canvas id="pareto"></canvas></div></div>
+    <div class="card chartcard"><h2>% MM por mes</h2><div id="weeklyBox"><canvas id="weekly"></canvas></div></div>
+    <div class="card chartcard"><h2>% Eficiencia de planta</h2><div id="efiBox"><canvas id="efi"></canvas></div></div>
   </div>
 </div>
 
@@ -132,17 +129,22 @@
 const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTDfzsKuj9Vn6eBYhkHM89hWBp3CTM4lL7I1Ia1eVweZKGosuBRvzheWMLIWUZTqKD3UxtM1cR5lLOf/pub?output=csv";
 // Segunda pestaña "% mm" (mismo libro publicado, por gid de esa hoja).
 const MM_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTDfzsKuj9Vn6eBYhkHM89hWBp3CTM4lL7I1Ia1eVweZKGosuBRvzheWMLIWUZTqKD3UxtM1cR5lLOf/pub?gid=1050428836&single=true&output=csv";
+// Pestaña "Eficiencia" (por gid de esa hoja).
+const EFI_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTDfzsKuj9Vn6eBYhkHM89hWBp3CTM4lL7I1Ia1eVweZKGosuBRvzheWMLIWUZTqKD3UxtM1cR5lLOf/pub?gid=919008204&single=true&output=csv";
 const REFRESH_SECONDS = 60;
 // Si la autodetección falla, fija los nombres aquí (ej. "Fecha", "Linea"):
 let DATE_COL = "";   // se autodetecta
 let LINE_COL = "";   // se autodetecta
 let MM_MONTH_COL = "MES";  // columna de mes en la pestaña % mm
 let MM_PCT_COL = "%mm";    // columna de % en la pestaña % mm
+let EFI_DATE_COL = "FECHA";              // columna de fecha en pestaña Eficiencia
+let EFI_PCT_COL = "% EFICIENCIA PLANTA"; // columna de eficiencia
 const FILTER_COL = ""; // opcional, ej. "Estatus"
 const FILTER_VAL = ""; // opcional, ej. "Falla"
 // ============================
 
-let mmData = null; // {headers, rows} de la pestaña % mm
+let mmData = null;  // {headers, rows} de la pestaña % mm
+let efiData = null; // {headers, rows} de la pestaña Eficiencia
 
 const norm = s => String(s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
 const guess = (hdrs, kws) => hdrs.find(h => kws.some(k => norm(h).includes(k))) || "";
@@ -206,6 +208,7 @@ function isoWeek(dt){
 }
 let chart = null;
 let chart2 = null;
+let chart3 = null;
 let hasGoodData = false;
 
 function setStatus(state, msg){
@@ -265,6 +268,19 @@ async function load(){
           if(!MM_MONTH_COL) MM_MONTH_COL = guess(h2, ["mes","month"]);
           if(!MM_PCT_COL)   MM_PCT_COL   = guess(h2, ["%","porc","mm","valor","indice","índice"]);
           mmData = { headers:h2, rows:rows2 };
+        }
+      }
+    }catch(_){ /* mantener lo último si falla */ }
+
+    // Leer la pestaña "Eficiencia".
+    try{
+      const r3 = await fetch(EFI_URL, {cache:"no-store"});
+      if(r3.ok){
+        const t3 = await r3.text();
+        if(!/^\s*</.test(t3)){
+          const p3 = Papa.parse(t3, {header:true, skipEmptyLines:true});
+          const rows3 = p3.data.filter(x => Object.values(x).some(v => v!==""));
+          efiData = { headers:p3.meta.fields||[], rows:rows3 };
         }
       }
     }catch(_){ /* mantener lo último si falla */ }
@@ -478,6 +494,59 @@ function render(rows){
           y:{ beginAtZero:true, ticks:{color:"#9FC3D6",font:{size:tickFont},callback:v=>v+"%"}, grid:{color:"#0A567E"} }
         }},
       plugins:[mmLabels]
+    });
+  }
+
+  // --- Gráfica: % Eficiencia de planta (pestaña "Eficiencia") ---
+  const ectx = document.getElementById("efi");
+  let efiLabels = [], efiVals = [];
+  if(efiData && EFI_DATE_COL && EFI_PCT_COL){
+    const tmp = [];
+    efiData.rows.forEach(r=>{
+      const f = String(r[EFI_DATE_COL]||"").trim();
+      const v = parsePct(r[EFI_PCT_COL]);
+      if(f && v!=null){ tmp.push({ dt:parseDate(f), raw:f, v }); }
+    });
+    tmp.sort((a,b)=> (a.dt&&b.dt) ? a.dt-b.dt : 0);
+    efiLabels = tmp.map(x=> x.dt ? ddmm(x.dt) : x.raw);
+    efiVals = tmp.map(x=> x.v);
+  }
+  if(efiVals.length && Math.max(...efiVals) <= 1) efiVals = efiVals.map(v=>+(v*100).toFixed(2));
+
+  const efiLabelsPlugin = {
+    id:"efiLabelsPlugin",
+    afterDatasetsDraw(c){
+      const {ctx} = c; const meta = c.getDatasetMeta(0);
+      ctx.save(); ctx.fillStyle = "#43AF2A";
+      ctx.font = `600 ${valFont}px 'IBM Plex Mono', monospace`; ctx.textAlign = "center";
+      meta.data.forEach((pt,i)=>{ ctx.fillText(efiVals[i]+"%", pt.x, pt.y - 12); });
+      ctx.restore();
+    }
+  };
+
+  if(chart3) chart3.destroy();
+  if(efiLabels.length === 0){
+    const cx = ectx.getContext("2d"); cx.clearRect(0,0,ectx.width,ectx.height);
+  } else {
+    chart3 = new Chart(ectx, {
+      type:"line",
+      data:{ labels:efiLabels, datasets:[{
+        label:"% Eficiencia",
+        data:efiVals,
+        borderColor:"#43AF2A", backgroundColor:"rgba(67,175,42,.15)",
+        borderWidth:2, fill:true, tension:0.25,
+        pointRadius:4, pointBackgroundColor:"#f5a524", pointBorderColor:"#f5a524"
+      }]},
+      options:{ responsive:true, maintainAspectRatio:false,
+        layout:{ padding:{ top:26*big } },
+        plugins:{ legend:{display:false},
+          tooltip:{ callbacks:{ label:c=>`${c.parsed.y}% eficiencia` } } },
+        scales:{
+          x:{ ticks:{color:"#9FC3D6",font:{size:tickFont}}, grid:{display:false},
+              title:{display:true,text:"Fecha",color:"#9FC3D6",font:{size:tickFont}} },
+          y:{ beginAtZero:true, max:100, ticks:{color:"#9FC3D6",font:{size:tickFont},callback:v=>v+"%"}, grid:{color:"#0A567E"} }
+        }},
+      plugins:[efiLabelsPlugin]
     });
   }
 }
