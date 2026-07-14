@@ -465,14 +465,18 @@ function render(rows){
   // Si los % vienen como fracción (0–1), pasarlos a porcentaje.
   if(mmVals.length && Math.max(...mmVals) <= 1) mmVals = mmVals.map(v=>+(v*100).toFixed(2));
 
-  // Plugin: mostrar el valor encima de cada punto.
+  // Plugin: mostrar el valor de cada punto, alternando arriba/abajo para no encimarse.
   const mmLabels = {
     id:"mmLabels",
     afterDatasetsDraw(c){
       const {ctx} = c; const meta = c.getDatasetMeta(0);
       ctx.save(); ctx.fillStyle = "#43AF2A";
-      ctx.font = `600 ${valFont}px 'IBM Plex Mono', monospace`; ctx.textAlign = "center";
-      meta.data.forEach((pt,i)=>{ ctx.fillText(mmVals[i]+"%", pt.x, pt.y - 12); });
+      ctx.font = `600 ${Math.round(valFont*0.82)}px 'IBM Plex Mono', monospace`; ctx.textAlign = "center";
+      meta.data.forEach((pt,i)=>{
+        const up = i % 2 === 0;                 // alterna posición
+        ctx.textBaseline = up ? "bottom" : "top";
+        ctx.fillText(mmVals[i]+"%", pt.x, pt.y + (up ? -10 : 12));
+      });
       ctx.restore();
     }
   };
@@ -492,13 +496,13 @@ function render(rows){
         pointRadius:4, pointBackgroundColor:"#f5a524", pointBorderColor:"#f5a524"
       }]},
       options:{ responsive:true, maintainAspectRatio:false,
-        layout:{ padding:{ top:26*big } },
+        layout:{ padding:{ top:30*big, bottom:14*big } },
         plugins:{ legend:{display:false},
           tooltip:{ callbacks:{ label:c=>`${c.parsed.y}% MM` } } },
         scales:{
           x:{ ticks:{color:"#9FC3D6",font:{size:tickFont}}, grid:{display:false},
               title:{display:true,text:"Mes",color:"#9FC3D6",font:{size:tickFont}} },
-          y:{ beginAtZero:true, ticks:{color:"#9FC3D6",font:{size:tickFont},callback:v=>v+"%"}, grid:{color:"#0A567E"} }
+          y:{ beginAtZero:true, suggestedMax: (mmVals.length?Math.max(...mmVals)*1.35:5), ticks:{color:"#9FC3D6",font:{size:tickFont},callback:v=>v+"%"}, grid:{color:"#0A567E"} }
         }},
       plugins:[mmLabels]
     });
