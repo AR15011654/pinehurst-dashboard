@@ -34,7 +34,10 @@
   .kpi .lbl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px}
   .kpi .val{font-family:'Oswald',sans-serif;font-weight:700;margin-top:4px;line-height:1}
   .kpi .subv{font-size:11px;color:var(--dim);margin-top:4px}
-  .content{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:14px}
+  .content{flex:1;min-height:0;display:grid;grid-template-columns:1.15fr 1fr;gap:14px}
+  .rightcol{min-height:0;display:flex;flex-direction:column;gap:14px}
+  .rightcol>.card{flex:1}
+  .dualrow{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:14px}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;
     display:flex;flex-direction:column;min-height:0}
   .card h2{flex:none;font-family:'Oswald',sans-serif;font-size:14px;text-transform:uppercase;
@@ -118,9 +121,13 @@
   <div class="kpis" id="kpis"></div>
   <div class="content">
     <div class="card matcard"><h2 id="matTitle">Matriz: línea × día (semana actual)</h2><div class="scroll fill" id="wdMatrix"></div></div>
-    <div class="card chartcard"><h2 id="dayTitle">Eventos por día de la semana</h2><div id="paretoBox"><canvas id="pareto"></canvas></div></div>
-    <div class="card chartcard"><h2>% MM por mes</h2><div id="weeklyBox"><canvas id="weekly"></canvas></div></div>
-    <div class="card chartcard"><h2>% Eficiencia de planta</h2><div id="efiBox"><canvas id="efi"></canvas></div></div>
+    <div class="rightcol">
+      <div class="card chartcard"><h2 id="dayTitle">Eventos por día de la semana</h2><div id="paretoBox"><canvas id="pareto"></canvas></div></div>
+      <div class="dualrow">
+        <div class="card chartcard"><h2>% MM por mes</h2><div id="weeklyBox"><canvas id="weekly"></canvas></div></div>
+        <div class="card chartcard"><h2>% Eficiencia de planta</h2><div id="efiBox"><canvas id="efi"></canvas></div></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -508,7 +515,7 @@ function render(rows){
       if(f && v!=null){ tmp.push({ dt:parseDate(f), raw:f, v }); }
     });
     tmp.sort((a,b)=> (a.dt&&b.dt) ? a.dt-b.dt : 0);
-    efiLabels = tmp.map(x=> x.dt ? ddmm(x.dt) : x.raw);
+    efiLabels = tmp.map(x=> x.dt ? (WD_FULL[WEEKDAYS[(x.dt.getDay()+6)%7]]) : x.raw);
     efiVals = tmp.map(x=> x.v);
   }
   if(efiVals.length && Math.max(...efiVals) <= 1) efiVals = efiVals.map(v=>+(v*100).toFixed(2));
@@ -543,7 +550,7 @@ function render(rows){
           tooltip:{ callbacks:{ label:c=>`${c.parsed.y}% eficiencia` } } },
         scales:{
           x:{ ticks:{color:"#9FC3D6",font:{size:tickFont}}, grid:{display:false},
-              title:{display:true,text:"Fecha",color:"#9FC3D6",font:{size:tickFont}} },
+              title:{display:true,text:"Día",color:"#9FC3D6",font:{size:tickFont}} },
           y:{ beginAtZero:true, max:100, ticks:{color:"#9FC3D6",font:{size:tickFont},callback:v=>v+"%"}, grid:{color:"#0A567E"} }
         }},
       plugins:[efiLabelsPlugin]
