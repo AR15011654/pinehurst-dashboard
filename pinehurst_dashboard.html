@@ -492,11 +492,21 @@ footer strong{color:#58a6ff}
     <div style="overflow:auto;max-height:420px;border:1px solid #30363d;border-radius:8px;margin-bottom:18px">
       <table id="seri-table" style="width:100%;border-collapse:collapse;font-size:12px"></table>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
       <div class="cs-chart-card" style="display:flex;flex-direction:column;height:300px"><div class="cs-chart-title">Mantenimientos por tipo de máquina</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-tipo"></canvas></div></div>
       <div class="cs-chart-card" style="display:flex;flex-direction:column;height:300px"><div class="cs-chart-title">Mantenimientos realizados por mes</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-mes"></canvas></div></div>
       <div class="cs-chart-card" style="display:flex;flex-direction:column;height:300px"><div class="cs-chart-title">Top 10 — Más días vencidas</div><div style="flex:1;position:relative;padding:8px"><canvas id="seri-ch-top10"></canvas></div></div>
-      <div class="cs-chart-card" style="display:flex;flex-direction:column;height:300px"><div class="cs-chart-title">Máquinas por estado de mantenimiento</div><div style="flex:1;position:relative;padding:4px 8px 0"><canvas id="seri-ch-estado"></canvas></div></div>
+    </div>
+    <div class="cs-chart-card" style="margin-top:14px">
+      <div class="cs-chart-title">Máquinas por estado de mantenimiento</div>
+      <div class="compliance-wrap">
+        <div class="compliance-donut">
+          <canvas id="seri-ch-estado"></canvas>
+          <div class="compliance-center"><div class="cc-pct" id="seri-cc-pct">—%</div><div class="cc-lbl">Cumplimiento</div></div>
+        </div>
+        <div class="compliance-legend" id="seri-estado-legend"></div>
+      </div>
+      <div class="compliance-total" id="seri-estado-total"></div>
     </div>
   </div>
 </div>
@@ -1758,7 +1768,6 @@ function resetSeriFilters(){['sf-tipo','sf-ubic','sf-estado','sf-tec','sf-from',
 function destroySeriChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
 function seriChartBar(id,labels,data,color,horizontal){destroySeriChart(id);const c=$(id);if(!c)return;charts[id]=new Chart(c,{type:'bar',data:{labels,datasets:[{data,backgroundColor:color,borderRadius:5,borderSkipped:false}]},options:{indexAxis:horizontal?'y':'x',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#161b22',borderColor:'#30363d',borderWidth:1,padding:8}},scales:{x:{grid:{display:false},ticks:{color:'#7d8590',font:{size:10,family:'Barlow'}}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#7d8590',font:{size:10,family:'Barlow'},precision:0},beginAtZero:true}}}});}
 function seriChartLine(id,labels,data){destroySeriChart(id);const c=$(id);if(!c)return;charts[id]=new Chart(c,{type:'line',data:{labels,datasets:[{data,borderColor:'#0067B8',backgroundColor:'rgba(0,103,184,.15)',fill:true,tension:.35,pointRadius:3,pointBackgroundColor:'#0067B8'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#161b22',borderColor:'#30363d',borderWidth:1,padding:8}},scales:{x:{grid:{display:false},ticks:{color:'#7d8590',font:{size:10,family:'Barlow'}}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#7d8590',font:{size:10,family:'Barlow'},precision:0},beginAtZero:true}}}});}
-function seriChartPie(id,labels,data,colors){destroySeriChart(id);const c=$(id);if(!c)return;charts[id]=new Chart(c,{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:2,borderColor:'#161b22',hoverOffset:8}]},options:{responsive:true,maintainAspectRatio:false,cutout:'55%',layout:{padding:{bottom:4}},plugins:{legend:{position:'bottom',labels:{color:'#8b949e',font:{size:11,family:'Barlow'},padding:12,boxWidth:12,usePointStyle:true,pointStyle:'circle'}},tooltip:{backgroundColor:'#161b22',borderColor:'#30363d',borderWidth:1,padding:8}}}});}
 
 function renderSeriCharts(rows,filt){
   filt=filt||{};
@@ -1784,9 +1793,32 @@ function renderSeriCharts(rows,filt){
   destroySeriChart('seri-ch-top10');
   const ctxTop=$('seri-ch-top10');
   if(ctxTop){charts['seri-ch-top10']=new Chart(ctxTop,{type:'bar',data:{labels:top10labels,datasets:[{label:'Días vencida',data:top10data,backgroundColor:top10colors,borderRadius:4,borderSkipped:false}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#161b22',borderColor:'#30363d',borderWidth:1,padding:10,callbacks:{title:ctx=>{const r=vencidas[ctx[0].dataIndex];return r?r.tipo||r.serie:'';},label:ctx=>{const r=vencidas[ctx.dataIndex];const ult=r&&r.ultimo?fmtDSeri(r.ultimo):'Sin registro';return[`Serie: ${r.serie}`,`Último MP: ${ult}`,`Vencida hace: ${ctx.raw} días`];}}}},scales:{x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#484f58',font:{size:10,family:'Barlow'}},beginAtZero:true},y:{grid:{display:false},ticks:{color:'#e6edf3',font:{size:10,family:'Barlow'}}}}}})}
-  // 4) por estado MP
-  const est=['Al día','Próximo a vencer','Vencido','Sin registro'],ec=['#3fb950','#d29922','#f85149','#7d8590'];
-  seriChartPie('seri-ch-estado',est,est.map(e=>rows.filter(r=>r.estado===e).length),ec);
+  // 4) por estado MP (dona estilo cumplimiento: % al centro, leyenda a la derecha, total abajo)
+  renderSeriEstadoDonut(rows);
+}
+
+function renderSeriEstadoDonut(rows){
+  destroySeriChart('seri-ch-estado');
+  const el=$('seri-ch-estado'); if(!el)return;
+  const est=['Al día','Próximo a vencer','Vencido','Sin registro'];
+  const ec={'Al día':'#3fb950','Próximo a vencer':'#d29922','Vencido':'#f85149','Sin registro':'#7d8590'};
+  const counts=est.map(e=>rows.filter(r=>r.estado===e).length);
+  const tot=rows.length;
+  const ald=rows.filter(r=>r.estado==='Al día').length;
+  const cum=tot?Math.round(ald/tot*100):0;
+  const pctOf=n=>tot>0?Math.round(n/tot*100):0;
+  charts['seri-ch-estado']=new Chart(el.getContext('2d'),{
+    type:'doughnut',
+    data:{labels:est,datasets:[{data:counts,backgroundColor:est.map(e=>ec[e]),borderWidth:2,borderColor:'#161b22',hoverOffset:6}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'72%',
+      plugins:{legend:{display:false},tooltip:{backgroundColor:'#0d1117',borderColor:'#30363d',borderWidth:1,padding:10,titleColor:'#e6edf3',bodyColor:'#c9d1d9',
+        callbacks:{label:c=>` ${c.label}: ${c.parsed.toLocaleString()} (${pctOf(c.parsed)}%)`}}}}
+  });
+  const cc=$('seri-cc-pct'); if(cc)cc.textContent=cum+'%';
+  const leg=$('seri-estado-legend');
+  if(leg)leg.innerHTML=est.map((e,i)=>({e,v:counts[i]})).filter(o=>o.v>0)
+    .map(({e,v})=>`<div class="cl-item"><span class="cl-dot" style="background:${ec[e]}"></span><div class="cl-text"><span class="cl-name">${e}</span><span class="cl-val">${v.toLocaleString()} (${pctOf(v)}%)</span></div></div>`).join('');
+  const tt=$('seri-estado-total'); if(tt)tt.textContent=`Total de máquinas: ${tot.toLocaleString()}`;
 }
 
 function seriHeaders(rows){return rows.length?Object.keys(rows[0]).map(k=>k.trim()).filter(Boolean):[];}
