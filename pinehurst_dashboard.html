@@ -102,6 +102,7 @@ body{font-family:'Barlow',sans-serif;background:#002B49;color:#e6edf3;min-height
 .area-card-mini-lbl{font-size:8px;text-transform:uppercase;letter-spacing:.06em;color:#7d8590;font-weight:600;line-height:1}
 .area-card-mini-val{font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;line-height:1.15;margin-top:2px}
 .area-card-bar{height:5px;background:#21262d;border-radius:3px;overflow:hidden}
+.area-pie{position:relative;height:120px;margin:2px auto 10px;max-width:150px}
 .area-card-bar-fill{height:100%;border-radius:3px;transition:width .8s ease}
 .area-chart-card{background:#161b22;border:1px solid #30363d;border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
 .area-chart-wrap{padding:8px 12px 12px;position:relative;flex:1;min-height:260px}
@@ -636,6 +637,7 @@ function renderAreaSummary(d){
     if(lbl)lbl.style.display='none';
     if(wrap)wrap.style.display='none';
     if(charts['chart-compliance']){charts['chart-compliance'].destroy();delete charts['chart-compliance']}
+    destroyAreaPies();
     return;
   }
   // Agrupar por área: total, realizado (Final Actividad), faltante
@@ -660,25 +662,43 @@ function renderAreaSummary(d){
   if(wrap)wrap.style.display='grid';
 
   // Tarjetas
-  $('area-cards-grid').innerHTML=sorted.map(([name,{tot,done}])=>{
+  destroyAreaPies();
+  const pieData=[];
+  $('area-cards-grid').innerHTML=sorted.map(([name,{tot,done}],i)=>{
     const pend=tot-done;
     const pct=tot>0?Math.round(done/tot*100):0;
     const col=pct>=80?'#3fb950':pct>=50?'#d29922':'#f85149';
+    const cid='area-pie-'+i;
+    pieData.push({cid,done,pend});
     return `<div class="area-card" style="border-left-color:${col}">
       <div class="area-card-pct" style="color:${col}">${pct}%</div>
       <div class="area-card-name">${name}</div>
+      <div class="area-pie"><canvas id="${cid}"></canvas></div>
       <div class="area-card-row">
         <div class="area-card-mini"><div class="area-card-mini-lbl">Realizado</div><div class="area-card-mini-val" style="color:#3fb950">${done.toLocaleString()}</div></div>
         <div class="area-card-mini"><div class="area-card-mini-lbl">Faltante</div><div class="area-card-mini-val" style="color:#f85149">${pend.toLocaleString()}</div></div>
         <div class="area-card-mini"><div class="area-card-mini-lbl">Total</div><div class="area-card-mini-val" style="color:#c9d1d9">${tot.toLocaleString()}</div></div>
       </div>
-      <div class="area-card-bar"><div class="area-card-bar-fill" style="width:${pct}%;background:${col}"></div></div>
     </div>`;
   }).join('');
+  // Un gráfico de pastel por área: Realizado vs Faltante
+  pieData.forEach(({cid,done,pend})=>{
+    const el=$(cid); if(!el)return;
+    charts[cid]=new Chart(el.getContext('2d'),{
+      type:'pie',
+      data:{labels:['Realizado','Faltante'],datasets:[{data:[done,pend],backgroundColor:['#3fb950','rgba(248,81,73,.8)'],borderColor:'#161b22',borderWidth:2}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+        tooltip:{backgroundColor:'#0d1117',borderColor:'#30363d',borderWidth:1,padding:8,titleColor:'#e6edf3',bodyColor:'#c9d1d9',
+          callbacks:{label:c=>{const t=done+pend;const p=t>0?Math.round(c.parsed/t*100):0;return ` ${c.label}: ${c.parsed.toLocaleString()} (${p}%)`;}}}}}
+    });
+  });
 
   // Dona de cumplimiento general (Completado a tiempo / Vencido / Pendiente)
   renderComplianceDonut(sorted,'chart-compliance');
 }
+
+// Destruye los gráficos de pastel por área (evita duplicados al re-renderizar)
+function destroyAreaPies(){Object.keys(charts).forEach(k=>{if(k.indexOf('area-pie-')===0){charts[k].destroy();delete charts[k];}});}
 
 // Días hábiles (L-V) entre dos fechas, inclusive
 function wdBetween(a,b){let c=0;const d=new Date(a);while(d<=b){const w=d.getDay();if(w!==0&&w!==6)c++;d.setDate(d.getDate()+1);}return c;}
