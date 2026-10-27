@@ -1,0 +1,89 @@
+/*
+ * Pruebas de los cálculos. Ejecutar con:  node tests/pruebas-calculos.js
+ * (requiere Node.js; no es necesario para usar la aplicación)
+ */
+'use strict';
+const C = require('../js/calculos.js');
+
+let fallos = 0, total = 0;
+function cerca(nombre, obtenido, esperado, tol) {
+  total++;
+  tol = tol === undefined ? 0.01 : tol;
+  const ok = Math.abs(obtenido - esperado) <= tol;
+  if (!ok) fallos++;
+  console.log((ok ? '  OK   ' : '  FALLA') + '  ' + nombre + ': ' + obtenido.toFixed(4) + ' (esperado ' + esperado + ' ± ' + tol + ')');
+}
+function igual(nombre, obtenido, esperado) {
+  total++;
+  const ok = obtenido === esperado;
+  if (!ok) fallos++;
+  console.log((ok ? '  OK   ' : '  FALLA') + '  ' + nombre + ': ' + JSON.stringify(obtenido));
+}
+
+console.log('\n1) Fuerza necesaria — rubber 4.5 × 1.1 cm, 40 psi');
+let r = C.fuerzaNecesaria(4.5, 1.1, 40);
+cerca('Área cm²', r.area.cm2, 4.95, 1e-9);
+cerca('Área in²', r.area.in2, 0.7673, 0.0001);
+cerca('Fuerza lbf', r.fuerza.lbf, 30.69, 0.01);
+cerca('Fuerza kgf', r.fuerza.kgf, 13.92, 0.01);
+cerca('Fuerza N', r.fuerza.N, 136.5, 0.05);
+
+console.log('\n2) Plancha 20 × 30 cm');
+let p = C.areaRect(20, 30);
+cerca('Área cm²', p.cm2, 600, 1e-9);
+cerca('Área in²', p.in2, 93.00, 0.005);
+
+console.log('\n3) Presión desde dinamómetro (ida y vuelta)');
+r = C.presionMedida(4.5, 1.1, 30.69, 'lbf');
+cerca('30.69 lbf → psi', r.presion.psi, 40.00, 0.01);
+cerca('psi → kgf/cm²', r.presion.kgfcm2, 40 / 14.2233, 0.001);
+cerca('psi → bar', r.presion.bar, 40 / 14.5038, 0.001);
+r = C.presionMedida(4.5, 1.1, 13.92, 'kgf');
+cerca('13.92 kgf → lbf', r.fuerza.lbf, 30.688, 0.01);
+cerca('13.92 kgf → psi', r.presion.psi, 40.00, 0.02);
+r = C.presionMedida(4.5, 1.1, 136.5, 'N');
+cerca('136.5 N → lbf', r.fuerza.lbf, 30.686, 0.01);
+cerca('136.5 N → psi', r.presion.psi, 39.99, 0.02);
+r = C.presionMedida(4.5, 1.1, 50, 'lbf');
+cerca('50 lbf → psi', r.presion.psi, 65.17, 0.01);
+cerca('50 lbf → kgf/cm²', r.presion.kgfcm2, 4.58, 0.01);
+cerca('50 lbf → bar', r.presion.bar, 4.49, 0.01);
+
+console.log('\n4) Conversiones de manómetro');
+cerca('6 bar → psi', C.presionAPsi(6, 'bar'), 87.02, 0.01);
+cerca('5 kgf/cm² → psi', C.presionAPsi(5, 'kgfcm2'), 71.12, 0.01);
+
+console.log('\n5) Tabla de equivalencias');
+let t = C.tablaEquivalencias('lbf', 10, 30, 10, C.areaRect(4.5, 1.1).in2);
+igual('Filas (10,20,30)', t.length, 3);
+cerca('Fila 3 psi', t[2].psi, 39.10, 0.01);
+t = C.tablaEquivalencias('psi', 10, 80, 10, C.areaRect(4.5, 1.1).in2);
+igual('Filas (10..80)', t.length, 8);
+cerca('Fila 40 psi → lbf', t[3].lbf, 30.69, 0.01);
+t = C.tablaEquivalencias('lbf', 0.1, 0.3, 0.1, 1);
+igual('Paso decimal 0.1 sin perder última fila', t.length, 3);
+
+console.log('\n6) Sugerencia de manómetro');
+let s = C.sugerirManometro([], 30);
+igual('Sin datos → no disponible', s.ok, false);
+igual('Mensaje exacto', s.mensaje, 'No es posible determinar el ajuste del manómetro sin mediciones de esta máquina y este montaje.');
+s = C.sugerirManometro([{ manPsi: 40, fuerzaLbf: 20 }, { manPsi: 40, fuerzaLbf: 21 }], 30);
+igual('Misma presión repetida → no disponible', s.ok, false);
+// Datos sintéticos: fuerza = 0.5·man + 2
+s = C.sugerirManometro([{ manPsi: 40, fuerzaLbf: 22 }, { manPsi: 60, fuerzaLbf: 32 }, { manPsi: 80, fuerzaLbf: 42 }], 30.69);
+igual('Con datos → disponible', s.ok, true);
+cerca('Manómetro sugerido psi', s.manPsi, 57.38, 0.01);
+cerca('R²', s.r2, 1, 1e-9);
+igual('Dentro del rango', s.extrapola, false);
+s = C.sugerirManometro([{ manPsi: 40, fuerzaLbf: 22 }, { manPsi: 60, fuerzaLbf: 32 }], 60);
+igual('Fuera del rango → marcado', s.extrapola, true);
+
+console.log('\n7) Validación de números');
+igual('"4,5" → 4.5', C.parseNumero('4,5'), 4.5);
+igual('"abc" → NaN', Number.isNaN(C.parseNumero('abc')), true);
+igual('"" → NaN', Number.isNaN(C.parseNumero('')), true);
+igual('"1.2.3" → NaN', Number.isNaN(C.parseNumero('1.2.3')), true);
+igual('Formato 2 decimales', C.formatear(30.68996), '30.69');
+
+console.log('\nResultado: ' + (total - fallos) + '/' + total + ' pruebas correctas.');
+process.exit(fallos ? 1 : 0);

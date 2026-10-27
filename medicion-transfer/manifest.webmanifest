@@ -1,0 +1,17 @@
+{
+  "name": "Medición Transfer — Fuerza y presión",
+  "short_name": "Transfer",
+  "description": "Cálculo de fuerza y presión para el pegado de logos en máquinas transfer neumáticas.",
+  "lang": "es",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#eef2f6",
+  "theme_color": "#0f3550",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

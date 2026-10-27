@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="Cálculo de fuerza y presión para el pegado de logos en máquinas transfer neumáticas.">
+  <meta name="theme-color" content="#0f3550">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Transfer">
+  <title>Medición Transfer</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="barra">
+    <div class="barra-titulo">
+      <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="5" width="24" height="6" rx="1.5" fill="currentColor"/><path d="M16 12v8m-4-4 4 4 4-4" stroke="#f59e0b" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><rect x="9" y="23" width="14" height="4" rx="1" fill="currentColor" opacity=".7"/></svg>
+      <div>
+        <h1>Medición Transfer</h1>
+        <p class="sub">Fuerza y presión en el pegado de logos</p>
+      </div>
+    </div>
+    <div class="barra-acciones">
+      <span id="estado-red" class="pill" role="status"></span>
+      <button id="btn-ajustes" class="btn-icono" type="button" aria-label="Ajustes: celda de carga e instalación">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Navegación: abajo en celular, arriba en computadora -->
+  <nav class="nav" aria-label="Secciones">
+    <button class="nav-btn" data-vista="v-fuerza" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v14m-5-5 5 5 5-5M5 21h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span><b>1.</b> Fuerza necesaria</span>
+    </button>
+    <button class="nav-btn" data-vista="v-presion" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 13l4-4M12 3v2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span><b>2.</b> Presión medida</span>
+    </button>
+    <button class="nav-btn" data-vista="v-calibracion" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V4m0 16h16M8 16l4-5 3 3 5-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span><b>3.</b> Calibración</span>
+    </button>
+    <button class="nav-btn" data-vista="v-historial" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM8 9h8M8 13h8M8 17h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span><b>4.</b> Historial y reportes</span>
+    </button>
+  </nav>
+
+  <main id="contenido">
+
+    <!-- ================= 1. FUERZA NECESARIA ================= -->
+    <section id="v-fuerza" class="vista" aria-labelledby="t-fuerza">
+      <h2 id="t-fuerza">1. Calcular fuerza necesaria</h2>
+      <p class="ayuda">Ingresa el tamaño del rubber y la <span class="tag tag-presion">presión deseada sobre el rubber</span>. Se calcula la <span class="tag tag-fuerza">fuerza</span> que debería indicar el dinamómetro.</p>
+
+      <div class="card">
+        <div class="fila-2">
+          <div class="campo">
+            <label for="f-largo">Largo del rubber <span class="u">cm</span></label>
+            <input id="f-largo" type="text" inputmode="decimal" autocomplete="off" data-req="pos" placeholder="Ej. 4.5">
+            <p class="error" aria-live="polite"></p>
+          </div>
+          <div class="campo">
+            <label for="f-ancho">Ancho del rubber <span class="u">cm</span></label>
+            <input id="f-ancho" type="text" inputmode="decimal" autocomplete="off" data-req="pos" placeholder="Ej. 1.1">
+            <p class="error" aria-live="polite"></p>
+          </div>
+        </div>
+        <div class="campo">
+          <label for="f-psi">Presión deseada sobre el rubber <span class="u">psi</span></label>
+          <input id="f-psi" type="text" inputmode="decimal" autocomplete="off" data-req="pos" placeholder="Ej. 40">
+          <p class="error" aria-live="polite"></p>
+        </div>
+      </div>
+
+      <div class="card resultados" aria-live="polite">
+        <h3>Resultados</h3>
+        <div id="f-resultados"></div>
+        <div id="f-capacidad"></div>
+        <div class="acciones">
+          <button type="button" class="btn" id="f-compartir">Compartir resultado</button>
+        </div>
+      </div>
+
+      <div class="card" id="tabla-equivalencias">
+        <h3>Tabla de equivalencias del rubber</h3>
+        <p class="ayuda">Usa el largo y ancho ingresados arriba (<span id="eq-rubber">—</span>).</p>
+        <div class="campo">
+          <label for="eq-modo">Generar la tabla a partir de</label>
+          <select id="eq-modo">
+            <option value="lbf">Fuerza (lbf) → presión promedio en el rubber</option>
+            <option value="psi">Presión deseada (psi) → fuerza necesaria</option>
+          </select>
+        </div>
+        <div class="fila-3">
+          <div class="campo">
+            <label for="eq-inicio">Inicial <span class="u eq-u">lbf</span></label>
+            <input id="eq-inicio" type="text" inputmode="decimal" autocomplete="off" data-req="cero">
+            <p class="error"></p>
+          </div>
+          <div class="campo">
+            <label for="eq-fin">Final <span class="u eq-u">lbf</span></label>
+            <input id="eq-fin" type="text" inputmode="decimal" autocomplete="off" data-req="pos">
+            <p class="error"></p>
+          </div>
+          <div class="campo">
+            <label for="eq-paso">Incremento <span class="u eq-u">lbf</span></label>
+            <input id="eq-paso" type="text" inputmode="decimal" autocomplete="off" data-req="pos">
+            <p class="error"></p>
+          </div>
+        </div>
+        <div class="acciones">
+          <button type="button" class="btn btn-primario" id="eq-generar">Generar tabla</button>
+          <button type="button" class="btn" id="eq-csv" disabled>Exportar CSV</button>
+          <button type="button" class="btn" id="eq-xlsx" disabled>Exportar Excel</button>
+        </div>
+        <p id="eq-msg" class="msg" role="status"></p>
+        <div class="tabla-scroll" id="eq-tabla"></div>
+      </div>
+
+      <div class="avisos" data-avisos></div>
+    </section>
+
+    <!-- ================= 2. PRESIÓN MEDIDA ================= -->
+    <section id="v-presion" class="vista" aria-labelledby="t-presion" hidden>
+      <h2 id="t-presion">2. Calcular presión medida</h2>
+      <p class="ayuda">Ingresa la <span class="tag tag-fuerza">fuerza estable del dinamómetro</span> para estimar la <span class="tag tag-presion">presión promedio sobre el rubber</span>. Esto no es la presión del aire del manómetro.</p>
+
+      <div class="card">
+        <div class="fila-2">
+          <div class="campo">
+            <label for="p-largo">Largo del rubber <span class="u">cm</span></label>
+            <input id="p-largo" type="text" inputmode="decimal" autocomplete="off" data-req="pos">
+            <p class="error"></p>
+          </div>
+          <div class="campo">
+            <label for="p-ancho">Ancho del rubber <span class="u">cm</span></label>
+            <input id="p-ancho" type="text" inputmode="decimal" autocomplete="off" data-req="pos">
+            <p class="error"></p>
+          </div>
+        </div>
+        <div class="fila-2 fila-valor-unidad">
+          <div class="campo">
+            <label for="p-lectura">Lectura del dinamómetro</label>
+            <input id="p-lectura" type="text" inputmode="decimal" autocomplete="off" data-req="pos" placeholder="Ej. 30.7">
+            <p class="error"></p>
+          </div>
+          <div class="campo">
+            <label for="p-unidad">Unidad</label>
+            <select id="p-unidad">
+              <option value="lbf">lbf</option>
+              <option value="kgf">kgf</option>
+              <option value="N">N</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card resultados" aria-live="polite">
+        <h3>Resultados para el rubber</h3>
+        <div id="p-resultados"></div>
+        <div id="p-capacidad"></div>
+        <div class="acciones">
+          <button type="button" class="btn" id="p-compartir">Compartir resultado</button>
+          <button type="button" class="btn btn-primario" id="p-a-registro">Usar en registro de calibración</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Plancha <span class="opcional">(opcional)</span></h3>
+        <p class="ayuda">El área de la plancha se muestra como referencia. La presión sobre la plancha solo se calcula si confirmas que la fuerza medida corresponde a toda la fuerza aplicada sobre la plancha completa. En producción normalmente no toda la plancha está en contacto.</p>
+        <div class="fila-2">
+          <div class="campo">
+            <label for="pl-largo">Largo de la plancha <span class="u">cm</span></label>
+            <input id="pl-largo" type="text" inputmode="decimal" autocomplete="off" data-req="pos-opc" placeholder="Ej. 30">
+            <p class="error"></p>
+          </div>
+          <div class="campo">
+            <label for="pl-ancho">Ancho de la plancha <span class="u">cm</span></label>
+            <input id="pl-ancho" type="text" inputmode="decimal" autocomplete="off" data-req="pos-opc" placeholder="Ej. 20">
+            <p class="error"></p>
+          </div>
+        </div>
+        <label class="check">
+          <input type="checkbox" id="pl-total">
+          <span>La fuerza medida corresponde a <b>toda</b> la fuerza aplicada sobre la plancha completa</span>
+        </label>
+        <div id="pl-resultados" aria-live="polite"></div>
+      </div>
+
+      <div class="avisos" data-avisos></div>
+    </section>
+
+    <!-- ================= 3. CALIBRACIÓN ================= -->
+    <section id="v-calibracion" class="vista" aria-labelledby="t-calibracion" hidden>
+      <h2 id="t-calibracion">3. Calibración de máquinas</h2>
+      <p class="ayuda">Registra pruebas con diferentes ajustes del <span class="tag tag-aire">manómetro (aire)</span> y anota la <span class="tag tag-fuerza">fuerza del dinamómetro</span>. La app calcula la <span class="tag tag-presion">presión promedio sobre el rubber</span>.</p>
+
+      <form class="card" id="form-registro" novalidate>
+        <h3 id="reg-titulo">Nueva prueba</h3>
+        <div class="fila-2">
+          <div class="campo">
+            <label for="c-maquina">Máquina (número o nombre)</label>
+            <input id="c-maquina" type="text" list="lista-maquinas" autocomplete="off" maxlength="60" placeholder="Ej. Transfer 3">
+            <datalist id="lista-maquinas"></datalist>
+            <p class="error"></p>
+          </div>
+          <div class="campo">
+            <label for="c-fecha">Fecha</label>
+            <input id="c-fecha" type="date">
+            <p class="error"></p>
+          </div>
+        </div>
+        <div class="campo">
+          <label for="c-montaje">Montaje / herramental <span class="opcional">(identifica rubber, base, posición)</span></label>
+          <input id="c-montaje" type="text" list="lista-montajes" autocomplete="off" maxlength="80" placeholder="Ej. Rubber pecho izq. base A">
+          <datalist id="lista-montajes"></datalist>
+        </div>
+        <div class="fila-2">
+          <div class="campo">
+            <label for="c-largo">Largo del rubber <span class="u">cm</span></label>
+            <input id="c-largo" type="text" inputmode="decimal" autocomplete="off" data-req="pos">
+            <p class="error"></p>
+          </div>
+          <div class="campo">
+            <label for="c-ancho">Ancho del rubber <span class="u">cm</span></label>
+            <input id="c-ancho" type="text" inputmode="decimal" autocomplete="off" data-req="pos">
+            <p class="error"></p>
+          </div>
+        </div>
+        <div class="fila-2 fila-valor-unidad">
+          <div class="campo">
+            <label for="c-man"><span class="tag tag-aire">Aire</span> Presión del manómetro</label>
+            <input id="c-man" type="text" inputmode="decimal" autocomplete="off" data-req="pos">
+            <p class="error"></p>
+          </div>
+          <div class="campo">
+            <label for="c-man-u">Unidad</label>
+            <select id="c-man-u">
+              <option value="psi">psi</option>
+              <option value="bar">bar</option>
+              <option value="kgfcm2">kgf/cm²</option>
+            </select>
+          </div>
+        </div>
+        <div class="fila-2 fila-valor-unidad">
+          <div class="campo">
+            <label for="c-fuerza"><span class="tag tag-fuerza">Fuerza</span> Lectura estable del dinamómetro</label>
+            <input id="c-fuerza" type="text" inputmode="decimal" autocomplete="off" data-req="pos">
+            <p class="error"></p>
+          </div>
+          <div class="campo">
+            <label for="c-fuerza-u">Unidad</label>
+            <select id="c-fuerza-u">
+              <option value="lbf">lbf</option>
+              <option value="kgf">kgf</option>
+              <option value="N">N</option>
+            </select>
+          </div>
+        </div>
+        <div id="c-preview" class="preview" aria-live="polite"></div>
+        <div class="fila-2 fila-valor-unidad">
+          <div class="campo">
+            <label for="c-temp">Temperatura <span class="opcional">(opcional)</span></label>
+            <input id="c-temp" type="text" inputmode="decimal" autocomplete="off" data-req="num-opc">
+            <p class="error"></p>
+          </div>
+          <div class="campo">
+            <label for="c-temp-u">Unidad</label>
+            <select id="c-temp-u">
+              <option value="°C">°C</option>
+              <option value="°F">°F</option>
+            </select>
+          </div>
+        </div>
+        <div class="campo">
+          <label for="c-tiempo">Tiempo de aplicación <span class="u">s</span> <span class="opcional">(opcional)</span></label>
+          <input id="c-tiempo" type="text" inputmode="decimal" autocomplete="off" data-req="pos-opc">
+          <p class="error"></p>
+        </div>
+        <div class="campo">
+          <label for="c-obs">Observaciones <span class="opcional">(opcional)</span></label>
+          <textarea id="c-obs" rows="3" maxlength="500"></textarea>
+        </div>
+        <div class="acciones">
+          <button type="submit" class="btn btn-primario btn-grande" id="c-guardar">Guardar prueba</button>
+          <button type="button" class="btn" id="c-cancelar" hidden>Cancelar edición</button>
+          <button type="button" class="btn" id="c-limpiar">Limpiar</button>
+        </div>
+        <p id="c-msg" class="msg" role="status"></p>
+      </form>
+
+      <div class="card">
+        <h3>Gráfica de calibración</h3>
+        <div class="campo">
+          <label for="g-grupo">Máquina · rubber · montaje</label>
+          <select id="g-grupo"></select>
+        </div>
+        <div id="g-graficas"></div>
+        <div class="tabla-scroll" id="g-tabla"></div>
+      </div>
+
+      <div class="card">
+        <h3>Ajuste aproximado del manómetro</h3>
+        <p class="ayuda">Solo se estima con mediciones de la máquina, rubber y montaje seleccionados arriba. No existe una conversión directa entre la presión del aire y la presión sobre el logo.</p>
+        <div class="campo">
+          <label for="s-psi">Presión deseada sobre el rubber <span class="u">psi</span></label>
+          <input id="s-psi" type="text" inputmode="decimal" autocomplete="off" data-req="pos">
+          <p class="error"></p>
+        </div>
+        <div id="s-resultado" aria-live="polite"></div>
+      </div>
+
+      <div class="avisos" data-avisos></div>
+    </section>
+
+    <!-- ================= 4. HISTORIAL Y REPORTES ================= -->
+    <section id="v-historial" class="vista" aria-labelledby="t-historial" hidden>
+      <h2 id="t-historial">4. Historial y reportes</h2>
+
+      <div class="aviso aviso-info">
+        <b>Datos guardados solo en este dispositivo.</b> Los registros se guardan en el navegador de este teléfono o computadora. No se sincronizan entre dispositivos y se pueden perder si se borran los datos del navegador o se desinstala la app. Exporta o haz respaldos con frecuencia.
+      </div>
+
+      <div class="card">
+        <div class="fila-2">
+          <div class="campo">
+            <label for="h-maquina">Filtrar por máquina</label>
+            <select id="h-maquina"></select>
+          </div>
+          <div class="campo">
+            <label for="h-buscar">Buscar</label>
+            <input id="h-buscar" type="search" placeholder="Montaje, observaciones…">
+          </div>
+        </div>
+        <p id="h-conteo" class="msg"></p>
+        <div class="tabla-scroll" id="h-tabla"></div>
+      </div>
+
+      <div class="card">
+        <h3>Exportar y compartir</h3>
+        <p class="ayuda">Se exportan los registros visibles con el filtro actual.</p>
+        <div class="acciones acciones-grid">
+          <button type="button" class="btn" id="h-xlsx">Excel (.xlsx)</button>
+          <button type="button" class="btn" id="h-csv">CSV</button>
+          <button type="button" class="btn" id="h-pdf">Imprimir / PDF</button>
+          <button type="button" class="btn btn-primario" id="h-compartir">Compartir Excel</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Tablas de equivalencias por rubber</h3>
+        <div id="h-rubbers"></div>
+      </div>
+
+      <div class="card">
+        <h3>Respaldo</h3>
+        <p class="ayuda">El respaldo (.json) permite pasar los registros a otro dispositivo o recuperarlos.</p>
+        <div class="acciones acciones-grid">
+          <button type="button" class="btn" id="h-respaldo">Descargar respaldo</button>
+          <label class="btn" for="h-importar" tabindex="0">Importar respaldo</label>
+          <input type="file" id="h-importar" accept=".json,application/json" hidden>
+          <button type="button" class="btn btn-peligro" id="h-borrar">Borrar todos</button>
+        </div>
+      </div>
+
+      <div class="avisos" data-avisos></div>
+    </section>
+  </main>
+
+  <!-- Reporte para imprimir / guardar como PDF -->
+  <section id="reporte" aria-hidden="true"></section>
+
+  <!-- Ajustes -->
+  <dialog id="dlg-ajustes" aria-labelledby="t-ajustes">
+    <form method="dialog" class="dlg-cuerpo">
+      <h2 id="t-ajustes">Ajustes</h2>
+      <h3>Capacidad de la celda de carga</h3>
+      <p class="ayuda">Consulta la capacidad máxima y la temperatura máxima en la hoja de datos de la celda. Si dejas vacío, la capacidad se mostrará como <b>no verificada</b>.</p>
+      <div class="fila-2 fila-valor-unidad">
+        <div class="campo">
+          <label for="a-cap">Capacidad máxima</label>
+          <input id="a-cap" type="text" inputmode="decimal" autocomplete="off" data-req="pos-opc" placeholder="Ej. 100">
+          <p class="error"></p>
+        </div>
+        <div class="campo">
+          <label for="a-cap-u">Unidad</label>
+          <select id="a-cap-u">
+            <option value="lbf">lbf</option>
+            <option value="kgf">kgf</option>
+            <option value="N">N</option>
+          </select>
+        </div>
+      </div>
+      <p id="a-cap-estado" class="msg"></p>
+
+      <h3>Instalar en el celular</h3>
+      <div id="a-instalar"></div>
+      <ul class="lista">
+        <li><b>Android (Chrome):</b> menú ⋮ → <i>Agregar a pantalla principal</i> o <i>Instalar app</i>.</li>
+        <li><b>iPhone (Safari):</b> botón Compartir → <i>Agregar a pantalla de inicio</i>.</li>
+      </ul>
+
+      <h3>Sin conexión</h3>
+      <p class="ayuda" id="a-offline"></p>
+
+      <div class="acciones">
+        <button type="button" class="btn btn-primario btn-grande" id="a-guardar">Guardar y cerrar</button>
+        <button value="cancel" class="btn">Cerrar</button>
+      </div>
+      <p class="version">Versión <span id="a-version"></span></p>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <noscript><p class="aviso aviso-peligro">Esta aplicación necesita JavaScript activado.</p></noscript>
+
+  <script src="js/calculos.js"></script>
+  <script src="js/xlsx-mini.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

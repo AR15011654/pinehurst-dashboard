@@ -1,0 +1,176 @@
+/*
+ * calculos.js — Motor de cálculo de fuerza y presión para máquinas transfer.
+ * No depende del navegador: se puede probar con Node (ver tests/pruebas-calculos.js).
+ * Todos los cálculos internos se hacen con precisión completa; solo se redondea al mostrar.
+ */
+(function (root) {
+  'use strict';
+
+  // Constantes de conversión (las mismas indicadas en la especificación)
+  var K = {
+    CM2_POR_IN2: 6.4516,     // 1 in² = 6.4516 cm²
+    LB_POR_KG: 2.20462,      // 1 kgf = 2.20462 lbf
+    N_POR_LBF: 4.44822,      // 1 lbf = 4.44822 N
+    PSI_POR_KGFCM2: 14.2233, // 1 kgf/cm² = 14.2233 psi
+    PSI_POR_BAR: 14.5038     // 1 bar = 14.5038 psi
+  };
+
+  var UNIDADES_FUERZA = ['lbf', 'kgf', 'N'];
+  var UNIDADES_PRESION = ['psi', 'bar', 'kgfcm2'];
+
+  /** Convierte texto a número. Acepta coma o punto decimal. Devuelve NaN si no es válido. */
+  function parseNumero(v) {
+    if (typeof v === 'number') return isFinite(v) ? v : NaN;
+    if (v === null || v === undefined) return NaN;
+    var s = String(v).trim().replace(/\s+/g, '').replace(',', '.');
+    if (s === '' || !/^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(s)) return NaN;
+    var n = Number(s);
+    return isFinite(n) ? n : NaN;
+  }
+
+  function esPositivo(n) { return typeof n === 'number' && isFinite(n) && n > 0; }
+
+  /** Área de un rectángulo dado en cm. */
+  function areaRect(largoCm, anchoCm) {
+    var cm2 = largoCm * anchoCm;
+    return { cm2: cm2, in2: cm2 / K.CM2_POR_IN2 };
+  }
+
+  /** Convierte una fuerza en cualquier unidad a lbf. */
+  function fuerzaALbf(valor, unidad) {
+    switch (unidad) {
+      case 'lbf': return valor;
+      case 'kgf': return valor * K.LB_POR_KG;
+      case 'N': return valor / K.N_POR_LBF;
+      default: throw new Error('Unidad de fuerza no válida: ' + unidad);
+    }
+  }
+
+  /** A partir de lbf devuelve la fuerza en las tres unidades. */
+  function fuerzaDesdeLbf(lbf) {
+    return { lbf: lbf, kgf: lbf / K.LB_POR_KG, N: lbf * K.N_POR_LBF };
+  }
+
+  /** Convierte una presión (psi, bar, kgf/cm²) a psi. */
+  function presionAPsi(valor, unidad) {
+    switch (unidad) {
+      case 'psi': return valor;
+      case 'bar': return valor * K.PSI_POR_BAR;
+      case 'kgfcm2': return valor * K.PSI_POR_KGFCM2;
+      default: throw new Error('Unidad de presión no válida: ' + unidad);
+    }
+  }
+
+  /** A partir de psi devuelve la presión en psi, kgf/cm² y bar. */
+  function presionDesdePsi(psi) {
+    return { psi: psi, kgfcm2: psi / K.PSI_POR_KGFCM2, bar: psi / K.PSI_POR_BAR };
+  }
+
+  /** Función 1: fuerza necesaria para lograr una presión promedio deseada sobre el rubber. */
+  function fuerzaNecesaria(largoCm, anchoCm, psiDeseada) {
+    var area = areaRect(largoCm, anchoCm);
+    return { area: area, presion: presionDesdePsi(psiDeseada), fuerza: fuerzaDesdeLbf(psiDeseada * area.in2) };
+  }
+
+  /** Función 2: presión promedio estimada a partir de la lectura del dinamómetro. */
+  function presionMedida(largoCm, anchoCm, lectura, unidad) {
+    var area = areaRect(largoCm, anchoCm);
+    var lbf = fuerzaALbf(lectura, unidad);
+    return { area: area, fuerza: fuerzaDesdeLbf(lbf), presion: presionDesdePsi(lbf / area.in2) };
+  }
+
+  /**
+   * Función 4: tabla de equivalencias.
+   * modo 'lbf': filas por fuerza; modo 'psi': filas por presión deseada.
+   */
+  function tablaEquivalencias(modo, inicio, fin, paso, areaIn2, maxFilas) {
+    maxFilas = maxFilas || 500;
+    if (!(paso > 0) || !(fin >= inicio) || !(inicio >= 0) || !(areaIn2 > 0)) {
+      throw new Error('Parámetros de tabla no válidos');
+    }
+    var nFilas = Math.floor((fin - inicio) / paso + 1e-9) + 1;
+    if (nFilas > maxFilas) throw new Error('La tabla tendría ' + nFilas + ' filas (máximo ' + maxFilas + '). Aumenta el incremento.');
+    var filas = [];
+    for (var i = 0; i < nFilas; i++) {
+      var v = inicio + i * paso;
+      var lbf = modo === 'psi' ? v * areaIn2 : v;
+      var f = fuerzaDesdeLbf(lbf);
+      filas.push({ lbf: f.lbf, kgf: f.kgf, N: f.N, psi: lbf / areaIn2 });
+    }
+    return filas;
+  }
+
+  /** Regresión lineal por mínimos cuadrados (y = m·x + b). */
+  function regresionLineal(puntos) {
+    var n = puntos.length;
+    if (n < 2) return null;
+    var sx = 0, sy = 0, sxx = 0, sxy = 0, syy = 0;
+    puntos.forEach(function (p) { sx += p.x; sy += p.y; sxx += p.x * p.x; sxy += p.x * p.y; syy += p.y * p.y; });
+    var den = n * sxx - sx * sx;
+    if (Math.abs(den) < 1e-12) return null; // todas las x iguales
+    var m = (n * sxy - sx * sy) / den;
+    var b = (sy - m * sx) / n;
+    var ssTot = syy - (sy * sy) / n;
+    var ssRes = 0;
+    puntos.forEach(function (p) { var e = p.y - (m * p.x + b); ssRes += e * e; });
+    var r2 = ssTot > 1e-12 ? 1 - ssRes / ssTot : 1;
+    return { m: m, b: b, r2: r2, n: n };
+  }
+
+  /**
+   * Sugerencia de ajuste del manómetro a partir de mediciones de UNA máquina con el MISMO rubber y montaje.
+   * puntos: [{ manPsi, fuerzaLbf }]. No existe conversión directa aire→logo: solo se interpola con datos reales.
+   */
+  function sugerirManometro(puntos, fuerzaObjetivoLbf) {
+    var MSG = 'No es posible determinar el ajuste del manómetro sin mediciones de esta máquina y este montaje.';
+    if (!puntos || puntos.length < 2) return { ok: false, mensaje: MSG, detalle: 'Se necesitan al menos 2 pruebas con distintas presiones de manómetro.' };
+    var distintos = {};
+    puntos.forEach(function (p) { distintos[p.manPsi.toFixed(6)] = true; });
+    if (Object.keys(distintos).length < 2) return { ok: false, mensaje: MSG, detalle: 'Todas las pruebas tienen la misma presión de manómetro. Registra pruebas con otros ajustes.' };
+    var reg = regresionLineal(puntos.map(function (p) { return { x: p.manPsi, y: p.fuerzaLbf }; }));
+    if (!reg || !(reg.m > 0)) return { ok: false, mensaje: MSG, detalle: 'Los datos no muestran que la fuerza aumente con la presión del manómetro. Revisa las mediciones.' };
+    var manPsi = (fuerzaObjetivoLbf - reg.b) / reg.m;
+    var xs = puntos.map(function (p) { return p.manPsi; });
+    var xmin = Math.min.apply(null, xs), xmax = Math.max.apply(null, xs);
+    if (!(manPsi > 0)) return { ok: false, mensaje: MSG, detalle: 'La fuerza objetivo queda por debajo de lo que el modelo de esta máquina puede estimar. Mide con presiones más bajas.' };
+    return {
+      ok: true, manPsi: manPsi, man: presionDesdePsi(manPsi),
+      m: reg.m, b: reg.b, r2: reg.r2, n: reg.n, xmin: xmin, xmax: xmax,
+      extrapola: manPsi < xmin - 1e-9 || manPsi > xmax + 1e-9
+    };
+  }
+
+  /** Clave de grupo de calibración: misma máquina + mismo rubber + mismo montaje. */
+  function claveGrupo(reg) {
+    var norm = function (s) { return String(s || '').trim().toLowerCase().replace(/\s+/g, ' '); };
+    return norm(reg.maquina) + '|' + Number(reg.largo).toFixed(2) + 'x' + Number(reg.ancho).toFixed(2) + '|' + norm(reg.montaje);
+  }
+
+  /** Redondeo numérico (solo para mostrar o exportar). */
+  function redondear(v, d) {
+    d = d === undefined ? 2 : d;
+    var f = Math.pow(10, d);
+    return Math.round((v + Number.EPSILON) * f) / f;
+  }
+
+  /** Formato para pantalla: punto decimal, coma de miles, d decimales. */
+  function formatear(v, d) {
+    d = d === undefined ? 2 : d;
+    if (typeof v !== 'number' || !isFinite(v)) return '—';
+    return redondear(v, d).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+  }
+
+  var Calc = {
+    K: K, UNIDADES_FUERZA: UNIDADES_FUERZA, UNIDADES_PRESION: UNIDADES_PRESION,
+    parseNumero: parseNumero, esPositivo: esPositivo, areaRect: areaRect,
+    fuerzaALbf: fuerzaALbf, fuerzaDesdeLbf: fuerzaDesdeLbf,
+    presionAPsi: presionAPsi, presionDesdePsi: presionDesdePsi,
+    fuerzaNecesaria: fuerzaNecesaria, presionMedida: presionMedida,
+    tablaEquivalencias: tablaEquivalencias, regresionLineal: regresionLineal,
+    sugerirManometro: sugerirManometro, claveGrupo: claveGrupo,
+    redondear: redondear, formatear: formatear
+  };
+
+  if (typeof module !== 'undefined' && module.exports) module.exports = Calc;
+  else root.Calc = Calc;
+})(typeof self !== 'undefined' ? self : this);
