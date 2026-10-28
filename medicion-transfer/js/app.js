@@ -6,7 +6,7 @@
 (function () {
   'use strict';
 
-  var APP_VERSION = '2.0.0';
+  var APP_VERSION = '2.1.0';
   var C = window.Calc;
   var DB = window.DB;
   var LS_AJ = 'transfer.ajustes.v1';
@@ -723,6 +723,7 @@
   function editarPrueba(id) {
     var r = DB.obtener('registro_pruebas', id);
     if (!r) return;
+    if (!puedeModificar(r)) { toast('Solo el administrador puede editar registros guardados en la nube.', true); return; }
     editId = id;
     mostrarVista('vista-pruebas');
     elegirMaquina('rp', maquinaDeRegistro(r));
@@ -935,7 +936,9 @@
     $('#h-tabla').innerHTML = '<div class="reg-lista">' + lista.map(tarjeta).join('') + '</div><div class="tabla-historial tabla-scroll">' + tablaHTML(modHist, lista, true) + '</div>';
   }
 
+  function puedeModificar(r) { return DB.esAdmin() || !r._srv; }
   function botonesFila(r) {
+    if (!puedeModificar(r)) return '<span class="msg">Solo el administrador puede editar o eliminar.</span>';
     return (modHist === 'registro_pruebas' ? '<button class="btn btn-chico" data-acc="editar" data-id="' + esc(r.id) + '">Editar</button>' : '') +
       '<button class="btn btn-chico btn-peligro" data-acc="eliminar" data-id="' + esc(r.id) + '">Eliminar</button>';
   }
@@ -970,6 +973,7 @@
   function eliminarRegistro(id) {
     var r = DB.obtener(modHist, id);
     if (!r) return;
+    if (!puedeModificar(r)) { toast('Solo el administrador puede eliminar registros guardados en la nube.', true); return; }
     if (!confirm('¿Eliminar el registro de ' + r.maquina_serie + ' del ' + fechaLegible(r.fecha) + '? ' + (DB.configurada() ? 'También se eliminará de la base de datos en la nube.' : 'No se puede deshacer.'))) return;
     DB.eliminar(modHist, id);
     if (editId === id) cancelarEdicion();
@@ -1132,7 +1136,7 @@
     var s = DB.sesion(), cfg = DB.config();
     if (!DB.configurada()) c.innerHTML = '<p class="ayuda">Modo local: no hay base de datos en la nube configurada.</p>';
     else c.innerHTML = '<p class="ayuda">Supabase: <code>' + esc(cfg.url.replace(/^https?:\/\//, '')) + '</code> (' + esc(cfg.origen) + ')</p>' +
-      (s ? '<p>Sesión: <b>' + esc(s.email) + '</b></p><div class="acciones"><button type="button" class="btn" data-accion="sync">Sincronizar</button><button type="button" class="btn btn-peligro" data-accion="logout">Cerrar sesión</button></div>'
+      (s ? '<p>Sesión: <b>' + esc(s.email) + '</b> · ' + (DB.esAdmin() ? 'Administrador' : 'Usuario general (agregar y consultar)') + '</p><div class="acciones"><button type="button" class="btn" data-accion="sync">Sincronizar</button><button type="button" class="btn btn-peligro" data-accion="logout">Cerrar sesión</button></div>'
         : '<div class="acciones"><button type="button" class="btn btn-primario" data-accion="login">Iniciar sesión</button></div>');
   }
   function abrirAjustes() {
@@ -1186,8 +1190,18 @@
     var d = $('#dlg-ajustes');
     if (d.open) cerrarDialogo(d);
     $('#l-msg').textContent = '';
+    modoLogin(!!DB.config().general);
     abrirDialogo($('#dlg-login'));
-    setTimeout(function () { $('#l-email').focus(); }, 50);
+    setTimeout(function () { (DB.config().general ? $('#l-clave') : $('#l-email')).focus(); }, 50);
+  }
+  function modoLogin(general) {
+    var g = DB.config().general;
+    $('#l-email-campo').hidden = general;
+    $('#l-otro').hidden = !general;
+    $('#l-email').value = general ? g : '';
+    $('#l-ayuda').textContent = general
+      ? 'Escribe la contraseña general de planta. Solo se pide una vez en este teléfono.'
+      : 'Usuario personal (administrador). Puede editar y eliminar registros.';
   }
   async function enviarLogin(ev) {
     ev.preventDefault();
@@ -1307,6 +1321,7 @@
     $('#dlg-qr').addEventListener('close', detenerCamara);
     $('#form-login').addEventListener('submit', enviarLogin);
     $('#l-cancelar').addEventListener('click', function () { cerrarDialogo($('#dlg-login')); });
+    $('#l-otro').addEventListener('click', function () { modoLogin(false); $('#l-email').focus(); });
 
     // Base de datos, red e instalación
     DB.alCambiar(function () {

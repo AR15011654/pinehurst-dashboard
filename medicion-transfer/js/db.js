@@ -60,10 +60,17 @@
     return {
       url: String(o.url || c.supabaseUrl || '').trim().replace(/\/+$/, ''),
       key: String(o.key || c.supabaseAnonKey || '').trim(),
-      origen: o.url ? 'ajustes' : (c.supabaseUrl ? 'config.js' : '')
+      origen: o.url ? 'ajustes' : (c.supabaseUrl ? 'config.js' : ''),
+      general: String(c.usuarioGeneral || '').trim().toLowerCase(),
+      admins: (c.administradores || []).map(function (x) { return String(x).trim().toLowerCase(); })
     };
   }
   function configurada() { var c = config(); return !!(c.url && c.key); }
+  /** Administrador = puede editar y eliminar. En modo local todos pueden. */
+  function esAdmin() {
+    if (!configurada()) return true;
+    return !!(sesion && sesion.email && config().admins.indexOf(String(sesion.email).toLowerCase()) >= 0);
+  }
   function guardarConfig(url, key) {
     if (!url && !key) localStorage.removeItem(LS_CFG);
     else guardarLS(LS_CFG, { url: url, key: key });
@@ -241,7 +248,7 @@
           var versiones = ups.map(function (r) { return { id: r.id, v: r._v }; });
           for (var i = 0; i < ups.length; i += 200) {
             await api('POST', '/rest/v1/' + t + '?on_conflict=id', ups.slice(i, i + 200).map(function (r) { return limpiarParaNube(t, r); }),
-              { Prefer: 'resolution=merge-duplicates,return=minimal' });
+              { Prefer: (esAdmin() ? 'resolution=merge-duplicates' : 'resolution=ignore-duplicates') + ',return=minimal' });
           }
           versiones.forEach(function (x) {
             var r = datos[t].find(function (y) { return y.id === x.id; });
@@ -291,7 +298,7 @@
 
   root.DB = {
     TABLAS: TABLAS,
-    config: config, configurada: configurada, guardarConfig: guardarConfig,
+    config: config, configurada: configurada, guardarConfig: guardarConfig, esAdmin: esAdmin,
     sesion: function () { return sesion; }, iniciarSesion: iniciarSesion, cerrarSesion: cerrarSesion,
     listar: listar, obtener: obtener, guardar: guardar, eliminar: eliminar, importar: importar,
     pendientes: pendientes, sincronizar: sincronizar, programarSync: programarSync,

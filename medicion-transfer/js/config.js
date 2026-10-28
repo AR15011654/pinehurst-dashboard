@@ -11,5 +11,9 @@
  */
 self.TRANSFER_CONFIG = {
   supabaseUrl: 'https://xxmrenlyddjooifahhli.supabase.co',
-  supabaseAnonKey: 'sb_publishable_3EkWsnZiRl-MUoUR0T_TWQ_5Re1IYKr'
+  supabaseAnonKey: 'sb_publishable_3EkWsnZiRl-MUoUR0T_TWQ_5Re1IYKr',
+  // Cuenta genérica de planta: en cada teléfono solo se escribe su contraseña UNA vez (nunca escribas la contraseña aquí).
+  usuarioGeneral: 'planta.transfer@pinehurstmfg.com',
+  // Administradores: pueden editar y eliminar registros. Debe coincidir con la función public.es_admin() en Supabase.
+  administradores: ['irivera@pinehurstmfg.com']
 };
