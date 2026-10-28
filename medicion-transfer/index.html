@@ -382,9 +382,9 @@
   <!-- Inicio de sesión -->
   <dialog id="dlg-login" aria-labelledby="t-login">
     <form class="dlg-cuerpo" id="form-login" novalidate>
-      <h2 id="t-login">Iniciar sesión</h2>
-      <p class="ayuda">Usa el usuario que te asignó el administrador de la base de datos.</p>
-      <div class="campo">
+      <h2 id="t-login">Conectar este teléfono</h2>
+      <p class="ayuda" id="l-ayuda">Escribe la contraseña general de planta. Solo se pide una vez en este teléfono.</p>
+      <div class="campo" id="l-email-campo">
         <label for="l-email">Correo</label>
         <input id="l-email" type="email" autocomplete="username" inputmode="email" required>
       </div>
@@ -393,8 +393,9 @@
         <input id="l-clave" type="password" autocomplete="current-password" required>
       </div>
       <p id="l-msg" class="msg" role="status"></p>
+      <button type="button" class="enlace" id="l-otro">Entrar con otro usuario (administrador)</button>
       <div class="acciones">
-        <button type="submit" class="btn btn-primario btn-grande" id="l-entrar">Entrar</button>
+        <button type="submit" class="btn btn-primario btn-grande" id="l-entrar">Conectar</button>
         <button type="button" class="btn" id="l-cancelar">Cancelar</button>
       </div>
     </form>

@@ -66,10 +66,20 @@ Sin este paso la app funciona en **modo local** (cada teléfono guarda sus regis
 
 El script se puede ejecutar de nuevo sin borrar datos.
 
-### 3.3 Usuarios (quién puede guardar)
-1. **Authentication → Sign In / Providers** (o *Settings*): desactiva **Allow new users to sign up**, para que nadie pueda crearse una cuenta por su cuenta.
-2. **Authentication → Users → Add user → Create new user**: correo y contraseña de cada técnico; marca **Auto Confirm User**.
-3. Entrega a cada técnico su correo y contraseña. En la app: botón de estado (arriba) o **Ajustes → Iniciar sesión**.
+### 3.3 Usuarios: cuenta general de planta + administrador
+| Cuenta | Quién la usa | Puede |
+|---|---|---|
+| `planta.transfer@pinehurstmfg.com` (general) | Todos los técnicos | Consultar y **agregar** registros |
+| `irivera@pinehurstmfg.com` (administrador) | Solo el creador | Consultar, agregar, **editar y eliminar** |
+
+1. **Authentication → Sign In / Providers**: **Allow new users to sign up** desactivado (ya está hecho), para que nadie pueda crearse una cuenta.
+2. **Authentication → Users → Add user → Create new user**: crea las dos cuentas de la tabla con **Auto Confirm User** marcado. La contraseña de la cuenta general la eliges tú y solo la das a los técnicos; **no la escribas en ningún archivo de GitHub**.
+3. En cada teléfono: botón **"Sin sesión"** → escribir la contraseña general → **Conectar**. Solo se pide una vez; el teléfono queda conectado.
+4. Administrador: en el mismo diálogo, **Entrar con otro usuario (administrador)**.
+5. Si la contraseña general se filtra: *Authentication → Users* → cuenta general → cambia la contraseña, y vuelve a conectar los teléfonos.
+6. Para agregar otro administrador: añade su correo en `administradores` de `js/config.js` **y** en la función `public.es_admin()` de `supabase/esquema.sql` (vuelve a ejecutarlo).
+
+Solo tú tienes acceso al panel de Supabase y permiso de escritura en GitHub. El repositorio es público (requisito de GitHub Pages gratis): cualquiera puede ver el código, pero no contiene contraseñas y los registros solo se ven con sesión.
 
 ### 3.4 Conectar la app
 1. En Supabase: **Project Settings → API** (o **API Keys**). Copia:
