@@ -5,7 +5,8 @@
 --   calculo_presion     → módulo "Cálculo de presión"
 --   validacion_presion  → módulo "Validación de presión"
 --   registro_pruebas    → módulo "Registro de pruebas" (espacio propio)
--- Solo usuarios con sesión iniciada pueden leer o escribir (RLS).
+-- Solo usuarios con sesión iniciada pueden leer o agregar (RLS).
+-- Solo los administradores (función es_admin) pueden editar o eliminar.
 -- =====================================================================
 
 -- ---------- 1. Cálculo de presión ----------
@@ -108,6 +109,13 @@ create index if not exists calculo_presion_maquina_idx    on public.calculo_pres
 create index if not exists validacion_presion_maquina_idx on public.validacion_presion (maquina_serie, creado desc);
 create index if not exists registro_pruebas_maquina_idx   on public.registro_pruebas (maquina_serie, creado desc);
 
+-- ---------- Administradores: pueden editar y eliminar ----------
+-- Para agregar otro administrador, añade su correo al arreglo y vuelve a ejecutar.
+create or replace function public.es_admin() returns boolean
+language sql stable as $$
+  select lower(coalesce(auth.jwt() ->> 'email', '')) = any (array['irivera@pinehurstmfg.com'])
+$$;
+
 -- ---------- Seguridad: solo usuarios autenticados ----------
 alter table public.calculo_presion    enable row level security;
 alter table public.validacion_presion enable row level security;
@@ -123,8 +131,8 @@ begin
     execute format('drop policy if exists "eliminar autenticados" on public.%I', t);
     execute format('create policy "leer autenticados" on public.%I for select to authenticated using (true)', t);
     execute format('create policy "insertar autenticados" on public.%I for insert to authenticated with check (true)', t);
-    execute format('create policy "actualizar autenticados" on public.%I for update to authenticated using (true) with check (true)', t);
-    execute format('create policy "eliminar autenticados" on public.%I for delete to authenticated using (true)', t);
+    execute format('create policy "actualizar autenticados" on public.%I for update to authenticated using (public.es_admin()) with check (public.es_admin())', t);
+    execute format('create policy "eliminar autenticados" on public.%I for delete to authenticated using (public.es_admin())', t);
     execute format('revoke all on public.%I from anon', t);
     execute format('grant select, insert, update, delete on public.%I to authenticated', t);
   end loop;
