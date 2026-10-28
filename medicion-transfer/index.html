@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="description" content="Cálculo, validación y registro de presión para máquinas Heat Transfer.">
-  <meta name="theme-color" content="#0f3550">
+  <meta name="theme-color" content="#002B49">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -21,7 +21,7 @@
       <button id="btn-inicio" class="btn-icono" type="button" aria-label="Volver a la pantalla principal" hidden>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-      <svg id="logo" class="logo" viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="5" width="24" height="6" rx="1.5" fill="currentColor"/><path d="M16 12v8m-4-4 4 4 4-4" stroke="#f59e0b" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><rect x="9" y="23" width="14" height="4" rx="1" fill="currentColor" opacity=".7"/></svg>
+      <img id="logo" class="logo" src="img/logo-blanco.png" alt="Pinehurst MFG" width="85" height="38">
       <div class="titulos">
         <h1 id="titulo-app">Medición Transfer</h1>
         <p class="sub" id="subtitulo-app">Máquinas Heat Transfer</p>
@@ -382,6 +382,10 @@
   <!-- Inicio de sesión -->
   <dialog id="dlg-login" aria-labelledby="t-login">
     <form class="dlg-cuerpo" id="form-login" novalidate>
+      <picture>
+        <source srcset="img/logo-blanco.png" media="(prefers-color-scheme: dark)">
+        <img class="logo-dlg" src="img/logo-color.png" alt="Pinehurst MFG">
+      </picture>
       <h2 id="t-login">Conectar este teléfono</h2>
       <p class="ayuda" id="l-ayuda">Escribe la contraseña general de planta. Solo se pide una vez en este teléfono.</p>
       <div class="campo" id="l-email-campo">
