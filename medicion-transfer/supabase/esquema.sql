@@ -104,6 +104,11 @@ create table if not exists public.registro_pruebas (
   observaciones        text
 );
 
+-- ---------- Línea donde se realizó la operación (L1–L50) ----------
+alter table public.calculo_presion    add column if not exists linea_operacion text check (linea_operacion is null or linea_operacion ~ '^L([1-9]|[1-4][0-9]|50)$');
+alter table public.validacion_presion add column if not exists linea_operacion text check (linea_operacion is null or linea_operacion ~ '^L([1-9]|[1-4][0-9]|50)$');
+alter table public.registro_pruebas   add column if not exists linea_operacion text check (linea_operacion is null or linea_operacion ~ '^L([1-9]|[1-4][0-9]|50)$');
+
 -- ---------- Índices ----------
 create index if not exists calculo_presion_maquina_idx    on public.calculo_presion (maquina_serie, creado desc);
 create index if not exists validacion_presion_maquina_idx on public.validacion_presion (maquina_serie, creado desc);
