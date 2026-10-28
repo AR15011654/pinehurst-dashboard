@@ -6,7 +6,7 @@
 (function () {
   'use strict';
 
-  var APP_VERSION = '2.2.0';
+  var APP_VERSION = '2.3.0';
   var C = window.Calc;
   var DB = window.DB;
   var LS_AJ = 'transfer.ajustes.v1';
@@ -211,9 +211,18 @@
     return { maquina_serie: m.id, maquina_qr: m.qr || null, maquina_asset: m.asset || null, maquina_linea: m.linea || null, maquina_estacion: m.estacion || null };
   }
 
+  var LINEAS = []; for (var nl = 1; nl <= 50; nl++) LINEAS.push('L' + nl);
+  var PREFIJO_DE_TABLA = { calculo_presion: 'cp', validacion_presion: 'vp', registro_pruebas: 'rp' };
+  /** Línea de operación elegida (L1–L50); muestra error si falta. */
+  function exigirLinea(p) {
+    var s = $('#' + p + '-linea'); if (!s) return null;
+    var c = s.closest('.campo');
+    if (!s.value) { c.classList.add('invalido'); c.querySelector('.error').textContent = 'Selecciona la línea donde se realiza la operación.'; return null; }
+    c.classList.remove('invalido'); c.querySelector('.error').textContent = ''; return s.value;
+  }
   function montarSelectores() {
     $('#lista-series').innerHTML = MAQ.map(function (m) {
-      return '<option value="' + esc(m.id) + '">' + esc((m.linea || '') + (m.estacion ? ' · Est. ' + m.estacion : '')) + '</option>';
+      return '<option value="' + esc(m.id) + '">' + esc((m.fabricante || '') + (m.qr ? ' · QR ' + codigo(m.qr) : '')) + '</option>';
     }).join('');
     $$('[data-maquina]').forEach(function (cont) {
       var p = cont.dataset.maquina;
@@ -221,8 +230,17 @@
         '<label for="' + p + '-maq">Máquina Heat Transfer <span class="u">serie o QR</span></label>' +
         '<div class="maq-fila"><input id="' + p + '-maq" type="text" list="lista-series" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Ej. PH59">' +
         '<button type="button" class="btn btn-primario" data-qr="' + p + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4M7 12h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Escanear QR</button></div>' +
-        '<p class="error" id="' + p + '-maq-err"></p><div class="maq-info" id="' + p + '-maq-info"></div></div>';
+        '<p class="error" id="' + p + '-maq-err"></p><div class="maq-info" id="' + p + '-maq-info"></div></div>' +
+        '<div class="campo"><label for="' + p + '-linea">Línea donde se realiza la operación</label>' +
+        '<select id="' + p + '-linea"><option value="">Selecciona la línea…</option>' + LINEAS.map(function (l) { return '<option value="' + l + '">' + l + '</option>'; }).join('') + '</select>' +
+        '<p class="error"></p></div>';
       var inp = $('#' + p + '-maq');
+      var selLinea = $('#' + p + '-linea');
+      if (ultimos[p + '-linea']) selLinea.value = ultimos[p + '-linea'];
+      selLinea.addEventListener('change', function () {
+        ultimos[p + '-linea'] = selLinea.value; guardarLS(LS_ULT, ultimos);
+        var c = selLinea.closest('.campo'); c.classList.remove('invalido'); c.querySelector('.error').textContent = '';
+      });
       inp.addEventListener('input', function () { resolverMaquina(p, inp.value, 'texto'); });
       inp.addEventListener('change', function () { resolverMaquina(p, inp.value, 'texto', true); });
       $('#' + p + '-maq-info').addEventListener('click', function (e) {
@@ -267,12 +285,9 @@
     box.classList.add('elegida'); box.classList.remove('invalido');
     $('#' + p + '-maq-err').textContent = '';
     delete $('#' + p + '-maq-info').dataset.cand;
-    var previos = DB.listar(PREFIJO_TABLA[p]).filter(function (r) { return r.maquina_serie === m.id; }).length;
     $('#' + p + '-maq-info').innerHTML = '<div class="ficha"><b>' + esc(m.id) + '</b>' +
-      (m.linea ? '<span>' + esc(m.linea) + (m.estacion ? ' · Est. ' + esc(m.estacion) : '') + '</span>' : '') +
       (m.fabricante ? '<span>' + esc(m.fabricante) + (m.modelo && m.modelo !== 'n/t' ? ' ' + esc(m.modelo) : '') + '</span>' : '') +
-      (m.qr ? '<span>QR ' + esc(codigo(m.qr)) + '</span>' : '') +
-      '<span>' + previos + ' registro' + (previos === 1 ? '' : 's') + ' en este módulo</span></div>' +
+      (m.qr ? '<span>QR ' + esc(codigo(m.qr)) + '</span>' : '') + '</div>' +
       (m.fueraInventario ? aviso('alerta', 'Fuera del inventario', 'Esta máquina no está en el inventario Heat Transfer cargado en la app.') : '') +
       (/INACTIVO/i.test(m.estado) ? aviso('alerta', 'Máquina INACTIVA en el inventario', 'Verifica que sea la máquina correcta.') : '');
     if (!m.fueraInventario) { ultimos[p + '-maq'] = m.id; guardarLS(LS_ULT, ultimos); }
@@ -606,6 +621,7 @@
     $('#rp-ancho').value = String(ultimaValidacion.a);
     $('#rp-fuerza').value = String(ultimaValidacion.x);
     $('#rp-fuerza-u').value = ultimaValidacion.u;
+    if ($('#vp-linea').value) $('#rp-linea').value = $('#vp-linea').value;
     if (sel.vp) { $('#rp-maq').value = sel.vp.id; elegirMaquina('rp', sel.vp); }
     mostrarVista('vista-pruebas');
     previewPrueba();
@@ -616,6 +632,9 @@
   // ---------- Guardado común ----------
   function usuarioActual() { var s = DB.sesion(); return s ? s.email : null; }
   function guardarEnBD(tabla, reg, msgEl, despues) {
+    var linea = exigirLinea(PREFIJO_DE_TABLA[tabla]);
+    if (!linea) { msgEl.textContent = 'Selecciona la línea donde se realiza la operación.'; msgEl.className = 'msg err'; return false; }
+    reg.linea_operacion = linea;
     var boton = msgEl.closest('.card, form').querySelector('.btn-primario.btn-grande');
     if (boton) { boton.disabled = true; setTimeout(function () { boton.disabled = false; }, 1200); }
     try { DB.guardar(tabla, reg); }
@@ -728,6 +747,7 @@
     mostrarVista('vista-pruebas');
     elegirMaquina('rp', maquinaDeRegistro(r));
     $('#rp-montaje').value = r.montaje || '';
+    $('#rp-linea').value = r.linea_operacion || '';
     $('#rp-fecha').value = String(r.fecha || hoyISO()).slice(0, 10);
     $('#rp-largo').value = String(r.rubber_largo_cm); $('#rp-ancho').value = String(r.rubber_ancho_cm);
     $('#rp-man').value = String(r.manometro_valor); $('#rp-man-u').value = r.manometro_unidad;
@@ -864,7 +884,8 @@
   // ======================================================
   var ETIQUETAS = {
     id: 'ID', creado: 'Creado', modificado: 'Modificado', usuario_email: 'Usuario', fecha: 'Fecha',
-    maquina_serie: 'Máquina (serie)', maquina_qr: 'QR', maquina_asset: 'Asset ID', maquina_linea: 'Línea', maquina_estacion: 'Estación',
+    maquina_serie: 'Máquina (serie)', maquina_qr: 'QR', maquina_asset: 'Asset ID', maquina_linea: 'Línea en inventario', maquina_estacion: 'Estación',
+    linea_operacion: 'Línea de operación',
     rubber_largo_cm: 'Largo rubber (cm)', rubber_ancho_cm: 'Ancho rubber (cm)', area_cm2: 'Área rubber (cm²)', area_in2: 'Área rubber (in²)',
     presion_deseada_psi: 'Presión deseada (psi)', fuerza_lbf: 'Fuerza (lbf)', fuerza_kgf: 'Fuerza (kgf)', fuerza_n: 'Fuerza (N)',
     capacidad_celda: 'Capacidad celda', observaciones: 'Observaciones',
@@ -877,9 +898,9 @@
     temperatura: 'Temperatura', temperatura_unidad: 'Unidad temperatura', tiempo_s: 'Tiempo de aplicación (s)'
   };
   var COLS_TABLA = {
-    calculo_presion: ['fecha', 'maquina_serie', 'maquina_linea', 'rubber', 'presion_deseada_psi', 'fuerza_lbf', 'fuerza_kgf', 'fuerza_n', 'usuario_email', 'observaciones'],
-    validacion_presion: ['fecha', 'maquina_serie', 'maquina_linea', 'rubber', 'lectura', 'fuerza_lbf', 'presion_psi', 'presion_kgfcm2', 'plancha_presion_psi', 'usuario_email', 'observaciones'],
-    registro_pruebas: ['fecha', 'maquina_serie', 'maquina_linea', 'montaje', 'rubber', 'manometro', 'fuerza', 'fuerza_lbf', 'presion_psi', 'temperatura', 'tiempo_s', 'usuario_email', 'observaciones']
+    calculo_presion: ['fecha', 'maquina_serie', 'linea_operacion', 'rubber', 'presion_deseada_psi', 'fuerza_lbf', 'fuerza_kgf', 'fuerza_n', 'usuario_email', 'observaciones'],
+    validacion_presion: ['fecha', 'maquina_serie', 'linea_operacion', 'rubber', 'lectura', 'fuerza_lbf', 'presion_psi', 'presion_kgfcm2', 'plancha_presion_psi', 'usuario_email', 'observaciones'],
+    registro_pruebas: ['fecha', 'maquina_serie', 'linea_operacion', 'montaje', 'rubber', 'manometro', 'fuerza', 'fuerza_lbf', 'presion_psi', 'temperatura', 'tiempo_s', 'usuario_email', 'observaciones']
   };
   var ETQ_EXTRA = { rubber: 'Rubber cm', lectura: 'Lectura', manometro: 'Manómetro (aire)', fuerza: 'Fuerza leída' };
 
@@ -899,14 +920,14 @@
         return typeof v === 'number' ? f(v) : String(v);
     }
   }
-  var TXT_COLS = { fecha: 1, maquina_serie: 1, maquina_linea: 1, montaje: 1, usuario_email: 1, observaciones: 1 };
+  var TXT_COLS = { fecha: 1, maquina_serie: 1, maquina_linea: 1, linea_operacion: 1, montaje: 1, usuario_email: 1, observaciones: 1 };
 
   function registrosFiltrados(tabla) {
     var maq = $('#h-maquina').value;
     var q = $('#h-buscar').value.trim().toLowerCase();
     return DB.listar(tabla).filter(function (r) {
       if (maq && r.maquina_serie !== maq) return false;
-      if (q && [r.maquina_serie, r.maquina_linea, r.montaje, r.observaciones, r.usuario_email].join(' ').toLowerCase().indexOf(q) < 0) return false;
+      if (q && [r.maquina_serie, r.linea_operacion, r.maquina_linea, r.montaje, r.observaciones, r.usuario_email].join(' ').toLowerCase().indexOf(q) < 0) return false;
       return true;
     }).sort(function (a, b) { return String(b.fecha || '').localeCompare(String(a.fecha || '')) || String(b.creado || '').localeCompare(String(a.creado || '')); });
   }
@@ -955,7 +976,7 @@
     if (r.usuario_email) extra.push(esc(r.usuario_email));
     var pend = r._pend && DB.configurada() ? '<span class="etq-pend">por subir</span>' : '';
     return '<article class="reg"><div class="reg-cab"><b>' + esc(r.maquina_serie) + pend + '</b><span>' + fechaLegible(r.fecha) + (r.creado ? ' ' + horaLegible(r.creado) : '') + '</span></div>' +
-      '<div class="reg-meta">' + esc(r.maquina_linea || 'Sin línea') + ' · Rubber ' + f(num(r.rubber_largo_cm)) + ' × ' + f(num(r.rubber_ancho_cm)) + ' cm</div>' +
+      '<div class="reg-meta">' + (r.linea_operacion ? 'Línea ' + esc(r.linea_operacion) : 'Línea no registrada') + ' · Rubber ' + f(num(r.rubber_largo_cm)) + ' × ' + f(num(r.rubber_ancho_cm)) + ' cm</div>' +
       '<div class="reg-vals">' + v.map(function (x) { return '<div class="' + x[0] + '">' + x[1] + '<strong>' + x[2] + '</strong></div>'; }).join('') + '</div>' +
       '<div class="reg-meta">' + extra.join(' · ') + (r.observaciones ? '<br>' + esc(r.observaciones) : '') + '</div>' +
       '<div class="acciones">' + botonesFila(r) + '</div></article>';
@@ -993,7 +1014,7 @@
   }
   function filasExport(tabla, lista) {
     var cols = DB.TABLAS[tabla].columnas.filter(function (c) { return c !== 'id'; }).concat(['id']);
-    var orden = ['fecha', 'maquina_serie', 'maquina_linea', 'maquina_estacion', 'maquina_qr', 'maquina_asset'];
+    var orden = ['fecha', 'maquina_serie', 'linea_operacion', 'maquina_linea', 'maquina_estacion', 'maquina_qr', 'maquina_asset'];
     cols = orden.concat(cols.filter(function (c) { return orden.indexOf(c) < 0; }));
     return [cols.map(function (c) { return ETIQUETAS[c] || c; })].concat(lista.map(function (r) {
       return cols.map(function (c) { return valorExport(c, r[c]); });

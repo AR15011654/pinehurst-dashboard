@@ -14,7 +14,7 @@
   var LIMITE_DESCARGA = 1000;
 
   var COMUNES = ['id', 'creado', 'modificado', 'usuario_email', 'fecha', 'maquina_serie', 'maquina_qr', 'maquina_asset',
-    'maquina_linea', 'maquina_estacion', 'rubber_largo_cm', 'rubber_ancho_cm', 'area_cm2', 'area_in2'];
+    'maquina_linea', 'maquina_estacion', 'linea_operacion', 'rubber_largo_cm', 'rubber_ancho_cm', 'area_cm2', 'area_in2'];
 
   var TABLAS = {
     calculo_presion: {
