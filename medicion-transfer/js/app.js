@@ -1,23 +1,35 @@
 /*
- * app.js — Interfaz de Medición Transfer.
- * Los datos se guardan SOLO en el navegador de este dispositivo (localStorage).
+ * app.js — Interfaz de Medición Transfer v2.
+ * Pantalla principal con módulos, máquinas Heat Transfer por serie o QR,
+ * y registros guardados en la base de datos (db.js).
  */
 (function () {
   'use strict';
 
-  var APP_VERSION = '1.0.0';
+  var APP_VERSION = '2.0.0';
   var C = window.Calc;
-  var LS_REG = 'transfer.registros.v1';
+  var DB = window.DB;
   var LS_AJ = 'transfer.ajustes.v1';
-  var LS_ULT = 'transfer.ultimos.v1';
+  var LS_ULT = 'transfer.ultimos.v2';
+  var LS_V1 = 'transfer.registros.v1';
+  var LS_MIGR = 'transfer.migrado.v2';
   var MSG_SIN_CAL = 'No es posible determinar el ajuste del manómetro sin mediciones de esta máquina y este montaje.';
-
   var NOMBRE_PRES = { psi: 'psi', bar: 'bar', kgfcm2: 'kgf/cm²' };
+
+  var VISTAS = {
+    'vista-inicio': { hash: '', titulo: 'Medición Transfer', sub: 'Máquinas Heat Transfer' },
+    'vista-calculo': { hash: 'calculo', titulo: 'Cálculo de presión', sub: 'Medición Transfer' },
+    'vista-validacion': { hash: 'validacion', titulo: 'Validación de presión', sub: 'Medición Transfer' },
+    'vista-pruebas': { hash: 'pruebas', titulo: 'Registro de pruebas', sub: 'Medición Transfer' },
+    'vista-historial': { hash: 'historial', titulo: 'Historial y reportes', sub: 'Medición Transfer' }
+  };
+  var PREFIJO_TABLA = { cp: 'calculo_presion', vp: 'validacion_presion', rp: 'registro_pruebas' };
 
   // ---------- Utilidades ----------
   function $(s, r) { return (r || document).querySelector(s); }
   function $$(s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); }
   function f(v, d) { return C.formatear(v, d === undefined ? 2 : d); }
+  function r4(v) { return typeof v === 'number' && isFinite(v) ? C.redondear(v, 4) : null; }
   function esc(s) {
     return String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -26,11 +38,13 @@
   function leerLS(k, def) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch (e) { return def; } }
   function guardarLS(k, v) {
     try { localStorage.setItem(k, JSON.stringify(v)); return true; }
-    catch (e) { toast('No se pudo guardar en este navegador (' + e.name + '). Exporta tus datos.', true); return false; }
+    catch (e) { toast('No se pudo guardar en este navegador (' + e.name + ').', true); return false; }
   }
   function hoyISO() { var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); }
-  function fechaLegible(iso) { if (!iso) return '—'; var p = String(iso).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso; }
-  function nuevoId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+  function fechaLegible(iso) { if (!iso) return '—'; var p = String(iso).slice(0, 10).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso; }
+  function horaLegible(iso) { if (!iso) return ''; var d = new Date(iso); return isNaN(d) ? '' : d.toLocaleTimeString('es-HN', { hour: '2-digit', minute: '2-digit' }); }
+  function fechaHora(iso) { if (!iso) return ''; var d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString('es-HN'); }
+  function num(v) { return typeof v === 'number' && isFinite(v) ? v : (v === null || v === undefined || v === '' ? null : Number(v)); }
 
   var toastTimer;
   function toast(msg, error) {
@@ -41,23 +55,20 @@
   }
 
   // ---------- Estado ----------
-  var registros = leerLS(LS_REG, []);
-  if (!Array.isArray(registros)) registros = [];
   var ajustes = leerLS(LS_AJ, { capValor: null, capUnidad: 'lbf' });
   var ultimos = leerLS(LS_ULT, {});
   var editId = null;
   var grupoSel = null;
-  var tablaEqActual = null;
+  var modHist = 'calculo_presion';
+  var vistaActual = 'vista-inicio';
 
   var DEFAULTS = {
-    'f-largo': '4.5', 'f-ancho': '1.1', 'f-psi': '40',
-    'p-largo': '4.5', 'p-ancho': '1.1', 'pl-largo': '30', 'pl-ancho': '20',
-    'eq-modo': 'lbf', 'eq-inicio': '5', 'eq-fin': '60', 'eq-paso': '5', 's-psi': '40'
+    'cp-largo': '4.5', 'cp-ancho': '1.1', 'cp-psi': '40',
+    'vp-largo': '4.5', 'vp-ancho': '1.1', 'vp-pl-largo': '30', 'vp-pl-ancho': '20', 's-psi': '40'
   };
-  var RECORDAR = Object.keys(DEFAULTS).concat(['p-lectura', 'p-unidad']);
+  var RECORDAR = Object.keys(DEFAULTS).concat(['vp-lectura', 'vp-unidad', 'rp-man-u', 'rp-fuerza-u', 'rp-temp-u']);
 
-  // ---------- Validación de campos ----------
-  /** Lee y valida un campo numérico según data-req. forzar=true muestra "obligatorio" si está vacío. */
+  // ---------- Validación ----------
   function leer(id, forzar) {
     var el = document.getElementById(id);
     var campo = el.closest('.campo');
@@ -80,7 +91,7 @@
     return { ok: !msg && (v !== null || opc), v: v, vacio: txt === '' };
   }
 
-  // ---------- Bloques HTML reutilizables ----------
+  // ---------- Bloques HTML ----------
   function tile(cls, etiqueta, valor, unidad, detalle) {
     return '<div class="res ' + cls + '"><div class="det">' + esc(etiqueta) + '</div>' +
       '<div><span class="val">' + valor + '</span><span class="uni">' + esc(unidad) + '</span></div>' +
@@ -92,48 +103,30 @@
 
   var TXT_PROMEDIO = 'La presión calculada es un promedio estimado. Para que sea representativa, el dinamómetro debe medir la fuerza total que pasa por el área efectiva de contacto del rubber. La presión puede variar entre el centro y las esquinas.';
   var AVISOS_HTML = aviso('alerta', 'Importante sobre la medición',
-    '<ul>' +
-    '<li>' + TXT_PROMEDIO + '</li>' +
+    '<ul><li>' + TXT_PROMEDIO + '</li>' +
     '<li>El manómetro mide presión del aire; el dinamómetro mide fuerza.</li>' +
     '<li>Confirma la capacidad y temperatura máxima de la celda antes de usarla.</li>' +
-    '<li>No utilices los cálculos como ajuste de producción sin validar el montaje y los requisitos del proveedor del logo.</li>' +
-    '</ul>');
+    '<li>No utilices los cálculos como ajuste de producción sin validar el montaje y los requisitos del proveedor del logo.</li></ul>');
   var AVISO_PROMEDIO = aviso('info', 'Presión promedio estimada', TXT_PROMEDIO);
 
   function areaTiles(area) {
-    return tile('area', 'Área', f(area.cm2), 'cm²') +
-      tile('area', 'Área', f(area.in2), 'in²', 'Valor interno: ' + f(area.in2, 4) + ' in²');
+    return tile('area', 'Área', f(area.cm2), 'cm²') + tile('area', 'Área', f(area.in2), 'in²', 'Valor interno: ' + f(area.in2, 4) + ' in²');
   }
-  function fuerzaTiles(fz, etiqueta) {
-    return tile('fuerza principal', etiqueta, f(fz.lbf), 'lbf') +
-      tile('fuerza', etiqueta, f(fz.kgf), 'kgf') +
-      tile('fuerza', etiqueta, f(fz.N), 'N');
-  }
-  function presionTiles(pr, etiqueta) {
-    return tile('presion principal', etiqueta, f(pr.psi), 'psi') +
-      tile('presion', etiqueta, f(pr.kgfcm2), 'kgf/cm²') +
-      tile('presion', etiqueta, f(pr.bar), 'bar');
-  }
+  function fuerzaTiles(fz, e) { return tile('fuerza principal', e, f(fz.lbf), 'lbf') + tile('fuerza', e, f(fz.kgf), 'kgf') + tile('fuerza', e, f(fz.N), 'N'); }
+  function presionTiles(pr, e) { return tile('presion principal', e, f(pr.psi), 'psi') + tile('presion', e, f(pr.kgfcm2), 'kgf/cm²') + tile('presion', e, f(pr.bar), 'bar'); }
 
   // ---------- Capacidad de la celda ----------
   function capacidadLbf() {
     if (!(ajustes.capValor > 0)) return null;
     try { return C.fuerzaALbf(ajustes.capValor, ajustes.capUnidad); } catch (e) { return null; }
   }
-  function textoCapacidad() {
-    return ajustes.capValor > 0 ? f(ajustes.capValor) + ' ' + ajustes.capUnidad : 'no verificada';
-  }
+  function textoCapacidad() { return ajustes.capValor > 0 ? f(ajustes.capValor) + ' ' + ajustes.capUnidad : 'no verificada'; }
   function htmlCapacidad(lbf) {
     var cap = capacidadLbf();
-    if (cap === null) {
-      return aviso('alerta', 'Capacidad de la celda: no verificada', 'Ingresa la capacidad máxima de la celda en Ajustes (botón de engrane) para recibir alertas de sobrecarga.');
-    }
+    if (cap === null) return aviso('alerta', 'Capacidad de la celda: no verificada', 'Ingresa la capacidad máxima de la celda en Ajustes (botón de engrane) para recibir alertas de sobrecarga.');
     var pct = lbf / cap * 100;
     var capTxt = f(cap) + ' lbf' + (ajustes.capUnidad !== 'lbf' ? ' (' + textoCapacidad() + ')' : '');
-    if (lbf >= cap) {
-      return aviso('peligro', 'ATENCIÓN: la fuerza alcanza o supera la capacidad de la celda',
-        'Fuerza ' + f(lbf) + ' lbf ≥ capacidad ' + capTxt + ' — ' + f(pct, 0) + ' %. No apliques esta carga a la celda.');
-    }
+    if (lbf >= cap) return aviso('peligro', 'ATENCIÓN: la fuerza alcanza o supera la capacidad de la celda', 'Fuerza ' + f(lbf) + ' lbf ≥ capacidad ' + capTxt + ' — ' + f(pct, 0) + ' %. No apliques esta carga a la celda.');
     if (pct >= 90) return aviso('alerta', 'Cerca de la capacidad de la celda', 'Fuerza al ' + f(pct, 0) + ' % de la capacidad (' + capTxt + ').');
     return aviso('ok', 'Dentro de la capacidad de la celda', 'Fuerza al ' + f(pct, 0) + ' % de la capacidad (' + capTxt + ').');
   }
@@ -145,43 +138,24 @@
     a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
   }
-  function compartirTexto(titulo, texto) {
-    if (navigator.share) {
-      navigator.share({ title: titulo, text: texto }).catch(function (e) { if (e && e.name !== 'AbortError') copiar(texto); });
-    } else copiar(texto);
-  }
   function copiar(texto) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(texto).then(function () { toast('Resultado copiado. Pégalo en tu mensaje o correo.'); },
-        function () { toast('No se pudo copiar el resultado.', true); });
+      navigator.clipboard.writeText(texto).then(function () { toast('Resultado copiado. Pégalo en tu mensaje o correo.'); }, function () { toast('No se pudo copiar el resultado.', true); });
     } else toast('Este navegador no permite compartir ni copiar automáticamente.', true);
+  }
+  function compartirTexto(titulo, texto) {
+    if (navigator.share) navigator.share({ title: titulo, text: texto }).catch(function (e) { if (e && e.name !== 'AbortError') copiar(texto); });
+    else copiar(texto);
   }
   function compartirArchivo(blob, nombre, titulo) {
     var file;
     try { file = new File([blob], nombre, { type: blob.type }); } catch (e) { file = null; }
     if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
-      navigator.share({ files: [file], title: titulo }).catch(function (e) {
-        if (e && e.name !== 'AbortError') { descargar(blob, nombre); }
-      });
-    } else {
-      descargar(blob, nombre);
-      toast('Este dispositivo no permite compartir archivos; se descargó el archivo.');
-    }
+      navigator.share({ files: [file], title: titulo }).catch(function (e) { if (e && e.name !== 'AbortError') descargar(blob, nombre); });
+    } else { descargar(blob, nombre); toast('Este dispositivo no permite compartir archivos; se descargó el archivo.'); }
   }
 
-  // ---------- Navegación ----------
-  var VISTAS = ['v-fuerza', 'v-presion', 'v-calibracion', 'v-historial'];
-  function mostrarVista(id, sinScroll) {
-    if (VISTAS.indexOf(id) < 0) id = 'v-fuerza';
-    $$('.vista').forEach(function (v) { v.hidden = v.id !== id; });
-    $$('.nav-btn').forEach(function (b) { b.setAttribute('aria-current', b.dataset.vista === id ? 'page' : 'false'); });
-    try { history.replaceState(null, '', '#' + id.slice(2)); } catch (e) { /* sin historial */ }
-    if (id === 'v-calibracion') renderCalibracion();
-    if (id === 'v-historial') renderHistorial();
-    if (!sinScroll) window.scrollTo(0, 0);
-  }
-
-  // ---------- Recordar últimos valores ----------
+  // ---------- Recordar valores ----------
   function restaurarCampos() {
     RECORDAR.forEach(function (id) {
       var el = document.getElementById(id);
@@ -192,39 +166,352 @@
   }
   function recordar(id) {
     var el = document.getElementById(id);
-    if (!el || RECORDAR.indexOf(id) < 0) return;
+    if (!el) return;
     ultimos[id] = el.value;
     guardarLS(LS_ULT, ultimos);
   }
 
   // ======================================================
-  // 1. FUERZA NECESARIA
+  // MÁQUINAS HEAT TRANSFER (serie o QR)
   // ======================================================
-  var ultimoFuerza = null;
-  function calcFuerza() {
-    var l = leer('f-largo'), a = leer('f-ancho'), p = leer('f-psi');
-    $('#eq-rubber').textContent = l.ok && a.ok ? f(l.v) + ' × ' + f(a.v) + ' cm' : 'ingresa largo y ancho';
+  var MAQ = (window.MAQUINAS_HT || []).map(function (m) {
+    m.id = m.serie || ('QR ' + (m.qr || m.asset));
+    return m;
+  });
+  var sel = { cp: null, vp: null, rp: null };
+  var candidatos = { cp: [], vp: [], rp: [] };
+
+  function normSerie(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+  function codigo(s) {
+    s = String(s || '').trim();
+    var m = s.match(/^https?:\/\/[^\/]+\/(.+?)\/?$/i);
+    if (m) s = m[1];
+    return s.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  }
+  /** Busca por código QR / Asset ID primero, luego por serie. Puede devolver varias si el inventario tiene duplicados. */
+  function buscarMaquinas(texto) {
+    var c = codigo(texto), n = normSerie(texto);
+    if (!c && !n) return [];
+    var a = MAQ.filter(function (m) { return codigo(m.asset) === c; });
+    if (a.length) return a;
+    var q = MAQ.filter(function (m) { return m.qr && codigo(m.qr) === c; });
+    if (q.length) return q;
+    var s = MAQ.filter(function (m) { return m.serie && normSerie(m.serie) === n; });
+    if (s.length) return s;
+    return MAQ.filter(function (m) { return normSerie(m.id) === n; });
+  }
+  function maquinaDeRegistro(r) {
+    var m = MAQ.find(function (x) { return x.id === r.maquina_serie && (!r.maquina_asset || x.asset === r.maquina_asset); }) ||
+      MAQ.find(function (x) { return x.id === r.maquina_serie; });
+    if (m) return m;
+    return { id: r.maquina_serie, serie: r.maquina_serie, qr: r.maquina_qr || '', asset: r.maquina_asset || '', linea: r.maquina_linea || '',
+      estacion: r.maquina_estacion || '', fabricante: '', estado: '', fueraInventario: true };
+  }
+  function datosMaquina(m) {
+    return { maquina_serie: m.id, maquina_qr: m.qr || null, maquina_asset: m.asset || null, maquina_linea: m.linea || null, maquina_estacion: m.estacion || null };
+  }
+
+  function montarSelectores() {
+    $('#lista-series').innerHTML = MAQ.map(function (m) {
+      return '<option value="' + esc(m.id) + '">' + esc((m.linea || '') + (m.estacion ? ' · Est. ' + m.estacion : '')) + '</option>';
+    }).join('');
+    $$('[data-maquina]').forEach(function (cont) {
+      var p = cont.dataset.maquina;
+      cont.innerHTML = '<div class="maq-sel" id="' + p + '-maq-box">' +
+        '<label for="' + p + '-maq">Máquina Heat Transfer <span class="u">serie o QR</span></label>' +
+        '<div class="maq-fila"><input id="' + p + '-maq" type="text" list="lista-series" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Ej. PH59">' +
+        '<button type="button" class="btn btn-primario" data-qr="' + p + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4M7 12h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Escanear QR</button></div>' +
+        '<p class="error" id="' + p + '-maq-err"></p><div class="maq-info" id="' + p + '-maq-info"></div></div>';
+      var inp = $('#' + p + '-maq');
+      inp.addEventListener('input', function () { resolverMaquina(p, inp.value, 'texto'); });
+      inp.addEventListener('change', function () { resolverMaquina(p, inp.value, 'texto', true); });
+      $('#' + p + '-maq-info').addEventListener('click', function (e) {
+        var b = e.target.closest('[data-elegir]');
+        if (b) elegirMaquina(p, candidatos[p][Number(b.dataset.elegir)]);
+      });
+      if (ultimos[p + '-maq']) { inp.value = ultimos[p + '-maq']; resolverMaquina(p, inp.value, 'texto'); }
+    });
+  }
+
+  function resolverMaquina(p, texto, origen, final) {
+    var info = $('#' + p + '-maq-info'), box = $('#' + p + '-maq-box'), err = $('#' + p + '-maq-err');
+    var res = buscarMaquinas(texto);
+    if (res.length === 1) { elegirMaquina(p, res[0]); return true; }
+    sel[p] = null;
+    box.classList.remove('elegida');
+    err.textContent = '';
+    if (res.length <= 1) delete info.dataset.cand;
+    if (!String(texto).trim()) { info.innerHTML = ''; alCambiarMaquina(p); return false; }
+    if (res.length > 1) {
+      var claveCand = res.map(function (m) { return m.asset; }).join('|');
+      if (info.dataset.cand === claveCand && info.querySelector('[data-elegir]')) { alCambiarMaquina(p); return false; }
+      info.dataset.cand = claveCand;
+      candidatos[p] = res;
+      info.innerHTML = '<p class="msg">Hay ' + res.length + ' máquinas con ese dato en el inventario. Elige la correcta:</p><div class="maq-opciones">' +
+        res.map(function (m, i) { return '<button type="button" class="btn btn-chico" data-elegir="' + i + '">' + esc(m.id) + ' · ' + esc(m.linea || 'sin línea') + ' · ' + esc(m.fabricante || '') + '</button>'; }).join('') + '</div>';
+    } else if (origen === 'qr') {
+      info.innerHTML = aviso('peligro', 'Código no encontrado', 'El QR leído (' + esc(texto) + ') no corresponde a una máquina Heat Transfer del inventario. Escribe la serie manualmente o revisa el código.');
+    } else if (final || normSerie(texto).length >= 4) {
+      info.innerHTML = '<p class="msg err">No se encontró esa serie en el inventario Heat Transfer.</p>';
+    } else info.innerHTML = '';
+    alCambiarMaquina(p);
+    return false;
+  }
+
+  function elegirMaquina(p, m) {
+    if (!m) return;
+    sel[p] = m;
+    var inp = $('#' + p + '-maq');
+    if (document.activeElement !== inp || inp.value !== m.id) inp.value = m.id;
+    var box = $('#' + p + '-maq-box');
+    box.classList.add('elegida'); box.classList.remove('invalido');
+    $('#' + p + '-maq-err').textContent = '';
+    delete $('#' + p + '-maq-info').dataset.cand;
+    var previos = DB.listar(PREFIJO_TABLA[p]).filter(function (r) { return r.maquina_serie === m.id; }).length;
+    $('#' + p + '-maq-info').innerHTML = '<div class="ficha"><b>' + esc(m.id) + '</b>' +
+      (m.linea ? '<span>' + esc(m.linea) + (m.estacion ? ' · Est. ' + esc(m.estacion) : '') + '</span>' : '') +
+      (m.fabricante ? '<span>' + esc(m.fabricante) + (m.modelo && m.modelo !== 'n/t' ? ' ' + esc(m.modelo) : '') + '</span>' : '') +
+      (m.qr ? '<span>QR ' + esc(codigo(m.qr)) + '</span>' : '') +
+      '<span>' + previos + ' registro' + (previos === 1 ? '' : 's') + ' en este módulo</span></div>' +
+      (m.fueraInventario ? aviso('alerta', 'Fuera del inventario', 'Esta máquina no está en el inventario Heat Transfer cargado en la app.') : '') +
+      (/INACTIVO/i.test(m.estado) ? aviso('alerta', 'Máquina INACTIVA en el inventario', 'Verifica que sea la máquina correcta.') : '');
+    if (!m.fueraInventario) { ultimos[p + '-maq'] = m.id; guardarLS(LS_ULT, ultimos); }
+    alCambiarMaquina(p);
+  }
+
+  function alCambiarMaquina(p) {
+    if (p === 'rp' && sel.rp) {
+      var l = leer('rp-largo'), a = leer('rp-ancho');
+      if (l.ok && a.ok) {
+        var k = C.claveGrupo({ maquina: sel.rp.id, largo: l.v, ancho: a.v, montaje: $('#rp-montaje').value });
+        if (gruposPruebas()[k]) { grupoSel = k; renderGraficas(); }
+      }
+    }
+  }
+
+  function exigirMaquina(p) {
+    if (sel[p]) return sel[p];
+    var box = $('#' + p + '-maq-box');
+    box.classList.add('invalido');
+    $('#' + p + '-maq-err').textContent = 'Escanea el QR o escribe la serie de la máquina.';
+    box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return null;
+  }
+
+  // ---------- Escáner QR ----------
+  var qr = { destino: null, stream: null, loop: null, detector: null, canvas: null };
+  function cargarJsQR() {
+    return new Promise(function (res, rej) {
+      if (window.jsQR) return res();
+      var s = document.createElement('script');
+      s.src = 'js/jsQR.js';
+      s.onload = function () { res(); };
+      s.onerror = function () { rej(new Error('No se pudo cargar el lector de QR.')); };
+      document.head.appendChild(s);
+    });
+  }
+  async function abrirQR(p) {
+    qr.destino = p;
+    var dlg = $('#dlg-qr'), msg = $('#qr-msg');
+    msg.textContent = 'Abriendo cámara…'; msg.className = 'msg';
+    if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      msg.textContent = 'Este navegador no permite usar la cámara. Escribe la serie de la máquina.'; msg.className = 'msg err'; return;
+    }
+    try {
+      qr.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+    } catch (e) {
+      msg.textContent = e.name === 'NotAllowedError'
+        ? 'Permiso de cámara denegado. Actívalo en la configuración del navegador o escribe la serie.'
+        : 'No se pudo abrir la cámara (' + e.name + '). Escribe la serie.';
+      msg.className = 'msg err';
+      return;
+    }
+    if (!dlg.open) { detenerCamara(); return; }
+    var video = $('#qr-video');
+    video.srcObject = qr.stream;
+    try { await video.play(); } catch (e) { /* algunos navegadores reproducen solos */ }
+    qr.detector = null;
+    if ('BarcodeDetector' in window) {
+      try {
+        var formatos = await window.BarcodeDetector.getSupportedFormats();
+        if (formatos.indexOf('qr_code') >= 0) qr.detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+      } catch (e) { qr.detector = null; }
+    }
+    if (!qr.detector) {
+      try { await cargarJsQR(); } catch (e) { msg.textContent = e.message; msg.className = 'msg err'; return; }
+    }
+    msg.textContent = 'Apunta la cámara al código QR de la máquina.';
+    escanearQR();
+  }
+  function siguienteQR() { qr.loop = setTimeout(escanearQR, 160); }
+  function escanearQR() {
+    if (!qr.stream) return;
+    var video = $('#qr-video');
+    if (video.readyState < 2 || !video.videoWidth) return siguienteQR();
+    if (qr.detector) {
+      qr.detector.detect(video).then(function (cods) {
+        if (cods && cods.length && cods[0].rawValue) qrLeido(cods[0].rawValue); else siguienteQR();
+      }).catch(siguienteQR);
+      return;
+    }
+    var esc2 = Math.min(1, 640 / video.videoWidth);
+    var w = Math.round(video.videoWidth * esc2), h = Math.round(video.videoHeight * esc2);
+    if (!qr.canvas) qr.canvas = document.createElement('canvas');
+    qr.canvas.width = w; qr.canvas.height = h;
+    var ctx = qr.canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(video, 0, 0, w, h);
+    var r = window.jsQR(ctx.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: 'attemptBoth' });
+    if (r && r.data) qrLeido(r.data); else siguienteQR();
+  }
+  function qrLeido(texto) {
+    var p = qr.destino;
+    cerrarQR();
+    if (navigator.vibrate) navigator.vibrate(80);
+    $('#' + p + '-maq').value = texto;
+    if (resolverMaquina(p, texto, 'qr')) toast('Máquina ' + sel[p].id + ' seleccionada');
+  }
+  function detenerCamara() {
+    clearTimeout(qr.loop);
+    if (qr.stream) qr.stream.getTracks().forEach(function (t) { t.stop(); });
+    qr.stream = null;
+    var v = $('#qr-video');
+    if (v) v.srcObject = null;
+  }
+  function cerrarQR() {
+    detenerCamara();
+    var d = $('#dlg-qr');
+    if (d.open) { if (d.close) d.close(); else d.removeAttribute('open'); }
+  }
+
+  // ======================================================
+  // NAVEGACIÓN
+  // ======================================================
+  function mostrarVista(id, opciones) {
+    opciones = opciones || {};
+    if (!VISTAS[id]) id = 'vista-inicio';
+    vistaActual = id;
+    $$('.vista').forEach(function (v) { v.hidden = v.id !== id; });
+    $('#btn-inicio').hidden = id === 'vista-inicio';
+    $('#logo').style.display = id === 'vista-inicio' ? '' : 'none';
+    $('#titulo-app').textContent = VISTAS[id].titulo;
+    $('#subtitulo-app').textContent = VISTAS[id].sub;
+    document.title = id === 'vista-inicio' ? 'Medición Transfer' : VISTAS[id].titulo + ' · Medición Transfer';
+    var hash = VISTAS[id].hash ? '#' + VISTAS[id].hash : location.pathname + location.search;
+    try {
+      if (opciones.reemplazar) history.replaceState({ vista: id }, '', hash);
+      else if (!opciones.desdeHistorial) history.pushState({ vista: id }, '', hash);
+    } catch (e) { /* sin historial */ }
+    if (id === 'vista-inicio') renderInicio();
+    if (id === 'vista-pruebas') renderGraficas();
+    if (id === 'vista-historial') renderHistorial();
+    if (!opciones.sinScroll) window.scrollTo(0, 0);
+  }
+  function vistaDesdeHash() {
+    var h = (location.hash || '').replace('#', '');
+    var id = Object.keys(VISTAS).find(function (k) { return VISTAS[k].hash && VISTAS[k].hash === h; });
+    return id || 'vista-inicio';
+  }
+
+  // ======================================================
+  // PANTALLA PRINCIPAL
+  // ======================================================
+  function textoEstadoBD() {
+    var st = DB.estado(), pend = DB.pendientes();
+    if (!DB.configurada()) return { cls: '', txt: 'Modo local' };
+    if (!DB.sesion()) return { cls: 'pend', txt: 'Sin sesión' + (pend ? ' · ' + pend : '') };
+    if (st.fase === 'sincronizando') return { cls: 'sync', txt: 'Sincronizando…' };
+    if (st.fase === 'error') return { cls: 'err', txt: 'Error' + (pend ? ' · ' + pend : '') };
+    if (st.fase === 'sin-red' || !navigator.onLine) return { cls: 'pend', txt: 'Sin conexión' + (pend ? ' · ' + pend : '') };
+    if (pend) return { cls: 'pend', txt: pend + ' pendiente' + (pend === 1 ? '' : 's') };
+    return { cls: 'ok', txt: 'Sincronizado' };
+  }
+  function renderEstadoBD() {
+    var e = textoEstadoBD();
+    var p = $('#estado-bd');
+    p.textContent = e.txt; p.className = 'pill ' + e.cls;
+    if (vistaActual === 'vista-inicio') renderInicio();
+    if (vistaActual === 'vista-historial') renderAvisoHistorial();
+    renderAjustesBD();
+  }
+
+  function htmlBD(compacto) {
+    var st = DB.estado(), pend = DB.pendientes(), s = DB.sesion();
+    if (!DB.configurada()) {
+      return '<div><p><b>Modo local.</b> Los registros se guardan solo en este teléfono.</p>' +
+        (compacto ? '' : '<p class="ayuda" style="margin:4px 0 0">Para compartirlos entre teléfonos configura la base de datos en la nube (ver README, sección Base de datos).</p>') + '</div>';
+    }
+    if (!s) {
+      return '<div><p><b>Base de datos en la nube:</b> inicia sesión para sincronizar.</p>' +
+        (pend ? '<p class="msg">' + pend + ' registro' + (pend === 1 ? '' : 's') + ' guardado' + (pend === 1 ? '' : 's') + ' en el teléfono, pendiente' + (pend === 1 ? '' : 's') + ' de subir.</p>' : '') +
+        '</div><div class="acciones"><button type="button" class="btn btn-primario" data-accion="login">Iniciar sesión</button></div>';
+    }
+    return '<div><p><b>Conectado:</b> ' + esc(s.email) + '</p><p class="msg' + (st.fase === 'error' ? ' err' : '') + '">' +
+      (st.fase === 'error' ? esc(st.mensaje) : (st.ultima ? 'Última sincronización: ' + esc(fechaHora(st.ultima)) : 'Aún no sincroniza.')) +
+      (pend ? ' · ' + pend + ' pendiente' + (pend === 1 ? '' : 's') : '') + '</p></div>' +
+      '<div class="acciones"><button type="button" class="btn" data-accion="sync">Sincronizar</button></div>';
+  }
+
+  function renderInicio() {
+    $('#inicio-bd').innerHTML = htmlBD(false);
+    var hoy = hoyISO(), total = 0, totalHoy = 0, maqs = {};
+    Object.keys(DB.TABLAS).forEach(function (t) {
+      var lista = DB.listar(t);
+      var nHoy = lista.filter(function (r) { return String(r.fecha || '').slice(0, 10) === hoy; }).length;
+      var pend = DB.configurada() ? DB.pendientes(t) : 0;
+      total += lista.length; totalHoy += nHoy;
+      lista.forEach(function (r) { maqs[r.maquina_serie] = 1; });
+      $('[data-stats="' + t + '"]').innerHTML = '<span>Hoy <b>' + nHoy + '</b></span><span>Guardados <b>' + lista.length + '</b></span>' +
+        (pend ? '<span class="pend">Por subir <b>' + pend + '</b></span>' : '');
+    });
+    var nMaq = Object.keys(maqs).length;
+    $('[data-stats="historial"]').innerHTML = '<span>Registros <b>' + total + '</b></span><span>Máquinas <b>' + nMaq + '</b></span>';
+    $('#inicio-totales').innerHTML = '<div><b>' + totalHoy + '</b><span>Mediciones hoy</span></div>' +
+      '<div><b>' + total + '</b><span>Registros guardados</span></div><div><b>' + nMaq + '</b><span>Máquinas medidas</span></div>';
+  }
+
+  // ======================================================
+  // 1. CÁLCULO DE PRESIÓN
+  // ======================================================
+  var ultimoCalculo = null;
+  function calcCalculo() {
+    var l = leer('cp-largo'), a = leer('cp-ancho'), p = leer('cp-psi');
     if (!(l.ok && a.ok && p.ok)) {
-      ultimoFuerza = null;
-      $('#f-resultados').innerHTML = vacio('Ingresa largo, ancho y presión deseada (números mayores que cero).');
-      $('#f-capacidad').innerHTML = '';
+      ultimoCalculo = null;
+      $('#cp-resultados').innerHTML = vacio('Ingresa largo, ancho y presión deseada (números mayores que cero).');
+      $('#cp-capacidad').innerHTML = '';
       return;
     }
     var r = C.fuerzaNecesaria(l.v, a.v, p.v);
-    ultimoFuerza = { l: l.v, a: a.v, p: p.v, r: r };
-    $('#f-resultados').innerHTML =
+    ultimoCalculo = { l: l.v, a: a.v, p: p.v, r: r };
+    $('#cp-resultados').innerHTML =
       grupo('Área del rubber', areaTiles(r.area)) +
       grupo('<span class="tag tag-fuerza">Fuerza necesaria</span> (lectura objetivo del dinamómetro)', fuerzaTiles(r.fuerza, 'Fuerza')) +
-      grupo('<span class="tag tag-presion">Presión promedio deseada</span> sobre el rubber', presionTiles(r.presion, 'Presión')) +
-      AVISO_PROMEDIO;
-    $('#f-capacidad').innerHTML = htmlCapacidad(r.fuerza.lbf);
+      grupo('<span class="tag tag-presion">Presión promedio deseada</span> sobre el rubber', presionTiles(r.presion, 'Presión')) + AVISO_PROMEDIO;
+    $('#cp-capacidad').innerHTML = htmlCapacidad(r.fuerza.lbf);
   }
 
-  function compartirFuerza() {
-    if (!ultimoFuerza) { toast('Completa los datos primero.', true); return; }
-    var u = ultimoFuerza, r = u.r;
-    compartirTexto('Fuerza necesaria', [
-      'FUERZA NECESARIA — Medición Transfer',
+  function guardarCalculo() {
+    var msg = $('#cp-msg');
+    var m = exigirMaquina('cp');
+    var l = leer('cp-largo', true), a = leer('cp-ancho', true), p = leer('cp-psi', true);
+    if (!m || !(l.ok && a.ok && p.ok)) { msg.textContent = 'Completa la máquina y los datos marcados en rojo.'; msg.className = 'msg err'; return; }
+    var r = C.fuerzaNecesaria(l.v, a.v, p.v);
+    var reg = Object.assign(datosMaquina(m), {
+      fecha: hoyISO(), usuario_email: usuarioActual(),
+      rubber_largo_cm: l.v, rubber_ancho_cm: a.v, area_cm2: r4(r.area.cm2), area_in2: r4(r.area.in2),
+      presion_deseada_psi: p.v, fuerza_lbf: r4(r.fuerza.lbf), fuerza_kgf: r4(r.fuerza.kgf), fuerza_n: r4(r.fuerza.N),
+      capacidad_celda: textoCapacidad(), observaciones: $('#cp-obs').value.trim() || null
+    });
+    guardarEnBD('calculo_presion', reg, msg, function () { $('#cp-obs').value = ''; elegirMaquina('cp', m); });
+  }
+
+  function compartirCalculo() {
+    if (!ultimoCalculo) { toast('Completa los datos primero.', true); return; }
+    var u = ultimoCalculo, r = u.r;
+    compartirTexto('Cálculo de presión', [
+      'CÁLCULO DE PRESIÓN — Medición Transfer',
+      'Máquina: ' + (sel.cp ? sel.cp.id + (sel.cp.linea ? ' (' + sel.cp.linea + ')' : '') : 'sin seleccionar'),
       'Rubber: ' + f(u.l) + ' × ' + f(u.a) + ' cm (' + f(r.area.cm2) + ' cm² / ' + f(r.area.in2, 4) + ' in²)',
       'Presión promedio deseada sobre el rubber: ' + f(u.p) + ' psi (' + f(r.presion.kgfcm2) + ' kgf/cm², ' + f(r.presion.bar) + ' bar)',
       'Fuerza necesaria: ' + f(r.fuerza.lbf) + ' lbf = ' + f(r.fuerza.kgf) + ' kgf = ' + f(r.fuerza.N) + ' N',
@@ -233,109 +520,77 @@
     ].join('\n'));
   }
 
-  // ---------- Tabla de equivalencias ----------
-  function actualizarUnidadEq() {
-    var u = $('#eq-modo').value === 'psi' ? 'psi' : 'lbf';
-    $$('.eq-u').forEach(function (s) { s.textContent = u; });
-  }
-  function generarTabla(silencioso) {
-    var msg = $('#eq-msg');
-    msg.className = 'msg';
-    var l = leer('f-largo', !silencioso), a = leer('f-ancho', !silencioso);
-    var i = leer('eq-inicio', !silencioso), fi = leer('eq-fin', !silencioso), pa = leer('eq-paso', !silencioso);
-    var modo = $('#eq-modo').value;
-    if (!(l.ok && a.ok)) { if (!silencioso) { msg.textContent = 'Ingresa el largo y ancho del rubber arriba.'; msg.className = 'msg err'; } return; }
-    if (!(i.ok && fi.ok && pa.ok)) { if (!silencioso) { msg.textContent = 'Revisa los valores inicial, final e incremento.'; msg.className = 'msg err'; } return; }
-    if (fi.v < i.v) { msg.textContent = 'El valor final debe ser mayor o igual que el inicial.'; msg.className = 'msg err'; return; }
-    var area = C.areaRect(l.v, a.v);
-    var filas;
-    try { filas = C.tablaEquivalencias(modo, i.v, fi.v, pa.v, area.in2, 500); }
-    catch (e) { msg.textContent = e.message; msg.className = 'msg err'; return; }
-    var cap = capacidadLbf();
-    tablaEqActual = { modo: modo, largo: l.v, ancho: a.v, area: area, filas: filas };
-    var cab = modo === 'psi'
-      ? '<th class="c-presion">Presión deseada<br>psi</th><th class="c-fuerza">Fuerza<br>lbf</th><th class="c-fuerza">Fuerza<br>kgf</th><th class="c-fuerza">Fuerza<br>N</th>'
-      : '<th class="c-fuerza">Fuerza<br>lbf</th><th class="c-fuerza">Fuerza<br>kgf</th><th class="c-fuerza">Fuerza<br>N</th><th class="c-presion">Presión prom.<br>psi</th>';
-    var cuerpo = filas.map(function (r) {
-      var sobre = cap !== null && r.lbf >= cap ? ' style="color:var(--peligro);font-weight:700"' : '';
-      var celdas = modo === 'psi'
-        ? '<td>' + f(r.psi) + '</td><td' + sobre + '>' + f(r.lbf) + '</td><td>' + f(r.kgf) + '</td><td>' + f(r.N) + '</td>'
-        : '<td' + sobre + '>' + f(r.lbf) + '</td><td>' + f(r.kgf) + '</td><td>' + f(r.N) + '</td><td>' + f(r.psi) + '</td>';
-      return '<tr>' + celdas + '</tr>';
-    }).join('');
-    $('#eq-tabla').innerHTML = '<table><thead><tr>' + cab + '</tr></thead><tbody>' + cuerpo + '</tbody></table>';
-    msg.textContent = filas.length + ' filas · rubber ' + f(l.v) + ' × ' + f(a.v) + ' cm (' + f(area.in2, 4) + ' in²)' +
-      (cap !== null ? ' · en rojo: fuerza ≥ capacidad de la celda' : ' · capacidad de la celda no verificada');
-    $('#eq-csv').disabled = false; $('#eq-xlsx').disabled = false;
-  }
-  function filasTablaEq() {
-    var t = tablaEqActual;
-    var cab = t.modo === 'psi'
-      ? ['Presión deseada (psi)', 'Fuerza (lbf)', 'Fuerza (kgf)', 'Fuerza (N)']
-      : ['Fuerza (lbf)', 'Fuerza (kgf)', 'Fuerza (N)', 'Presión promedio rubber (psi)'];
-    var filas = [cab];
-    t.filas.forEach(function (r) {
-      var v = t.modo === 'psi' ? [r.psi, r.lbf, r.kgf, r.N] : [r.lbf, r.kgf, r.N, r.psi];
-      filas.push(v.map(function (x) { return C.redondear(x, 2); }));
-    });
-    return filas;
-  }
-  function nombreTablaEq(ext) {
-    var t = tablaEqActual;
-    return 'equivalencias-rubber-' + C.redondear(t.largo, 2) + 'x' + C.redondear(t.ancho, 2) + 'cm-' + t.modo + '.' + ext;
-  }
-
   // ======================================================
-  // 2. PRESIÓN MEDIDA
+  // 2. VALIDACIÓN DE PRESIÓN
   // ======================================================
-  var ultimoPresion = null;
-  function calcPresion() {
-    var l = leer('p-largo'), a = leer('p-ancho'), x = leer('p-lectura');
-    var u = $('#p-unidad').value;
+  var ultimaValidacion = null;
+  function calcValidacion() {
+    var l = leer('vp-largo'), a = leer('vp-ancho'), x = leer('vp-lectura');
+    var u = $('#vp-unidad').value;
     if (!(l.ok && a.ok && x.ok)) {
-      ultimoPresion = null;
-      $('#p-resultados').innerHTML = vacio('Ingresa largo, ancho y la lectura del dinamómetro (números mayores que cero).');
-      $('#p-capacidad').innerHTML = '';
+      ultimaValidacion = null;
+      $('#vp-resultados').innerHTML = vacio('Ingresa largo, ancho y la lectura del dinamómetro (números mayores que cero).');
+      $('#vp-capacidad').innerHTML = '';
     } else {
       var r = C.presionMedida(l.v, a.v, x.v, u);
-      ultimoPresion = { l: l.v, a: a.v, x: x.v, u: u, r: r };
-      $('#p-resultados').innerHTML =
+      ultimaValidacion = { l: l.v, a: a.v, x: x.v, u: u, r: r };
+      $('#vp-resultados').innerHTML =
         grupo('Área del rubber', areaTiles(r.area)) +
         grupo('<span class="tag tag-fuerza">Fuerza medida</span> (dinamómetro)', fuerzaTiles(r.fuerza, 'Fuerza')) +
-        grupo('<span class="tag tag-presion">Presión promedio estimada</span> sobre el rubber', presionTiles(r.presion, 'Presión')) +
-        AVISO_PROMEDIO;
-      $('#p-capacidad').innerHTML = htmlCapacidad(r.fuerza.lbf);
+        grupo('<span class="tag tag-presion">Presión promedio estimada</span> sobre el rubber', presionTiles(r.presion, 'Presión')) + AVISO_PROMEDIO;
+      $('#vp-capacidad').innerHTML = htmlCapacidad(r.fuerza.lbf);
     }
     calcPlancha();
   }
-
-  function calcPlancha() {
-    var l = leer('pl-largo'), a = leer('pl-ancho');
-    var total = $('#pl-total').checked;
-    var out = $('#pl-resultados');
-    if (!(l.ok && a.ok) || l.vacio || a.vacio) {
-      out.innerHTML = vacio('Ingresa largo y ancho de la plancha para ver su área.');
-      return;
-    }
+  function datosPlancha() {
+    var l = leer('vp-pl-largo'), a = leer('vp-pl-ancho');
+    if (!(l.ok && a.ok) || l.vacio || a.vacio) return null;
     var area = C.areaRect(l.v, a.v);
-    var html = grupo('Área de la plancha', areaTiles(area));
-    if (!total) {
-      html += aviso('info', 'Presión sobre la plancha: no calculada', 'Marca la casilla solo si la fuerza medida corresponde a toda la fuerza aplicada sobre la plancha completa. No se asume que toda la plancha esté en contacto en producción.');
-    } else if (!ultimoPresion) {
-      html += vacio('Ingresa la lectura del dinamómetro arriba.');
-    } else {
-      var lbf = ultimoPresion.r.fuerza.lbf;
-      html += grupo('<span class="tag tag-presion">Presión promedio sobre la plancha completa</span>', presionTiles(C.presionDesdePsi(lbf / area.in2), 'Plancha')) +
-        aviso('alerta', 'Resultado distinto al del rubber', 'Este valor reparte la fuerza en toda la plancha (' + f(area.cm2) + ' cm²). La presión sobre el logo se calcula con el área del rubber, arriba.');
-    }
+    var total = $('#vp-pl-total').checked;
+    var pr = total && ultimaValidacion ? C.presionDesdePsi(ultimaValidacion.r.fuerza.lbf / area.in2) : null;
+    return { l: l.v, a: a.v, area: area, total: total, presion: pr };
+  }
+  function calcPlancha() {
+    var out = $('#vp-pl-resultados');
+    var d = datosPlancha();
+    if (!d) { out.innerHTML = vacio('Ingresa largo y ancho de la plancha para ver su área.'); return; }
+    var html = grupo('Área de la plancha', areaTiles(d.area));
+    if (!d.total) html += aviso('info', 'Presión sobre la plancha: no calculada', 'Marca la casilla solo si la fuerza medida corresponde a toda la fuerza aplicada sobre la plancha completa. No se asume que toda la plancha esté en contacto en producción.');
+    else if (!d.presion) html += vacio('Ingresa la lectura del dinamómetro arriba.');
+    else html += grupo('<span class="tag tag-presion">Presión promedio sobre la plancha completa</span>', presionTiles(d.presion, 'Plancha')) +
+      aviso('alerta', 'Resultado distinto al del rubber', 'Este valor reparte la fuerza en toda la plancha (' + f(d.area.cm2) + ' cm²). La presión sobre el logo se calcula con el área del rubber, arriba.');
     out.innerHTML = html;
   }
 
-  function compartirPresion() {
-    if (!ultimoPresion) { toast('Completa los datos primero.', true); return; }
-    var u = ultimoPresion, r = u.r;
-    compartirTexto('Presión medida', [
-      'PRESIÓN MEDIDA — Medición Transfer',
+  function guardarValidacion() {
+    var msg = $('#vp-msg');
+    var m = exigirMaquina('vp');
+    var l = leer('vp-largo', true), a = leer('vp-ancho', true), x = leer('vp-lectura', true);
+    var pl = leer('vp-pl-largo'), pa = leer('vp-pl-ancho');
+    if (!m || !(l.ok && a.ok && x.ok && pl.ok && pa.ok)) { msg.textContent = 'Completa la máquina y los datos marcados en rojo.'; msg.className = 'msg err'; return; }
+    var u = $('#vp-unidad').value;
+    var r = C.presionMedida(l.v, a.v, x.v, u);
+    ultimaValidacion = { l: l.v, a: a.v, x: x.v, u: u, r: r };
+    var d = datosPlancha();
+    var reg = Object.assign(datosMaquina(m), {
+      fecha: hoyISO(), usuario_email: usuarioActual(),
+      rubber_largo_cm: l.v, rubber_ancho_cm: a.v, area_cm2: r4(r.area.cm2), area_in2: r4(r.area.in2),
+      lectura_valor: x.v, lectura_unidad: u,
+      fuerza_lbf: r4(r.fuerza.lbf), fuerza_kgf: r4(r.fuerza.kgf), fuerza_n: r4(r.fuerza.N),
+      presion_psi: r4(r.presion.psi), presion_kgfcm2: r4(r.presion.kgfcm2), presion_bar: r4(r.presion.bar),
+      plancha_largo_cm: d ? d.l : null, plancha_ancho_cm: d ? d.a : null, plancha_area_cm2: d ? r4(d.area.cm2) : null,
+      fuerza_total_plancha: !!(d && d.total), plancha_presion_psi: d && d.presion ? r4(d.presion.psi) : null,
+      capacidad_celda: textoCapacidad(), observaciones: $('#vp-obs').value.trim() || null
+    });
+    guardarEnBD('validacion_presion', reg, msg, function () { $('#vp-obs').value = ''; elegirMaquina('vp', m); });
+  }
+
+  function compartirValidacion() {
+    if (!ultimaValidacion) { toast('Completa los datos primero.', true); return; }
+    var u = ultimaValidacion, r = u.r;
+    compartirTexto('Validación de presión', [
+      'VALIDACIÓN DE PRESIÓN — Medición Transfer',
+      'Máquina: ' + (sel.vp ? sel.vp.id + (sel.vp.linea ? ' (' + sel.vp.linea + ')' : '') : 'sin seleccionar'),
       'Rubber: ' + f(u.l) + ' × ' + f(u.a) + ' cm (' + f(r.area.cm2) + ' cm² / ' + f(r.area.in2, 4) + ' in²)',
       'Lectura del dinamómetro: ' + f(u.x) + ' ' + u.u + ' = ' + f(r.fuerza.lbf) + ' lbf = ' + f(r.fuerza.kgf) + ' kgf = ' + f(r.fuerza.N) + ' N',
       'Presión promedio estimada sobre el rubber: ' + f(r.presion.psi) + ' psi = ' + f(r.presion.kgfcm2) + ' kgf/cm² = ' + f(r.presion.bar) + ' bar',
@@ -344,173 +599,170 @@
     ].join('\n'));
   }
 
-  function presionARegistro() {
-    if (!ultimoPresion) { toast('Completa los datos primero.', true); return; }
+  function validacionAPruebas() {
+    if (!ultimaValidacion) { toast('Completa los datos primero.', true); return; }
     cancelarEdicion();
-    $('#c-largo').value = String(ultimoPresion.l);
-    $('#c-ancho').value = String(ultimoPresion.a);
-    $('#c-fuerza').value = String(ultimoPresion.x);
-    $('#c-fuerza-u').value = ultimoPresion.u;
-    mostrarVista('v-calibracion');
-    previewRegistro();
-    $('#c-maquina').focus();
-    toast('Completa máquina y presión del manómetro, luego guarda.');
+    $('#rp-largo').value = String(ultimaValidacion.l);
+    $('#rp-ancho').value = String(ultimaValidacion.a);
+    $('#rp-fuerza').value = String(ultimaValidacion.x);
+    $('#rp-fuerza-u').value = ultimaValidacion.u;
+    if (sel.vp) { $('#rp-maq').value = sel.vp.id; elegirMaquina('rp', sel.vp); }
+    mostrarVista('vista-pruebas');
+    previewPrueba();
+    $('#rp-man').focus();
+    toast('Ingresa la presión del manómetro y guarda.');
+  }
+
+  // ---------- Guardado común ----------
+  function usuarioActual() { var s = DB.sesion(); return s ? s.email : null; }
+  function guardarEnBD(tabla, reg, msgEl, despues) {
+    var boton = msgEl.closest('.card, form').querySelector('.btn-primario.btn-grande');
+    if (boton) { boton.disabled = true; setTimeout(function () { boton.disabled = false; }, 1200); }
+    try { DB.guardar(tabla, reg); }
+    catch (e) { msgEl.textContent = e.message; msgEl.className = 'msg err'; toast(e.message, true); return false; }
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {});
+    var destino = DB.configurada() && DB.sesion() ? (navigator.onLine === false ? 'Guardado en el teléfono; se subirá al volver la conexión.' : 'Se sube a la base de datos en la nube.') :
+      (DB.configurada() ? 'Guardado en el teléfono; se subirá al iniciar sesión.' : 'Guardado en este teléfono (modo local).');
+    msgEl.textContent = 'Registro guardado (' + reg.maquina_serie + '). ' + destino;
+    msgEl.className = 'msg ok';
+    toast('Registro guardado');
+    if (despues) despues();
+    return true;
   }
 
   // ======================================================
-  // 3. CALIBRACIÓN — registro
+  // 3. REGISTRO DE PRUEBAS
   // ======================================================
-  function derivados(reg) {
-    var area = C.areaRect(reg.largo, reg.ancho);
-    var lbf = C.fuerzaALbf(reg.fuerzaValor, reg.fuerzaUnidad);
-    return {
-      area: area,
-      fuerza: C.fuerzaDesdeLbf(lbf),
-      presion: C.presionDesdePsi(lbf / area.in2),
-      manPsi: C.presionAPsi(reg.manValor, reg.manUnidad)
-    };
+  function derivadosPrueba(r) {
+    var area = C.areaRect(num(r.rubber_largo_cm), num(r.rubber_ancho_cm));
+    var lbf = C.fuerzaALbf(num(r.fuerza_valor), r.fuerza_unidad);
+    return { area: area, fuerza: C.fuerzaDesdeLbf(lbf), presion: C.presionDesdePsi(lbf / area.in2), manPsi: C.presionAPsi(num(r.manometro_valor), r.manometro_unidad) };
   }
+  function claveDe(r) { return C.claveGrupo({ maquina: r.maquina_serie, largo: num(r.rubber_largo_cm), ancho: num(r.rubber_ancho_cm), montaje: r.montaje }); }
 
-  function previewRegistro() {
-    var l = leer('c-largo'), a = leer('c-ancho'), fz = leer('c-fuerza'), m = leer('c-man');
-    var out = $('#c-preview');
+  function previewPrueba() {
+    var l = leer('rp-largo'), a = leer('rp-ancho'), fz = leer('rp-fuerza'), m = leer('rp-man');
+    var out = $('#rp-preview');
     if (!(l.ok && a.ok && fz.ok)) { out.innerHTML = vacio('La presión promedio sobre el rubber se calcula al ingresar rubber y fuerza.'); return; }
-    var r = C.presionMedida(l.v, a.v, fz.v, $('#c-fuerza-u').value);
+    var r = C.presionMedida(l.v, a.v, fz.v, $('#rp-fuerza-u').value);
     var html = '<div class="res-grid">';
-    if (m.ok) html += tile('aire', 'Manómetro (aire)', f(m.v), NOMBRE_PRES[$('#c-man-u').value]);
+    if (m.ok) html += tile('aire', 'Manómetro (aire)', f(m.v), NOMBRE_PRES[$('#rp-man-u').value]);
     html += tile('fuerza', 'Fuerza medida', f(r.fuerza.lbf), 'lbf') +
       tile('presion', 'Presión prom. rubber', f(r.presion.psi), 'psi', f(r.presion.kgfcm2) + ' kgf/cm² · ' + f(r.presion.bar) + ' bar') + '</div>';
-    html += htmlCapacidad(r.fuerza.lbf);
-    out.innerHTML = html;
+    out.innerHTML = html + htmlCapacidad(r.fuerza.lbf);
   }
 
-  function guardarRegistro(ev) {
+  function guardarPrueba(ev) {
     ev.preventDefault();
-    var msg = $('#c-msg');
-    var maquina = $('#c-maquina').value.trim();
-    var fecha = $('#c-fecha').value;
-    var errM = $('#c-maquina').closest('.campo').querySelector('.error');
-    var errF = $('#c-fecha').closest('.campo').querySelector('.error');
-    errM.textContent = maquina ? '' : 'Indica la máquina.';
+    var msg = $('#rp-msg');
+    var m = exigirMaquina('rp');
+    var fecha = $('#rp-fecha').value;
+    var errF = $('#rp-fecha').closest('.campo').querySelector('.error');
     errF.textContent = fecha ? '' : 'Indica la fecha.';
-    $('#c-maquina').closest('.campo').classList.toggle('invalido', !maquina);
-    $('#c-fecha').closest('.campo').classList.toggle('invalido', !fecha);
-    var campos = {
-      largo: leer('c-largo', true), ancho: leer('c-ancho', true), man: leer('c-man', true),
-      fuerza: leer('c-fuerza', true), temp: leer('c-temp', true), tiempo: leer('c-tiempo', true)
+    $('#rp-fecha').closest('.campo').classList.toggle('invalido', !fecha);
+    var c = {
+      largo: leer('rp-largo', true), ancho: leer('rp-ancho', true), man: leer('rp-man', true),
+      fuerza: leer('rp-fuerza', true), temp: leer('rp-temp', true), tiempo: leer('rp-tiempo', true)
     };
-    var ok = maquina && fecha && Object.keys(campos).every(function (k) { return campos[k].ok; });
+    var ok = m && fecha && Object.keys(c).every(function (k) { return c[k].ok; });
     if (!ok) {
-      msg.textContent = 'Revisa los campos marcados en rojo.'; msg.className = 'msg err';
-      var primero = $('.campo.invalido input, .campo.invalido select', $('#form-registro'));
-      if (primero) primero.focus();
+      msg.textContent = 'Completa la máquina y los campos marcados en rojo.'; msg.className = 'msg err';
+      var primero = $('.campo.invalido input', $('#form-pruebas'));
+      if (primero && m) primero.focus();
       return;
     }
-    var reg = {
-      id: editId || nuevoId(),
-      maquina: maquina,
-      montaje: $('#c-montaje').value.trim(),
-      fecha: fecha,
-      largo: campos.largo.v, ancho: campos.ancho.v,
-      manValor: campos.man.v, manUnidad: $('#c-man-u').value,
-      fuerzaValor: campos.fuerza.v, fuerzaUnidad: $('#c-fuerza-u').value,
-      temp: campos.temp.v, tempUnidad: $('#c-temp-u').value,
-      tiempo: campos.tiempo.v,
-      obs: $('#c-obs').value.trim()
+    var base = {
+      fecha: fecha, montaje: $('#rp-montaje').value.trim() || null,
+      rubber_largo_cm: c.largo.v, rubber_ancho_cm: c.ancho.v,
+      manometro_valor: c.man.v, manometro_unidad: $('#rp-man-u').value,
+      fuerza_valor: c.fuerza.v, fuerza_unidad: $('#rp-fuerza-u').value,
+      temperatura: c.temp.v, temperatura_unidad: c.temp.v === null ? null : $('#rp-temp-u').value,
+      tiempo_s: c.tiempo.v, observaciones: $('#rp-obs').value.trim() || null, capacidad_celda: textoCapacidad()
     };
-    reg.presionPsi = derivados(reg).presion.psi; // se guarda también para exportar
-    var ahora = new Date().toISOString();
+    var d = derivadosPrueba(base);
+    var reg = Object.assign(datosMaquina(m), base, {
+      area_cm2: r4(d.area.cm2), area_in2: r4(d.area.in2), manometro_psi: r4(d.manPsi),
+      fuerza_lbf: r4(d.fuerza.lbf), fuerza_kgf: r4(d.fuerza.kgf), fuerza_n: r4(d.fuerza.N),
+      presion_psi: r4(d.presion.psi), presion_kgfcm2: r4(d.presion.kgfcm2), presion_bar: r4(d.presion.bar)
+    });
     if (editId) {
-      var idx = registros.findIndex(function (r) { return r.id === editId; });
-      if (idx >= 0) { reg.creado = registros[idx].creado; reg.modificado = ahora; registros[idx] = reg; }
-      else { reg.creado = ahora; registros.push(reg); }
-    } else { reg.creado = ahora; registros.push(reg); }
-    if (!guardarLS(LS_REG, registros)) return;
-    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {});
+      var prev = DB.obtener('registro_pruebas', editId);
+      reg.id = editId;
+      reg.usuario_email = prev && prev.usuario_email ? prev.usuario_email : usuarioActual();
+    } else reg.usuario_email = usuarioActual();
     var eraEdicion = !!editId;
-    grupoSel = C.claveGrupo(reg);
+    if (!guardarEnBD('registro_pruebas', reg, msg)) return;
+    grupoSel = claveDe(reg);
     cancelarEdicion(true);
-    // Mantener máquina, montaje, rubber y unidades para la siguiente prueba; limpiar lecturas
-    $('#c-maquina').value = reg.maquina; $('#c-montaje').value = reg.montaje;
-    $('#c-largo').value = String(reg.largo); $('#c-ancho').value = String(reg.ancho);
-    $('#c-man-u').value = reg.manUnidad; $('#c-fuerza-u').value = reg.fuerzaUnidad;
-    $('#c-fecha').value = reg.fecha;
-    msg.textContent = eraEdicion ? 'Registro actualizado.' : 'Prueba guardada. Ingresa la siguiente con otro ajuste del manómetro.';
-    msg.className = 'msg ok';
-    toast(eraEdicion ? 'Registro actualizado' : 'Prueba guardada');
-    previewRegistro();
-    renderCalibracion();
+    // conservar máquina, montaje, rubber y unidades para la siguiente prueba
+    elegirMaquina('rp', m);
+    $('#rp-montaje').value = reg.montaje || '';
+    $('#rp-largo').value = String(reg.rubber_largo_cm); $('#rp-ancho').value = String(reg.rubber_ancho_cm);
+    $('#rp-man-u').value = reg.manometro_unidad; $('#rp-fuerza-u').value = reg.fuerza_unidad;
+    $('#rp-fecha').value = reg.fecha;
+    if (eraEdicion) msg.textContent = 'Registro actualizado.';
+    else msg.textContent += ' Ingresa la siguiente prueba con otro ajuste del manómetro.';
+    previewPrueba();
+    renderGraficas();
   }
 
   function limpiarFormulario(mantenerMsg) {
-    ['c-maquina', 'c-montaje', 'c-largo', 'c-ancho', 'c-man', 'c-fuerza', 'c-temp', 'c-tiempo', 'c-obs'].forEach(function (id) { $('#' + id).value = ''; });
-    $('#c-fecha').value = hoyISO();
-    $$('#form-registro .campo').forEach(function (c) { c.classList.remove('invalido'); var e = c.querySelector('.error'); if (e) e.textContent = ''; });
-    if (!mantenerMsg) $('#c-msg').textContent = '';
-    previewRegistro();
+    ['rp-montaje', 'rp-largo', 'rp-ancho', 'rp-man', 'rp-fuerza', 'rp-temp', 'rp-tiempo', 'rp-obs'].forEach(function (id) { $('#' + id).value = ''; });
+    $('#rp-fecha').value = hoyISO();
+    $$('#form-pruebas .campo').forEach(function (c) { c.classList.remove('invalido'); var e = c.querySelector('.error'); if (e) e.textContent = ''; });
+    if (!mantenerMsg) $('#rp-msg').textContent = '';
+    previewPrueba();
   }
   function cancelarEdicion(mantenerMsg) {
     editId = null;
-    $('#reg-titulo').textContent = 'Nueva prueba';
-    $('#c-guardar').textContent = 'Guardar prueba';
-    $('#c-cancelar').hidden = true;
+    $('#rp-titulo').textContent = 'Nueva prueba';
+    $('#rp-guardar').textContent = 'Guardar registro';
+    $('#rp-cancelar').hidden = true;
     limpiarFormulario(mantenerMsg);
   }
-  function editarRegistro(id) {
-    var r = registros.find(function (x) { return x.id === id; });
+  function editarPrueba(id) {
+    var r = DB.obtener('registro_pruebas', id);
     if (!r) return;
     editId = id;
-    $('#c-maquina').value = r.maquina; $('#c-montaje').value = r.montaje || '';
-    $('#c-fecha').value = r.fecha || hoyISO();
-    $('#c-largo').value = String(r.largo); $('#c-ancho').value = String(r.ancho);
-    $('#c-man').value = String(r.manValor); $('#c-man-u').value = r.manUnidad;
-    $('#c-fuerza').value = String(r.fuerzaValor); $('#c-fuerza-u').value = r.fuerzaUnidad;
-    $('#c-temp').value = r.temp === null || r.temp === undefined ? '' : String(r.temp);
-    $('#c-temp-u').value = r.tempUnidad || '°C';
-    $('#c-tiempo').value = r.tiempo === null || r.tiempo === undefined ? '' : String(r.tiempo);
-    $('#c-obs').value = r.obs || '';
-    $('#reg-titulo').textContent = 'Editar prueba';
-    $('#c-guardar').textContent = 'Guardar cambios';
-    $('#c-cancelar').hidden = false;
-    $('#c-msg').textContent = '';
-    mostrarVista('v-calibracion');
-    previewRegistro();
-    $('#form-registro').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-  function eliminarRegistro(id) {
-    var r = registros.find(function (x) { return x.id === id; });
-    if (!r) return;
-    if (!confirm('¿Eliminar la prueba de "' + r.maquina + '" del ' + fechaLegible(r.fecha) + '? Esta acción no se puede deshacer.')) return;
-    registros = registros.filter(function (x) { return x.id !== id; });
-    guardarLS(LS_REG, registros);
-    if (editId === id) cancelarEdicion();
-    toast('Registro eliminado');
-    renderHistorial();
-    renderCalibracion();
+    mostrarVista('vista-pruebas');
+    elegirMaquina('rp', maquinaDeRegistro(r));
+    $('#rp-montaje').value = r.montaje || '';
+    $('#rp-fecha').value = String(r.fecha || hoyISO()).slice(0, 10);
+    $('#rp-largo').value = String(r.rubber_largo_cm); $('#rp-ancho').value = String(r.rubber_ancho_cm);
+    $('#rp-man').value = String(r.manometro_valor); $('#rp-man-u').value = r.manometro_unidad;
+    $('#rp-fuerza').value = String(r.fuerza_valor); $('#rp-fuerza-u').value = r.fuerza_unidad;
+    $('#rp-temp').value = r.temperatura === null || r.temperatura === undefined ? '' : String(r.temperatura);
+    $('#rp-temp-u').value = r.temperatura_unidad || '°C';
+    $('#rp-tiempo').value = r.tiempo_s === null || r.tiempo_s === undefined ? '' : String(r.tiempo_s);
+    $('#rp-obs').value = r.observaciones || '';
+    $('#rp-titulo').textContent = 'Editar prueba';
+    $('#rp-guardar').textContent = 'Guardar cambios';
+    $('#rp-cancelar').hidden = false;
+    $('#rp-msg').textContent = '';
+    previewPrueba();
+    $('#form-pruebas').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  function actualizarListas() {
-    var maqs = {}, monts = {};
-    registros.forEach(function (r) { maqs[r.maquina] = 1; if (r.montaje) monts[r.montaje] = 1; });
-    $('#lista-maquinas').innerHTML = Object.keys(maqs).sort().map(function (m) { return '<option value="' + esc(m) + '">'; }).join('');
+  function actualizarMontajes() {
+    var monts = {};
+    DB.listar('registro_pruebas').forEach(function (r) { if (r.montaje) monts[r.montaje] = 1; });
     $('#lista-montajes').innerHTML = Object.keys(monts).sort().map(function (m) { return '<option value="' + esc(m) + '">'; }).join('');
   }
 
-  // ---------- Grupos de calibración ----------
-  function grupos() {
+  function gruposPruebas(lista) {
     var g = {};
-    registros.forEach(function (r) {
-      var k = C.claveGrupo(r);
-      if (!g[k]) g[k] = { clave: k, maquina: r.maquina, montaje: r.montaje, largo: r.largo, ancho: r.ancho, regs: [] };
+    (lista || DB.listar('registro_pruebas')).forEach(function (r) {
+      var k = claveDe(r);
+      if (!g[k]) g[k] = { clave: k, maquina: r.maquina_serie, linea: r.maquina_linea, montaje: r.montaje, largo: num(r.rubber_largo_cm), ancho: num(r.rubber_ancho_cm), regs: [] };
       g[k].regs.push(r);
     });
     return g;
   }
   function etiquetaGrupo(g) {
-    return g.maquina + ' · ' + f(g.largo) + '×' + f(g.ancho) + ' cm · ' + (g.montaje ? g.montaje : 'montaje sin especificar') + ' (' + g.regs.length + ')';
+    return g.maquina + (g.linea ? ' (' + g.linea + ')' : '') + ' · ' + f(g.largo) + '×' + f(g.ancho) + ' cm · ' + (g.montaje || 'montaje sin especificar') + ' (' + g.regs.length + ')';
   }
 
-  // ---------- Gráficas SVG ----------
+  // ---------- Gráficas ----------
   function pasoBonito(rango, n) {
     var bruto = rango / n;
     var mag = Math.pow(10, Math.floor(Math.log10(bruto)));
@@ -526,284 +778,320 @@
     var X = function (v) { return ml + v / xmax * (W - ml - mr); };
     var Y = function (v) { return H - mb - v / ymax * (H - mt - mb); };
     var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(titulo) + '">';
-    for (var gx = 0; gx <= xmax + 1e-9; gx += sx) {
-      s += '<line class="rejilla" x1="' + X(gx) + '" x2="' + X(gx) + '" y1="' + mt + '" y2="' + (H - mb) + '"/>' +
-        '<text x="' + X(gx) + '" y="' + (H - mb + 18) + '" text-anchor="middle">' + C.redondear(gx, 2) + '</text>';
-    }
-    for (var gy = 0; gy <= ymax + 1e-9; gy += sy) {
-      s += '<line class="rejilla" x1="' + ml + '" x2="' + (W - mr) + '" y1="' + Y(gy) + '" y2="' + Y(gy) + '"/>' +
-        '<text x="' + (ml - 8) + '" y="' + (Y(gy) + 4) + '" text-anchor="end">' + C.redondear(gy, 2) + '</text>';
-    }
-    s += '<line class="eje" x1="' + ml + '" x2="' + (W - mr) + '" y1="' + (H - mb) + '" y2="' + (H - mb) + '"/>' +
-      '<line class="eje" x1="' + ml + '" x2="' + ml + '" y1="' + mt + '" y2="' + (H - mb) + '"/>';
-    s += '<text x="' + ((W + ml) / 2) + '" y="' + (H - 10) + '" text-anchor="middle">' + esc(op.xLab) + '</text>' +
-      '<text transform="translate(16 ' + ((H - mb + mt) / 2) + ') rotate(-90)" text-anchor="middle">' + esc(op.yLab) + '</text>';
-    if (op.reg) {
-      var x1 = op.reg.xmin, x2 = op.reg.xmax;
-      s += '<line x1="' + X(x1) + '" y1="' + Y(op.reg.m * x1 + op.reg.b) + '" x2="' + X(x2) + '" y2="' + Y(op.reg.m * x2 + op.reg.b) + '" stroke="' + op.color + '" stroke-width="2" stroke-dasharray="6 5" opacity=".8"/>';
-    }
-    puntos.forEach(function (p) {
-      s += '<circle cx="' + X(p.x) + '" cy="' + Y(p.y) + '" r="7" fill="' + op.color + '" stroke="#fff" stroke-width="2"><title>' +
-        C.redondear(p.x, 2) + ' → ' + C.redondear(p.y, 2) + '</title></circle>';
-    });
+    for (var gx = 0; gx <= xmax + 1e-9; gx += sx) s += '<line class="rejilla" x1="' + X(gx) + '" x2="' + X(gx) + '" y1="' + mt + '" y2="' + (H - mb) + '"/><text x="' + X(gx) + '" y="' + (H - mb + 18) + '" text-anchor="middle">' + C.redondear(gx, 2) + '</text>';
+    for (var gy = 0; gy <= ymax + 1e-9; gy += sy) s += '<line class="rejilla" x1="' + ml + '" x2="' + (W - mr) + '" y1="' + Y(gy) + '" y2="' + Y(gy) + '"/><text x="' + (ml - 8) + '" y="' + (Y(gy) + 4) + '" text-anchor="end">' + C.redondear(gy, 2) + '</text>';
+    s += '<line class="eje" x1="' + ml + '" x2="' + (W - mr) + '" y1="' + (H - mb) + '" y2="' + (H - mb) + '"/><line class="eje" x1="' + ml + '" x2="' + ml + '" y1="' + mt + '" y2="' + (H - mb) + '"/>';
+    s += '<text x="' + ((W + ml) / 2) + '" y="' + (H - 10) + '" text-anchor="middle">' + esc(op.xLab) + '</text><text transform="translate(16 ' + ((H - mb + mt) / 2) + ') rotate(-90)" text-anchor="middle">' + esc(op.yLab) + '</text>';
+    if (op.reg) s += '<line x1="' + X(op.reg.xmin) + '" y1="' + Y(op.reg.m * op.reg.xmin + op.reg.b) + '" x2="' + X(op.reg.xmax) + '" y2="' + Y(op.reg.m * op.reg.xmax + op.reg.b) + '" stroke="' + op.color + '" stroke-width="2" stroke-dasharray="6 5" opacity=".8"/>';
+    puntos.forEach(function (p) { s += '<circle cx="' + X(p.x) + '" cy="' + Y(p.y) + '" r="7" fill="' + op.color + '" stroke="#fff" stroke-width="2"><title>' + C.redondear(p.x, 2) + ' → ' + C.redondear(p.y, 2) + '</title></circle>'; });
     return '<div class="grafica"><h4>' + esc(titulo) + '</h4>' + s + '</svg></div>';
   }
-
-  function colorVar(nombre) { return getComputedStyle(document.documentElement).getPropertyValue(nombre).trim() || '#0b6bb5'; }
-
+  function colorVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim() || '#0b6bb5'; }
   function graficasGrupo(g) {
-    var pts = g.regs.map(function (r) { var d = derivados(r); return { x: d.manPsi, f: d.fuerza.lbf, p: d.presion.psi }; });
-    var reg = C.regresionLineal(pts.map(function (p) { return { x: p.x, y: p.f }; }));
-    var regP = C.regresionLineal(pts.map(function (p) { return { x: p.x, y: p.p }; }));
+    var pts = g.regs.map(function (r) { var d = derivadosPrueba(r); return { x: d.manPsi, f: d.fuerza.lbf, p: d.presion.psi }; });
+    var rf = C.regresionLineal(pts.map(function (p) { return { x: p.x, y: p.f }; }));
+    var rpz = C.regresionLineal(pts.map(function (p) { return { x: p.x, y: p.p }; }));
     var xs = pts.map(function (p) { return p.x; });
     var xmin = Math.min.apply(null, xs), xmax = Math.max.apply(null, xs);
     return graficaSVG('Fuerza medida vs. presión del manómetro', pts.map(function (p) { return { x: p.x, y: p.f }; }),
-        { xLab: 'Presión del manómetro (aire), psi', yLab: 'Fuerza medida, lbf', color: colorVar('--fuerza'), reg: reg && reg.m > 0 ? { m: reg.m, b: reg.b, xmin: xmin, xmax: xmax } : null }) +
+      { xLab: 'Presión del manómetro (aire), psi', yLab: 'Fuerza medida, lbf', color: colorVar('--fuerza'), reg: rf && rf.m > 0 ? { m: rf.m, b: rf.b, xmin: xmin, xmax: xmax } : null }) +
       graficaSVG('Presión promedio en el rubber vs. presión del manómetro', pts.map(function (p) { return { x: p.x, y: p.p }; }),
-        { xLab: 'Presión del manómetro (aire), psi', yLab: 'Presión prom. rubber, psi', color: colorVar('--presion'), reg: regP && regP.m > 0 ? { m: regP.m, b: regP.b, xmin: xmin, xmax: xmax } : null });
+      { xLab: 'Presión del manómetro (aire), psi', yLab: 'Presión prom. rubber, psi', color: colorVar('--presion'), reg: rpz && rpz.m > 0 ? { m: rpz.m, b: rpz.b, xmin: xmin, xmax: xmax } : null });
   }
 
-  function renderCalibracion() {
-    actualizarListas();
-    var gs = grupos();
+  function renderGraficas() {
+    actualizarMontajes();
+    var gs = gruposPruebas();
     var claves = Object.keys(gs);
-    var sel = $('#g-grupo');
+    var s = $('#g-grupo');
     if (!claves.length) {
-      sel.innerHTML = '<option value="">Sin registros todavía</option>';
-      sel.disabled = true;
-      $('#g-graficas').innerHTML = vacio('Guarda pruebas para ver la gráfica de esta máquina.');
+      s.innerHTML = '<option value="">Sin registros todavía</option>'; s.disabled = true;
+      $('#g-graficas').innerHTML = vacio('Guarda pruebas para ver la gráfica de la máquina.');
       $('#g-tabla').innerHTML = '';
       renderSugerencia();
       return;
     }
-    sel.disabled = false;
-    if (!grupoSel || !gs[grupoSel]) grupoSel = C.claveGrupo(registros[registros.length - 1]);
-    sel.innerHTML = claves.sort().map(function (k) {
-      return '<option value="' + esc(k) + '"' + (k === grupoSel ? ' selected' : '') + '>' + esc(etiquetaGrupo(gs[k])) + '</option>';
-    }).join('');
+    s.disabled = false;
+    if (!grupoSel || !gs[grupoSel]) {
+      var recientes = DB.listar('registro_pruebas').slice().sort(function (a, b) { return String(b.creado).localeCompare(String(a.creado)); });
+      grupoSel = claveDe(recientes[0]);
+    }
+    s.innerHTML = claves.sort().map(function (k) { return '<option value="' + esc(k) + '"' + (k === grupoSel ? ' selected' : '') + '>' + esc(etiquetaGrupo(gs[k])) + '</option>'; }).join('');
     var g = gs[grupoSel];
-    $('#g-graficas').innerHTML = graficasGrupo(g) +
-      '<p class="ayuda">Cada punto es una prueba. La línea punteada es el ajuste lineal de los datos medidos y solo se dibuja dentro del rango medido.</p>';
-    var filas = g.regs.slice().sort(function (a, b) { return derivados(a).manPsi - derivados(b).manPsi; }).map(function (r) {
-      var d = derivados(r);
-      return '<tr><td class="txt">' + fechaLegible(r.fecha) + '</td><td>' + f(r.manValor) + ' ' + NOMBRE_PRES[r.manUnidad] + '</td><td>' + f(d.manPsi) +
+    $('#g-graficas').innerHTML = graficasGrupo(g) + '<p class="ayuda">Cada punto es una prueba. La línea punteada es el ajuste lineal de los datos medidos y solo se dibuja dentro del rango medido.</p>';
+    var filas = g.regs.slice().sort(function (a, b) { return derivadosPrueba(a).manPsi - derivadosPrueba(b).manPsi; }).map(function (r) {
+      var d = derivadosPrueba(r);
+      return '<tr><td class="txt">' + fechaLegible(r.fecha) + '</td><td>' + f(num(r.manometro_valor)) + ' ' + NOMBRE_PRES[r.manometro_unidad] + '</td><td>' + f(d.manPsi) +
         '</td><td>' + f(d.fuerza.lbf) + '</td><td>' + f(d.fuerza.kgf) + '</td><td>' + f(d.presion.psi) + '</td></tr>';
     }).join('');
-    $('#g-tabla').innerHTML = '<table><thead><tr><th class="txt">Fecha</th><th class="c-aire">Manómetro</th><th class="c-aire">Manóm. psi</th>' +
-      '<th class="c-fuerza">Fuerza lbf</th><th class="c-fuerza">Fuerza kgf</th><th class="c-presion">Pres. rubber psi</th></tr></thead><tbody>' + filas + '</tbody></table>';
+    $('#g-tabla').innerHTML = '<div class="tabla-scroll"><table><thead><tr><th class="txt">Fecha</th><th class="c-aire">Manómetro</th><th class="c-aire">Manóm. psi</th>' +
+      '<th class="c-fuerza">Fuerza lbf</th><th class="c-fuerza">Fuerza kgf</th><th class="c-presion">Pres. rubber psi</th></tr></thead><tbody>' + filas + '</tbody></table></div>';
     renderSugerencia();
   }
 
   function renderSugerencia() {
     var out = $('#s-resultado');
     var p = leer('s-psi');
-    var gs = grupos();
-    var g = grupoSel ? gs[grupoSel] : null;
+    var g = grupoSel ? gruposPruebas()[grupoSel] : null;
     if (!g) { out.innerHTML = aviso('info', MSG_SIN_CAL, 'Registra al menos 2 pruebas de la misma máquina, rubber y montaje con distintas presiones de manómetro.'); return; }
     if (!p.ok) { out.innerHTML = vacio('Ingresa la presión deseada sobre el rubber.'); return; }
     var area = C.areaRect(g.largo, g.ancho);
     var objetivo = p.v * area.in2;
-    var pts = g.regs.map(function (r) { var d = derivados(r); return { manPsi: d.manPsi, fuerzaLbf: d.fuerza.lbf }; });
+    var pts = g.regs.map(function (r) { var d = derivadosPrueba(r); return { manPsi: d.manPsi, fuerzaLbf: d.fuerza.lbf }; });
     var s = C.sugerirManometro(pts, objetivo);
     var cab = '<p>Para <b>' + f(p.v) + ' psi</b> promedio sobre el rubber de ' + f(g.largo) + ' × ' + f(g.ancho) + ' cm se necesita una fuerza de <b>' +
       f(objetivo) + ' lbf</b> (' + f(objetivo / C.K.LB_POR_KG) + ' kgf · ' + f(objetivo * C.K.N_POR_LBF) + ' N).</p>';
     if (!s.ok) { out.innerHTML = cab + aviso('info', MSG_SIN_CAL, esc(s.detalle)); return; }
     var unidades = {};
-    g.regs.forEach(function (r) { unidades[r.manUnidad] = (unidades[r.manUnidad] || 0) + 1; });
-    var uPrinc = Object.keys(unidades).sort(function (a, b) { return unidades[b] - unidades[a]; })[0];
-    var valPrinc = uPrinc === 'psi' ? s.man.psi : uPrinc === 'bar' ? s.man.bar : s.man.kgfcm2;
+    g.regs.forEach(function (r) { unidades[r.manometro_unidad] = (unidades[r.manometro_unidad] || 0) + 1; });
+    var uP = Object.keys(unidades).sort(function (a, b) { return unidades[b] - unidades[a]; })[0];
+    var vP = uP === 'psi' ? s.man.psi : uP === 'bar' ? s.man.bar : s.man.kgfcm2;
     var html = cab + '<div class="estimacion"><span class="etiqueta">ESTIMACIÓN</span>' +
       '<p style="margin:8px 0 6px">Ajuste aproximado del <span class="tag tag-aire">manómetro</span> para <b>' + esc(g.maquina) + '</b>:</p>' +
-      '<div class="res-grid">' + tile('aire principal', 'Manómetro', f(valPrinc), NOMBRE_PRES[uPrinc]) +
-      (uPrinc !== 'psi' ? tile('aire', 'Manómetro', f(s.man.psi), 'psi') : '') +
-      (uPrinc !== 'bar' ? tile('aire', 'Manómetro', f(s.man.bar), 'bar') : '') +
-      (uPrinc !== 'kgfcm2' ? tile('aire', 'Manómetro', f(s.man.kgfcm2), 'kgf/cm²') : '') + '</div>' +
+      '<div class="res-grid">' + tile('aire principal', 'Manómetro', f(vP), NOMBRE_PRES[uP]) +
+      (uP !== 'psi' ? tile('aire', 'Manómetro', f(s.man.psi), 'psi') : '') + (uP !== 'bar' ? tile('aire', 'Manómetro', f(s.man.bar), 'bar') : '') +
+      (uP !== 'kgfcm2' ? tile('aire', 'Manómetro', f(s.man.kgfcm2), 'kgf/cm²') : '') + '</div>' +
       '<p class="ayuda" style="margin-top:10px">Debe comprobarse con una nueva medición con el dinamómetro antes de usarse. Basado en ' + s.n + ' pruebas de esta máquina, rubber y montaje; rango medido ' +
       f(s.xmin) + '–' + f(s.xmax) + ' psi de manómetro; R² = ' + f(s.r2, 3) + '.</p></div>';
     if (s.extrapola) html += aviso('peligro', 'Fuera del rango medido', 'El ajuste estimado está fuera de las presiones de manómetro que se midieron. La estimación no es confiable: mide nuevas pruebas cerca de este valor.');
     if (s.r2 < 0.95 && s.n >= 3) html += aviso('alerta', 'Datos dispersos', 'Las mediciones no siguen bien una línea (R² = ' + f(s.r2, 3) + '). Revisa repetibilidad, posición de la celda y estabilidad de la lectura.');
-    html += htmlCapacidad(objetivo);
-    out.innerHTML = html;
+    out.innerHTML = html + htmlCapacidad(objetivo);
   }
 
   // ======================================================
   // 4. HISTORIAL Y REPORTES
   // ======================================================
-  function registrosFiltrados() {
+  var ETIQUETAS = {
+    id: 'ID', creado: 'Creado', modificado: 'Modificado', usuario_email: 'Usuario', fecha: 'Fecha',
+    maquina_serie: 'Máquina (serie)', maquina_qr: 'QR', maquina_asset: 'Asset ID', maquina_linea: 'Línea', maquina_estacion: 'Estación',
+    rubber_largo_cm: 'Largo rubber (cm)', rubber_ancho_cm: 'Ancho rubber (cm)', area_cm2: 'Área rubber (cm²)', area_in2: 'Área rubber (in²)',
+    presion_deseada_psi: 'Presión deseada (psi)', fuerza_lbf: 'Fuerza (lbf)', fuerza_kgf: 'Fuerza (kgf)', fuerza_n: 'Fuerza (N)',
+    capacidad_celda: 'Capacidad celda', observaciones: 'Observaciones',
+    lectura_valor: 'Lectura dinamómetro', lectura_unidad: 'Unidad lectura',
+    presion_psi: 'Presión prom. rubber (psi)', presion_kgfcm2: 'Presión prom. rubber (kgf/cm²)', presion_bar: 'Presión prom. rubber (bar)',
+    plancha_largo_cm: 'Largo plancha (cm)', plancha_ancho_cm: 'Ancho plancha (cm)', plancha_area_cm2: 'Área plancha (cm²)',
+    fuerza_total_plancha: 'Fuerza total sobre plancha', plancha_presion_psi: 'Presión prom. plancha (psi)',
+    montaje: 'Montaje', manometro_valor: 'Manómetro (valor)', manometro_unidad: 'Unidad manómetro', manometro_psi: 'Manómetro (psi)',
+    fuerza_valor: 'Fuerza dinamómetro (valor)', fuerza_unidad: 'Unidad fuerza',
+    temperatura: 'Temperatura', temperatura_unidad: 'Unidad temperatura', tiempo_s: 'Tiempo de aplicación (s)'
+  };
+  var COLS_TABLA = {
+    calculo_presion: ['fecha', 'maquina_serie', 'maquina_linea', 'rubber', 'presion_deseada_psi', 'fuerza_lbf', 'fuerza_kgf', 'fuerza_n', 'usuario_email', 'observaciones'],
+    validacion_presion: ['fecha', 'maquina_serie', 'maquina_linea', 'rubber', 'lectura', 'fuerza_lbf', 'presion_psi', 'presion_kgfcm2', 'plancha_presion_psi', 'usuario_email', 'observaciones'],
+    registro_pruebas: ['fecha', 'maquina_serie', 'maquina_linea', 'montaje', 'rubber', 'manometro', 'fuerza', 'fuerza_lbf', 'presion_psi', 'temperatura', 'tiempo_s', 'usuario_email', 'observaciones']
+  };
+  var ETQ_EXTRA = { rubber: 'Rubber cm', lectura: 'Lectura', manometro: 'Manómetro (aire)', fuerza: 'Fuerza leída' };
+
+  function celdaTexto(r, c) {
+    switch (c) {
+      case 'fecha': return fechaLegible(r.fecha);
+      case 'rubber': return f(num(r.rubber_largo_cm)) + ' × ' + f(num(r.rubber_ancho_cm));
+      case 'lectura': return f(num(r.lectura_valor)) + ' ' + (r.lectura_unidad || '');
+      case 'manometro': return f(num(r.manometro_valor)) + ' ' + (NOMBRE_PRES[r.manometro_unidad] || '');
+      case 'fuerza': return f(num(r.fuerza_valor)) + ' ' + (r.fuerza_unidad || '');
+      case 'temperatura': return r.temperatura === null || r.temperatura === undefined ? '—' : f(num(r.temperatura), 1) + ' ' + (r.temperatura_unidad || '');
+      case 'tiempo_s': return r.tiempo_s ? f(num(r.tiempo_s), 1) : '—';
+      case 'plancha_presion_psi': return r.plancha_presion_psi === null || r.plancha_presion_psi === undefined ? '—' : f(num(r.plancha_presion_psi));
+      default:
+        var v = r[c];
+        if (v === null || v === undefined || v === '') return '—';
+        return typeof v === 'number' ? f(v) : String(v);
+    }
+  }
+  var TXT_COLS = { fecha: 1, maquina_serie: 1, maquina_linea: 1, montaje: 1, usuario_email: 1, observaciones: 1 };
+
+  function registrosFiltrados(tabla) {
     var maq = $('#h-maquina').value;
     var q = $('#h-buscar').value.trim().toLowerCase();
-    return registros.filter(function (r) {
-      if (maq && r.maquina !== maq) return false;
-      if (q && (r.maquina + ' ' + (r.montaje || '') + ' ' + (r.obs || '')).toLowerCase().indexOf(q) < 0) return false;
+    return DB.listar(tabla).filter(function (r) {
+      if (maq && r.maquina_serie !== maq) return false;
+      if (q && [r.maquina_serie, r.maquina_linea, r.montaje, r.observaciones, r.usuario_email].join(' ').toLowerCase().indexOf(q) < 0) return false;
       return true;
-    }).sort(function (a, b) { return (b.fecha || '').localeCompare(a.fecha || '') || (b.creado || '').localeCompare(a.creado || ''); });
+    }).sort(function (a, b) { return String(b.fecha || '').localeCompare(String(a.fecha || '')) || String(b.creado || '').localeCompare(String(a.creado || '')); });
+  }
+
+  function renderAvisoHistorial() {
+    var c = $('#h-aviso-bd');
+    if (!DB.configurada()) c.innerHTML = aviso('info', 'Datos guardados solo en este teléfono', 'La base de datos en la nube no está configurada: los registros no se comparten entre teléfonos y se pueden perder si se borran los datos del navegador. Exporta o descarga respaldos con frecuencia.');
+    else if (!DB.sesion()) c.innerHTML = aviso('alerta', 'Sin sesión', 'Ves solo los registros de este teléfono. Inicia sesión para ver los de todos y subir los pendientes.');
+    else c.innerHTML = '';
   }
 
   function renderHistorial() {
-    actualizarListas();
-    var sel = $('#h-maquina');
-    var actual = sel.value;
-    var maqs = {};
-    registros.forEach(function (r) { maqs[r.maquina] = 1; });
-    sel.innerHTML = '<option value="">Todas las máquinas</option>' + Object.keys(maqs).sort().map(function (m) {
-      return '<option value="' + esc(m) + '"' + (m === actual ? ' selected' : '') + '>' + esc(m) + '</option>';
+    renderAvisoHistorial();
+    $$('.segmentos button').forEach(function (b) { b.setAttribute('aria-selected', b.dataset.mod === modHist ? 'true' : 'false'); });
+    var s = $('#h-maquina'), actual = s.value, maqs = {};
+    DB.listar(modHist).forEach(function (r) { maqs[r.maquina_serie] = r.maquina_linea || ''; });
+    s.innerHTML = '<option value="">Todas las máquinas</option>' + Object.keys(maqs).sort().map(function (m) {
+      return '<option value="' + esc(m) + '"' + (m === actual ? ' selected' : '') + '>' + esc(m) + (maqs[m] ? ' · ' + esc(maqs[m]) : '') + '</option>';
     }).join('');
-    var lista = registrosFiltrados();
-    $('#h-conteo').textContent = lista.length + ' de ' + registros.length + ' registros.';
+    var lista = registrosFiltrados(modHist);
+    var total = DB.listar(modHist).length;
+    $('#h-conteo').textContent = DB.TABLAS[modHist].nombre + ': ' + lista.length + ' de ' + total + ' registros.';
     if (!lista.length) {
-      $('#h-tabla').innerHTML = vacio(registros.length ? 'Ningún registro coincide con el filtro.' : 'Aún no hay pruebas registradas. Regístralas en la sección 3. Calibración.');
-    } else {
-      var tarjetas = lista.map(function (r) {
-        var d = derivados(r);
-        return '<article class="reg"><div class="reg-cab"><b>' + esc(r.maquina) + '</b><span>' + fechaLegible(r.fecha) + '</span></div>' +
-          '<div class="reg-meta">Rubber ' + f(r.largo) + ' × ' + f(r.ancho) + ' cm' + (r.montaje ? ' · ' + esc(r.montaje) : '') + '</div>' +
-          '<div class="reg-vals">' +
-          '<div class="tag-aire">Manómetro<strong>' + f(r.manValor) + ' ' + NOMBRE_PRES[r.manUnidad] + '</strong></div>' +
-          '<div class="tag-fuerza">Fuerza<strong>' + f(r.fuerzaValor) + ' ' + esc(r.fuerzaUnidad) + '</strong></div>' +
-          '<div class="tag-presion">Pres. rubber<strong>' + f(d.presion.psi) + ' psi</strong></div></div>' +
-          '<div class="reg-meta">' + (r.temp !== null && r.temp !== undefined ? 'Temp. ' + f(r.temp, 1) + ' ' + esc(r.tempUnidad) + ' · ' : '') +
-          (r.tiempo ? 'Tiempo ' + f(r.tiempo, 1) + ' s' : '') + (r.obs ? '<br>' + esc(r.obs) : '') + '</div>' +
-          '<div class="acciones"><button class="btn btn-chico" data-acc="editar" data-id="' + esc(r.id) + '">Editar</button>' +
-          '<button class="btn btn-chico btn-peligro" data-acc="eliminar" data-id="' + esc(r.id) + '">Eliminar</button></div></article>';
-      }).join('');
-      $('#h-tabla').innerHTML = '<div class="reg-lista">' + tarjetas + '</div><div class="tabla-historial">' + tablaHistorialHTML(lista, true) + '</div>';
+      $('#h-tabla').innerHTML = vacio(total ? 'Ningún registro coincide con el filtro.' : 'Aún no hay registros en este módulo.');
+      return;
     }
-    renderRubbers();
+    $('#h-tabla').innerHTML = '<div class="reg-lista">' + lista.map(tarjeta).join('') + '</div><div class="tabla-historial tabla-scroll">' + tablaHTML(modHist, lista, true) + '</div>';
   }
 
-  function tablaHistorialHTML(lista, conAcciones) {
+  function botonesFila(r) {
+    return (modHist === 'registro_pruebas' ? '<button class="btn btn-chico" data-acc="editar" data-id="' + esc(r.id) + '">Editar</button>' : '') +
+      '<button class="btn btn-chico btn-peligro" data-acc="eliminar" data-id="' + esc(r.id) + '">Eliminar</button>';
+  }
+  function tarjeta(r) {
+    var v;
+    if (modHist === 'calculo_presion') v = [['tag-presion', 'Presión deseada', f(num(r.presion_deseada_psi)) + ' psi'], ['tag-fuerza', 'Fuerza', f(num(r.fuerza_lbf)) + ' lbf'], ['tag-fuerza', 'Fuerza', f(num(r.fuerza_kgf)) + ' kgf']];
+    else if (modHist === 'validacion_presion') v = [['tag-fuerza', 'Lectura', f(num(r.lectura_valor)) + ' ' + esc(r.lectura_unidad)], ['tag-fuerza', 'Fuerza', f(num(r.fuerza_lbf)) + ' lbf'], ['tag-presion', 'Pres. rubber', f(num(r.presion_psi)) + ' psi']];
+    else v = [['tag-aire', 'Manómetro', f(num(r.manometro_valor)) + ' ' + NOMBRE_PRES[r.manometro_unidad]], ['tag-fuerza', 'Fuerza', f(num(r.fuerza_valor)) + ' ' + esc(r.fuerza_unidad)], ['tag-presion', 'Pres. rubber', f(derivadosPrueba(r).presion.psi) + ' psi']];
+    var extra = [];
+    if (r.montaje) extra.push(esc(r.montaje));
+    if (modHist === 'validacion_presion' && r.fuerza_total_plancha && r.plancha_presion_psi !== null) extra.push('Plancha ' + f(num(r.plancha_presion_psi)) + ' psi');
+    if (modHist === 'registro_pruebas' && r.temperatura !== null && r.temperatura !== undefined) extra.push('Temp. ' + f(num(r.temperatura), 1) + ' ' + esc(r.temperatura_unidad || ''));
+    if (modHist === 'registro_pruebas' && r.tiempo_s) extra.push('Tiempo ' + f(num(r.tiempo_s), 1) + ' s');
+    if (r.usuario_email) extra.push(esc(r.usuario_email));
+    var pend = r._pend && DB.configurada() ? '<span class="etq-pend">por subir</span>' : '';
+    return '<article class="reg"><div class="reg-cab"><b>' + esc(r.maquina_serie) + pend + '</b><span>' + fechaLegible(r.fecha) + (r.creado ? ' ' + horaLegible(r.creado) : '') + '</span></div>' +
+      '<div class="reg-meta">' + esc(r.maquina_linea || 'Sin línea') + ' · Rubber ' + f(num(r.rubber_largo_cm)) + ' × ' + f(num(r.rubber_ancho_cm)) + ' cm</div>' +
+      '<div class="reg-vals">' + v.map(function (x) { return '<div class="' + x[0] + '">' + x[1] + '<strong>' + x[2] + '</strong></div>'; }).join('') + '</div>' +
+      '<div class="reg-meta">' + extra.join(' · ') + (r.observaciones ? '<br>' + esc(r.observaciones) : '') + '</div>' +
+      '<div class="acciones">' + botonesFila(r) + '</div></article>';
+  }
+  function tablaHTML(tabla, lista, conAcciones) {
+    var cols = COLS_TABLA[tabla];
+    var cab = cols.map(function (c) { return '<th class="' + (TXT_COLS[c] ? 'txt' : '') + '">' + esc(ETQ_EXTRA[c] || ETIQUETAS[c] || c) + '</th>'; }).join('');
     var filas = lista.map(function (r) {
-      var d = derivados(r);
-      return '<tr><td class="txt">' + fechaLegible(r.fecha) + '</td><td class="txt">' + esc(r.maquina) + '</td><td class="txt">' + esc(r.montaje || '—') + '</td>' +
-        '<td>' + f(r.largo) + ' × ' + f(r.ancho) + '</td>' +
-        '<td>' + f(r.manValor) + ' ' + NOMBRE_PRES[r.manUnidad] + '</td>' +
-        '<td>' + f(r.fuerzaValor) + ' ' + esc(r.fuerzaUnidad) + '</td><td>' + f(d.fuerza.lbf) + '</td>' +
-        '<td>' + f(d.presion.psi) + '</td><td>' + f(d.presion.kgfcm2) + '</td>' +
-        '<td>' + (r.temp !== null && r.temp !== undefined ? f(r.temp, 1) + ' ' + esc(r.tempUnidad) : '—') + '</td>' +
-        '<td>' + (r.tiempo ? f(r.tiempo, 1) : '—') + '</td><td class="obs">' + esc(r.obs || '') + '</td>' +
-        (conAcciones ? '<td><div class="acc-fila"><button class="btn btn-chico" data-acc="editar" data-id="' + esc(r.id) + '">Editar</button>' +
-          '<button class="btn btn-chico btn-peligro" data-acc="eliminar" data-id="' + esc(r.id) + '">Eliminar</button></div></td>' : '') + '</tr>';
+      return '<tr>' + cols.map(function (c) { return '<td class="' + (c === 'observaciones' ? 'obs' : (TXT_COLS[c] ? 'txt' : '')) + '">' + esc(celdaTexto(r, c)) + (c === 'maquina_serie' && r._pend && DB.configurada() ? '<span class="etq-pend">por subir</span>' : '') + '</td>'; }).join('') +
+        (conAcciones ? '<td><div class="acc-fila">' + botonesFila(r) + '</div></td>' : '') + '</tr>';
     }).join('');
-    return '<table><thead><tr><th class="txt">Fecha</th><th class="txt">Máquina</th><th class="txt">Montaje</th><th>Rubber cm</th>' +
-      '<th class="c-aire">Manómetro (aire)</th><th class="c-fuerza">Fuerza leída</th><th class="c-fuerza">Fuerza lbf</th>' +
-      '<th class="c-presion">Pres. rubber psi</th><th class="c-presion">kgf/cm²</th><th>Temp.</th><th>Tiempo s</th><th class="txt">Observaciones</th>' +
-      (conAcciones ? '<th>Acciones</th>' : '') + '</tr></thead><tbody>' + filas + '</tbody></table>';
+    return '<table><thead><tr>' + cab + (conAcciones ? '<th>Acciones</th>' : '') + '</tr></thead><tbody>' + filas + '</tbody></table>';
   }
 
-  function renderRubbers() {
-    var vistos = {};
-    registros.forEach(function (r) { vistos[Number(r.largo).toFixed(2) + 'x' + Number(r.ancho).toFixed(2)] = { l: r.largo, a: r.ancho }; });
-    var claves = Object.keys(vistos);
-    if (!claves.length) { $('#h-rubbers').innerHTML = vacio('Aparecerán aquí los tamaños de rubber registrados. También puedes generar una tabla en la sección 1.'); return; }
-    $('#h-rubbers').innerHTML = '<div class="acciones">' + claves.map(function (k) {
-      var v = vistos[k];
-      return '<button class="btn" data-rubber-l="' + v.l + '" data-rubber-a="' + v.a + '">Rubber ' + f(v.l) + ' × ' + f(v.a) + ' cm</button>';
-    }).join('') + '</div>';
-  }
-
-  function verEquivalencias(l, a) {
-    $('#f-largo').value = String(l); $('#f-ancho').value = String(a);
-    recordar('f-largo'); recordar('f-ancho');
-    mostrarVista('v-fuerza');
-    calcFuerza();
-    generarTabla(false);
-    $('#tabla-equivalencias').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  function eliminarRegistro(id) {
+    var r = DB.obtener(modHist, id);
+    if (!r) return;
+    if (!confirm('¿Eliminar el registro de ' + r.maquina_serie + ' del ' + fechaLegible(r.fecha) + '? ' + (DB.configurada() ? 'También se eliminará de la base de datos en la nube.' : 'No se puede deshacer.'))) return;
+    DB.eliminar(modHist, id);
+    if (editId === id) cancelarEdicion();
+    toast('Registro eliminado');
+    renderHistorial();
   }
 
   // ---------- Exportación ----------
-  function filasExport(lista) {
-    var r2 = function (v) { return typeof v === 'number' && isFinite(v) ? C.redondear(v, 2) : ''; };
-    var filas = [[
-      'Fecha', 'Máquina', 'Montaje', 'Largo rubber (cm)', 'Ancho rubber (cm)', 'Área rubber (cm²)', 'Área rubber (in²)',
-      'Manómetro (valor)', 'Unidad manómetro', 'Manómetro (psi)',
-      'Fuerza dinamómetro (valor)', 'Unidad fuerza', 'Fuerza (lbf)', 'Fuerza (kgf)', 'Fuerza (N)',
-      'Presión prom. rubber (psi)', 'Presión prom. rubber (kgf/cm²)', 'Presión prom. rubber (bar)',
-      'Temperatura', 'Unidad temperatura', 'Tiempo de aplicación (s)', 'Observaciones'
-    ]];
-    lista.forEach(function (r) {
-      var d = derivados(r);
-      filas.push([
-        r.fecha, r.maquina, r.montaje || '', r2(r.largo), r2(r.ancho), r2(d.area.cm2), C.redondear(d.area.in2, 4),
-        r2(r.manValor), NOMBRE_PRES[r.manUnidad], r2(d.manPsi),
-        r2(r.fuerzaValor), r.fuerzaUnidad, r2(d.fuerza.lbf), r2(d.fuerza.kgf), r2(d.fuerza.N),
-        r2(d.presion.psi), r2(d.presion.kgfcm2), r2(d.presion.bar),
-        r.temp === null || r.temp === undefined ? '' : r2(r.temp), r.temp === null || r.temp === undefined ? '' : r.tempUnidad,
-        r.tiempo ? r2(r.tiempo) : '', r.obs || ''
-      ]);
-    });
-    return filas;
+  function valorExport(c, v) {
+    if (v === null || v === undefined) return '';
+    if (c === 'creado' || c === 'modificado') return fechaHora(v);
+    if (c === 'fecha') return String(v).slice(0, 10);
+    if (c === 'fuerza_total_plancha') return v ? 'Sí' : 'No';
+    if (c === 'manometro_unidad') return NOMBRE_PRES[v] || v;
+    if (typeof v === 'number') return C.redondear(v, c === 'area_in2' ? 4 : 2);
+    return v;
+  }
+  function filasExport(tabla, lista) {
+    var cols = DB.TABLAS[tabla].columnas.filter(function (c) { return c !== 'id'; }).concat(['id']);
+    var orden = ['fecha', 'maquina_serie', 'maquina_linea', 'maquina_estacion', 'maquina_qr', 'maquina_asset'];
+    cols = orden.concat(cols.filter(function (c) { return orden.indexOf(c) < 0; }));
+    return [cols.map(function (c) { return ETIQUETAS[c] || c; })].concat(lista.map(function (r) {
+      return cols.map(function (c) { return valorExport(c, r[c]); });
+    }));
   }
   function aCSV(filas) {
     var celda = function (v) {
       var s = v === null || v === undefined ? '' : String(v);
-      if (typeof v === 'string' && /^[=+\-@\t\r]/.test(s)) s = "'" + s; // evita fórmulas inyectadas en Excel
+      if (typeof v === 'string' && /^[=+\-@\t\r]/.test(s)) s = "'" + s;
       return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
     };
-    return '﻿' + filas.map(function (f) { return f.map(celda).join(','); }).join('\r\n');
+    return '﻿' + filas.map(function (fl) { return fl.map(celda).join(','); }).join('\r\n');
   }
-  function xlsxRegistros(lista) {
-    var info = [
-      ['Reporte', 'Medición Transfer — registros de calibración'],
-      ['Generado', new Date().toLocaleString('es-HN')],
-      ['Capacidad de la celda', textoCapacidad()],
-      ['Aviso', TXT_PROMEDIO],
-      ['Aviso', 'El manómetro mide presión del aire; el dinamómetro mide fuerza.'],
+  function xlsxTodo() {
+    var maq = $('#h-maquina').value;
+    var hojas = Object.keys(DB.TABLAS).map(function (t) {
+      var lista = DB.listar(t).filter(function (r) { return !maq || r.maquina_serie === maq; })
+        .sort(function (a, b) { return String(b.creado).localeCompare(String(a.creado)); });
+      return { nombre: DB.TABLAS[t].nombre, filas: filasExport(t, lista) };
+    });
+    hojas.push({ nombre: 'Información', filas: [
+      ['Reporte', 'Medición Transfer — registros'], ['Generado', new Date().toLocaleString('es-HN')],
+      ['Filtro de máquina', maq || 'todas'], ['Capacidad de la celda', textoCapacidad()],
+      ['Base de datos', DB.configurada() ? (DB.sesion() ? 'Nube (' + DB.sesion().email + ')' : 'Nube sin sesión: solo registros de este teléfono') : 'Local (este teléfono)'],
+      ['Aviso', TXT_PROMEDIO], ['Aviso', 'El manómetro mide presión del aire; el dinamómetro mide fuerza.'],
       ['Aviso', 'Confirma la capacidad y temperatura máxima de la celda antes de usarla.'],
       ['Aviso', 'No utilices los cálculos como ajuste de producción sin validar el montaje y los requisitos del proveedor del logo.']
-    ];
-    return XlsxMini.crearXlsx([{ nombre: 'Registros', filas: filasExport(lista) }, { nombre: 'Información', filas: info }]);
+    ] });
+    return XlsxMini.crearXlsx(hojas);
   }
-  function nombreArchivo(ext) { return 'registros-transfer-' + hoyISO() + '.' + ext; }
-  function verificarHay(lista) { if (!lista.length) { toast('No hay registros para exportar.', true); return false; } return true; }
+  function totalExportable() {
+    var maq = $('#h-maquina').value;
+    return Object.keys(DB.TABLAS).reduce(function (s, t) { return s + DB.listar(t).filter(function (r) { return !maq || r.maquina_serie === maq; }).length; }, 0);
+  }
+  function nombreArchivo(base, ext) { return base + '-' + hoyISO() + '.' + ext; }
 
   function imprimirReporte() {
-    var lista = registrosFiltrados();
-    if (!verificarHay(lista)) return;
+    var lista = registrosFiltrados(modHist);
+    if (!lista.length) { toast('No hay registros para imprimir.', true); return; }
     var maq = $('#h-maquina').value;
-    var gs = {};
-    lista.forEach(function (r) {
-      var k = C.claveGrupo(r);
-      if (!gs[k]) gs[k] = { maquina: r.maquina, montaje: r.montaje, largo: r.largo, ancho: r.ancho, regs: [] };
-      gs[k].regs.push(r);
-    });
-    var graficas = Object.keys(gs).slice(0, 6).map(function (k) {
-      return '<h2>' + esc(etiquetaGrupo(gs[k])) + '</h2>' + graficasGrupo(gs[k]);
-    }).join('');
-    $('#reporte').innerHTML = '<h1>Reporte de mediciones — Máquinas transfer</h1>' +
-      '<p>Generado: ' + esc(new Date().toLocaleString('es-HN')) + ' · Filtro: ' + esc(maq || 'todas las máquinas') +
-      ' · Registros: ' + lista.length + ' · Capacidad de la celda: ' + esc(textoCapacidad()) + '</p>' +
-      AVISOS_HTML + '<h2>Registros</h2>' + tablaHistorialHTML(lista, false) + graficas;
+    var graficas = '';
+    if (modHist === 'registro_pruebas') {
+      var gs = gruposPruebas(lista);
+      graficas = Object.keys(gs).slice(0, 6).map(function (k) { return '<h2>' + esc(etiquetaGrupo(gs[k])) + '</h2>' + graficasGrupo(gs[k]); }).join('');
+    }
+    $('#reporte').innerHTML = '<h1>' + esc(DB.TABLAS[modHist].nombre) + ' — Máquinas Heat Transfer</h1>' +
+      '<p>Generado: ' + esc(new Date().toLocaleString('es-HN')) + ' · Máquina: ' + esc(maq || 'todas') + ' · Registros: ' + lista.length +
+      ' · Capacidad de la celda: ' + esc(textoCapacidad()) + '</p>' + AVISOS_HTML + '<h2>Registros</h2>' + tablaHTML(modHist, lista, false) + graficas;
     setTimeout(function () { window.print(); }, 50);
   }
 
   function respaldo() {
-    var data = { app: 'medicion-transfer', formato: 1, version: APP_VERSION, exportado: new Date().toISOString(), ajustes: ajustes, registros: registros };
-    var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    compartirArchivo(blob, 'respaldo-transfer-' + hoyISO() + '.json', 'Respaldo Medición Transfer');
+    var reg = {};
+    Object.keys(DB.TABLAS).forEach(function (t) { reg[t] = DB.listar(t).map(function (r) { var o = {}; DB.TABLAS[t].columnas.forEach(function (c) { o[c] = r[c]; }); return o; }); });
+    var data = { app: 'medicion-transfer', formato: 2, version: APP_VERSION, exportado: new Date().toISOString(), ajustes: ajustes, registros: reg };
+    compartirArchivo(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), nombreArchivo('respaldo-transfer', 'json'), 'Respaldo Medición Transfer');
   }
 
-  function validarRegistroImportado(r) {
-    if (!r || typeof r !== 'object') return null;
-    var num = function (v) { var n = C.parseNumero(v); return isNaN(n) ? null : n; };
-    var out = {
-      id: typeof r.id === 'string' && r.id ? r.id.slice(0, 40) : nuevoId(),
-      maquina: String(r.maquina || '').trim().slice(0, 60),
-      montaje: String(r.montaje || '').trim().slice(0, 80),
-      fecha: /^\d{4}-\d{2}-\d{2}$/.test(r.fecha) ? r.fecha : hoyISO(),
-      largo: num(r.largo), ancho: num(r.ancho),
-      manValor: num(r.manValor), manUnidad: r.manUnidad,
-      fuerzaValor: num(r.fuerzaValor), fuerzaUnidad: r.fuerzaUnidad,
-      temp: num(r.temp), tempUnidad: r.tempUnidad === '°F' ? '°F' : '°C',
-      tiempo: num(r.tiempo), obs: String(r.obs || '').slice(0, 500),
-      creado: typeof r.creado === 'string' ? r.creado : new Date().toISOString()
+  // ---------- Migración de la versión 1 ----------
+  function convertirV1(r) {
+    if (!r || !r.maquina || !(Number(r.largo) > 0) || !(Number(r.ancho) > 0) || !(Number(r.manValor) > 0) || !(Number(r.fuerzaValor) > 0)) return null;
+    if (C.UNIDADES_PRESION.indexOf(r.manUnidad) < 0 || C.UNIDADES_FUERZA.indexOf(r.fuerzaUnidad) < 0) return null;
+    var encontradas = buscarMaquinas(r.maquina);
+    var m = encontradas.length === 1 ? encontradas[0] : { id: String(r.maquina).trim().slice(0, 60) };
+    var base = {
+      id: typeof r.id === 'string' ? r.id : undefined, creado: r.creado || null,
+      fecha: /^\d{4}-\d{2}-\d{2}$/.test(r.fecha) ? r.fecha : hoyISO(), montaje: r.montaje || null,
+      rubber_largo_cm: Number(r.largo), rubber_ancho_cm: Number(r.ancho),
+      manometro_valor: Number(r.manValor), manometro_unidad: r.manUnidad, fuerza_valor: Number(r.fuerzaValor), fuerza_unidad: r.fuerzaUnidad,
+      temperatura: r.temp === null || r.temp === undefined || r.temp === '' ? null : Number(r.temp),
+      temperatura_unidad: r.temp === null || r.temp === undefined || r.temp === '' ? null : (r.tempUnidad === '°F' ? '°F' : '°C'),
+      tiempo_s: Number(r.tiempo) > 0 ? Number(r.tiempo) : null, observaciones: r.obs || null
     };
-    if (!out.maquina || !(out.largo > 0) || !(out.ancho > 0) || !(out.manValor > 0) || !(out.fuerzaValor > 0)) return null;
-    if (C.UNIDADES_PRESION.indexOf(out.manUnidad) < 0 || C.UNIDADES_FUERZA.indexOf(out.fuerzaUnidad) < 0) return null;
-    if (!(out.tiempo > 0)) out.tiempo = null;
-    out.presionPsi = derivados(out).presion.psi;
-    return out;
+    var d = derivadosPrueba(base);
+    return Object.assign(datosMaquina(m), base, {
+      area_cm2: r4(d.area.cm2), area_in2: r4(d.area.in2), manometro_psi: r4(d.manPsi),
+      fuerza_lbf: r4(d.fuerza.lbf), fuerza_kgf: r4(d.fuerza.kgf), fuerza_n: r4(d.fuerza.N),
+      presion_psi: r4(d.presion.psi), presion_kgfcm2: r4(d.presion.kgfcm2), presion_bar: r4(d.presion.bar)
+    });
+  }
+  function migrarV1() {
+    if (localStorage.getItem(LS_MIGR)) return;
+    var viejos = leerLS(LS_V1, []);
+    if (Array.isArray(viejos) && viejos.length) {
+      var conv = viejos.map(convertirV1).filter(Boolean);
+      if (conv.length) { DB.importar('registro_pruebas', conv); toast(conv.length + (conv.length === 1 ? ' prueba' : ' pruebas') + ' de la versión anterior pasaron a Registro de pruebas.'); }
+    }
+    localStorage.setItem(LS_MIGR, new Date().toISOString());
   }
 
+  function validarFila(t, r) {
+    if (!r || typeof r !== 'object' || !r.maquina_serie) return null;
+    var o = {};
+    DB.TABLAS[t].columnas.forEach(function (c) { o[c] = r[c] === undefined ? null : r[c]; });
+    o.maquina_serie = String(o.maquina_serie).slice(0, 60);
+    if (!(num(o.rubber_largo_cm) > 0) || !(num(o.rubber_ancho_cm) > 0)) return null;
+    if (t === 'calculo_presion' && !(num(o.presion_deseada_psi) > 0)) return null;
+    if (t === 'validacion_presion' && (!(num(o.lectura_valor) > 0) || C.UNIDADES_FUERZA.indexOf(o.lectura_unidad) < 0)) return null;
+    if (t === 'registro_pruebas' && (!(num(o.manometro_valor) > 0) || !(num(o.fuerza_valor) > 0) ||
+      C.UNIDADES_PRESION.indexOf(o.manometro_unidad) < 0 || C.UNIDADES_FUERZA.indexOf(o.fuerza_unidad) < 0)) return null;
+    return o;
+  }
   function importar(ev) {
     var file = ev.target.files && ev.target.files[0];
     ev.target.value = '';
@@ -812,202 +1100,233 @@
     lector.onload = function () {
       var data;
       try { data = JSON.parse(lector.result); } catch (e) { toast('El archivo no es un respaldo válido.', true); return; }
-      var lista = Array.isArray(data) ? data : data && data.registros;
-      if (!Array.isArray(lista)) { toast('El archivo no contiene registros.', true); return; }
-      var validos = lista.map(validarRegistroImportado).filter(Boolean);
-      var invalidos = lista.length - validos.length;
-      if (!validos.length) { toast('No se encontraron registros válidos.', true); return; }
-      if (!confirm('Se importarán ' + validos.length + ' registros' + (invalidos ? ' (' + invalidos + ' inválidos se omitirán)' : '') +
-        '. Los registros con el mismo identificador se reemplazarán. ¿Continuar?')) return;
-      var porId = {};
-      registros.forEach(function (r) { porId[r.id] = r; });
-      validos.forEach(function (r) { porId[r.id] = r; });
-      registros = Object.keys(porId).map(function (k) { return porId[k]; });
-      guardarLS(LS_REG, registros);
-      toast(validos.length + ' registros importados.');
+      var porTabla = {};
+      if (data && data.formato === 2 && data.registros) {
+        Object.keys(DB.TABLAS).forEach(function (t) { porTabla[t] = (data.registros[t] || []).map(function (r) { return validarFila(t, r); }).filter(Boolean); });
+      } else {
+        var v1 = Array.isArray(data) ? data : data && data.registros;
+        if (!Array.isArray(v1)) { toast('El archivo no contiene registros.', true); return; }
+        porTabla.registro_pruebas = v1.map(convertirV1).filter(Boolean);
+      }
+      var total = Object.keys(porTabla).reduce(function (s, t) { return s + porTabla[t].length; }, 0);
+      if (!total) { toast('No se encontraron registros válidos.', true); return; }
+      if (!confirm('Se importarán ' + total + ' registros. Los que tengan el mismo identificador se reemplazarán. ¿Continuar?')) return;
+      Object.keys(porTabla).forEach(function (t) { if (porTabla[t].length) DB.importar(t, porTabla[t]); });
+      toast(total + ' registros importados.');
       renderHistorial();
     };
     lector.onerror = function () { toast('No se pudo leer el archivo.', true); };
     lector.readAsText(file);
   }
 
-  function borrarTodo() {
-    if (!registros.length) { toast('No hay registros.'); return; }
-    if (!confirm('¿Borrar TODOS los registros (' + registros.length + ') de este dispositivo? Descarga un respaldo antes si lo necesitas.')) return;
-    if (!confirm('Confirmación final: esta acción no se puede deshacer.')) return;
-    registros = [];
-    guardarLS(LS_REG, registros);
-    grupoSel = null;
-    cancelarEdicion();
-    renderHistorial();
-    toast('Registros borrados.');
-  }
-
   // ======================================================
-  // AJUSTES, RED E INSTALACIÓN
+  // AJUSTES, SESIÓN E INSTALACIÓN
   // ======================================================
   var eventoInstalar = null;
+  function abrirDialogo(d) { if (d.showModal) d.showModal(); else d.setAttribute('open', ''); }
+  function cerrarDialogo(d) { if (d.close) d.close(); else d.removeAttribute('open'); }
+
+  function renderAjustesBD() {
+    var c = $('#a-bd');
+    if (!c) return;
+    var s = DB.sesion(), cfg = DB.config();
+    if (!DB.configurada()) c.innerHTML = '<p class="ayuda">Modo local: no hay base de datos en la nube configurada.</p>';
+    else c.innerHTML = '<p class="ayuda">Supabase: <code>' + esc(cfg.url.replace(/^https?:\/\//, '')) + '</code> (' + esc(cfg.origen) + ')</p>' +
+      (s ? '<p>Sesión: <b>' + esc(s.email) + '</b></p><div class="acciones"><button type="button" class="btn" data-accion="sync">Sincronizar</button><button type="button" class="btn btn-peligro" data-accion="logout">Cerrar sesión</button></div>'
+        : '<div class="acciones"><button type="button" class="btn btn-primario" data-accion="login">Iniciar sesión</button></div>');
+  }
   function abrirAjustes() {
     $('#a-cap').value = ajustes.capValor > 0 ? String(ajustes.capValor) : '';
     $('#a-cap-u').value = ajustes.capUnidad || 'lbf';
+    var o = leerLS('transfer.nube.v1', {}) || {};
+    $('#a-url').value = o.url || ''; $('#a-key').value = o.key || '';
     estadoCapacidad();
+    renderAjustesBD();
     renderInstalar();
-    var d = $('#dlg-ajustes');
-    if (d.showModal) d.showModal(); else d.setAttribute('open', '');
+    abrirDialogo($('#dlg-ajustes'));
   }
   function estadoCapacidad() {
-    var c = leer('a-cap');
-    var el = $('#a-cap-estado');
+    var c = leer('a-cap'), el = $('#a-cap-estado');
     if (c.vacio) { el.textContent = 'Capacidad: no verificada.'; el.className = 'msg err'; }
     else if (c.ok) {
-      var lbf = C.fuerzaALbf(c.v, $('#a-cap-u').value);
-      var fz = C.fuerzaDesdeLbf(lbf);
+      var fz = C.fuerzaDesdeLbf(C.fuerzaALbf(c.v, $('#a-cap-u').value));
       el.textContent = 'Equivale a ' + f(fz.lbf) + ' lbf · ' + f(fz.kgf) + ' kgf · ' + f(fz.N) + ' N.'; el.className = 'msg ok';
-    } else { el.textContent = ''; }
+    } else el.textContent = '';
   }
   function guardarAjustes() {
     var c = leer('a-cap');
     if (!c.ok) { $('#a-cap').focus(); return; }
     ajustes.capValor = c.v; ajustes.capUnidad = $('#a-cap-u').value;
     guardarLS(LS_AJ, ajustes);
-    var d = $('#dlg-ajustes');
-    if (d.close) d.close(); else d.removeAttribute('open');
-    toast(c.v ? 'Capacidad guardada: ' + f(c.v) + ' ' + ajustes.capUnidad : 'Capacidad sin verificar');
+    var url = $('#a-url').value.trim(), key = $('#a-key').value.trim();
+    var o = leerLS('transfer.nube.v1', {}) || {};
+    if (url !== (o.url || '') || key !== (o.key || '')) {
+      if ((url && !key) || (!url && key)) { toast('Para la conexión avanzada se necesitan la URL y la clave.', true); return; }
+      if (url && !/^https:\/\/.+/.test(url)) { toast('La URL de Supabase debe empezar con https://', true); return; }
+      DB.guardarConfig(url, key);
+      DB.cerrarSesion();
+    }
+    cerrarDialogo($('#dlg-ajustes'));
+    toast('Ajustes guardados');
     recalcularTodo();
+    DB.sincronizar();
   }
   function renderInstalar() {
     var cont = $('#a-instalar');
-    var instalada = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+    var instalada = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone;
     if (instalada) cont.innerHTML = '<p class="msg ok">La aplicación ya está instalada en este dispositivo.</p>';
     else if (eventoInstalar) cont.innerHTML = '<button type="button" class="btn btn-primario" id="a-btn-instalar">Instalar aplicación</button>';
     else cont.innerHTML = '';
     var b = $('#a-btn-instalar');
-    if (b) b.addEventListener('click', function () {
-      eventoInstalar.prompt();
-      eventoInstalar.userChoice.finally(function () { eventoInstalar = null; renderInstalar(); });
-    });
-  }
-  function estadoRed() {
-    var p = $('#estado-red');
-    if (navigator.onLine) { p.textContent = 'En línea'; p.className = 'pill'; }
-    else { p.textContent = 'Sin conexión'; p.className = 'pill offline'; }
+    if (b) b.addEventListener('click', function () { eventoInstalar.prompt(); eventoInstalar.userChoice.finally(function () { eventoInstalar = null; renderInstalar(); }); });
   }
 
-  function recalcularTodo() {
-    calcFuerza(); calcPresion(); previewRegistro();
-    if (tablaEqActual) generarTabla(true);
-    if (!$('#v-calibracion').hidden) renderCalibracion();
+  function abrirLogin() {
+    if (!DB.configurada()) { toast('La base de datos en la nube no está configurada.', true); return; }
+    var d = $('#dlg-ajustes');
+    if (d.open) cerrarDialogo(d);
+    $('#l-msg').textContent = '';
+    abrirDialogo($('#dlg-login'));
+    setTimeout(function () { $('#l-email').focus(); }, 50);
   }
+  async function enviarLogin(ev) {
+    ev.preventDefault();
+    var email = $('#l-email').value.trim(), clave = $('#l-clave').value;
+    var msg = $('#l-msg');
+    if (!email || !clave) { msg.textContent = 'Ingresa correo y contraseña.'; msg.className = 'msg err'; return; }
+    var b = $('#l-entrar');
+    b.disabled = true; msg.textContent = 'Conectando…'; msg.className = 'msg';
+    try {
+      var e = await DB.iniciarSesion(email, clave);
+      $('#l-clave').value = '';
+      cerrarDialogo($('#dlg-login'));
+      toast('Sesión iniciada: ' + e);
+    } catch (err) { msg.textContent = err.message; msg.className = 'msg err'; }
+    finally { b.disabled = false; }
+  }
+  async function accionBD(accion) {
+    if (accion === 'login') abrirLogin();
+    if (accion === 'logout') {
+      var pend = DB.pendientes();
+      if (pend && !confirm('Hay ' + pend + ' registros sin subir. Quedarán guardados en este teléfono y se subirán cuando alguien inicie sesión. ¿Cerrar sesión?')) return;
+      await DB.cerrarSesion(); toast('Sesión cerrada');
+    }
+    if (accion === 'sync') {
+      var r = await DB.sincronizar();
+      if (r.ok) toast('Sincronizado'); else if (r.motivo !== 'en-curso') toast(DB.estado().mensaje || 'No se pudo sincronizar', true);
+    }
+  }
+
+  function recalcularTodo() { calcCalculo(); calcValidacion(); previewPrueba(); if (vistaActual === 'vista-pruebas') renderGraficas(); }
 
   // ======================================================
   // INICIO
   // ======================================================
   function iniciar() {
     restaurarCampos();
-    $('#c-fecha').value = hoyISO();
+    $('#rp-fecha').value = hoyISO();
     $('#a-version').textContent = APP_VERSION;
+    $('#a-maquinas').textContent = MAQ.length + ' máquinas Heat Transfer en el inventario';
     $$('[data-avisos]').forEach(function (d) { d.innerHTML = AVISOS_HTML; });
-    $('#a-offline').textContent = 'Después de abrirla una vez con internet, las calculadoras, la calibración, el historial y las exportaciones funcionan sin conexión. ' +
-      'Se necesita internet solo para la primera carga, para recibir actualizaciones y para enviar archivos por aplicaciones como correo o WhatsApp.';
+    $('#a-offline').textContent = 'Después de abrirla una vez con internet, las calculadoras, el escáner de QR, el guardado de registros y las exportaciones funcionan sin conexión. ' +
+      'Los registros hechos sin señal quedan en el teléfono y se suben solos a la base de datos al volver la conexión. Se necesita internet para iniciar sesión, sincronizar, recibir actualizaciones y enviar archivos por correo o WhatsApp.';
+    montarSelectores();
+    migrarV1();
 
     // Navegación
-    $$('.nav-btn').forEach(function (b) { b.addEventListener('click', function () { mostrarVista(b.dataset.vista); }); });
+    $$('[data-ir]').forEach(function (b) { b.addEventListener('click', function () { mostrarVista(b.dataset.ir); }); });
+    $('#btn-inicio').addEventListener('click', function () { mostrarVista('vista-inicio'); });
+    window.addEventListener('popstate', function () { mostrarVista(vistaDesdeHash(), { desdeHistorial: true }); });
+    $('#estado-bd').addEventListener('click', function () {
+      if (DB.configurada() && !DB.sesion()) abrirLogin();
+      else if (DB.configurada()) accionBD('sync');
+      else mostrarVista('vista-inicio');
+    });
+    document.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-accion]');
+      if (b) accionBD(b.dataset.accion);
+      var q = e.target.closest('[data-qr]');
+      if (q) abrirQR(q.dataset.qr);
+    });
 
-    // Entradas que recalculan
-    $$('input[data-req]').forEach(function (el) {
-      el.addEventListener('blur', function () { leer(el.id, false); });
-    });
-    ['f-largo', 'f-ancho', 'f-psi'].forEach(function (id) {
-      $('#' + id).addEventListener('input', function () { recordar(id); calcFuerza(); if (tablaEqActual) generarTabla(true); });
-    });
-    ['p-largo', 'p-ancho', 'p-lectura', 'p-unidad', 'pl-largo', 'pl-ancho'].forEach(function (id) {
-      var ev = $('#' + id).tagName === 'SELECT' ? 'change' : 'input';
-      $('#' + id).addEventListener(ev, function () { recordar(id); calcPresion(); });
-    });
-    $('#pl-total').addEventListener('change', calcPlancha);
-    ['eq-inicio', 'eq-fin', 'eq-paso'].forEach(function (id) { $('#' + id).addEventListener('input', function () { recordar(id); leer(id); }); });
-    $('#eq-modo').addEventListener('change', function () {
-      var psi = this.value === 'psi';
-      $('#eq-inicio').value = psi ? '10' : '5'; $('#eq-fin').value = psi ? '80' : '60'; $('#eq-paso').value = '5';
-      ['eq-modo', 'eq-inicio', 'eq-fin', 'eq-paso'].forEach(recordar);
-      actualizarUnidadEq(); generarTabla(true);
-    });
-    $('#eq-generar').addEventListener('click', function () { generarTabla(false); });
-    $('#eq-csv').addEventListener('click', function () {
-      if (!tablaEqActual) return;
-      compartirArchivo(new Blob([aCSV(filasTablaEq())], { type: 'text/csv;charset=utf-8' }), nombreTablaEq('csv'), 'Tabla de equivalencias');
-    });
-    $('#eq-xlsx').addEventListener('click', function () {
-      if (!tablaEqActual) return;
-      var t = tablaEqActual;
-      var filas = [['Rubber (cm)', f(t.largo) + ' × ' + f(t.ancho)], ['Área (cm²)', C.redondear(t.area.cm2, 2)], ['Área (in²)', C.redondear(t.area.in2, 4)], []].concat(filasTablaEq());
-      compartirArchivo(XlsxMini.crearXlsx([{ nombre: 'Equivalencias', filas: filas }]), nombreTablaEq('xlsx'), 'Tabla de equivalencias');
-    });
-    $('#f-compartir').addEventListener('click', compartirFuerza);
-    $('#p-compartir').addEventListener('click', compartirPresion);
-    $('#p-a-registro').addEventListener('click', presionARegistro);
+    // Validación al salir de un campo
+    $$('input[data-req]').forEach(function (el) { el.addEventListener('blur', function () { leer(el.id, false); }); });
 
-    // Calibración
-    $('#form-registro').addEventListener('submit', guardarRegistro);
-    ['c-largo', 'c-ancho', 'c-man', 'c-fuerza'].forEach(function (id) { $('#' + id).addEventListener('input', previewRegistro); });
-    ['c-man-u', 'c-fuerza-u'].forEach(function (id) { $('#' + id).addEventListener('change', previewRegistro); });
-    $('#c-cancelar').addEventListener('click', function () { cancelarEdicion(); });
-    $('#c-limpiar').addEventListener('click', function () { if (editId) cancelarEdicion(); else limpiarFormulario(); });
-    $('#g-grupo').addEventListener('change', function () { grupoSel = this.value; renderCalibracion(); });
+    // Cálculo de presión
+    ['cp-largo', 'cp-ancho', 'cp-psi'].forEach(function (id) { $('#' + id).addEventListener('input', function () { recordar(id); calcCalculo(); }); });
+    $('#cp-guardar').addEventListener('click', guardarCalculo);
+    $('#cp-compartir').addEventListener('click', compartirCalculo);
+
+    // Validación de presión
+    ['vp-largo', 'vp-ancho', 'vp-lectura', 'vp-unidad', 'vp-pl-largo', 'vp-pl-ancho'].forEach(function (id) {
+      $('#' + id).addEventListener($('#' + id).tagName === 'SELECT' ? 'change' : 'input', function () { recordar(id); calcValidacion(); });
+    });
+    $('#vp-pl-total').addEventListener('change', calcPlancha);
+    $('#vp-guardar').addEventListener('click', guardarValidacion);
+    $('#vp-compartir').addEventListener('click', compartirValidacion);
+    $('#vp-a-pruebas').addEventListener('click', validacionAPruebas);
+
+    // Registro de pruebas
+    $('#form-pruebas').addEventListener('submit', guardarPrueba);
+    ['rp-largo', 'rp-ancho', 'rp-man', 'rp-fuerza'].forEach(function (id) { $('#' + id).addEventListener('input', previewPrueba); });
+    ['rp-man-u', 'rp-fuerza-u', 'rp-temp-u'].forEach(function (id) { $('#' + id).addEventListener('change', function () { recordar(id); previewPrueba(); }); });
+    ['rp-largo', 'rp-ancho', 'rp-montaje'].forEach(function (id) { $('#' + id).addEventListener('change', function () { alCambiarMaquina('rp'); }); });
+    $('#rp-cancelar').addEventListener('click', function () { cancelarEdicion(); });
+    $('#rp-limpiar').addEventListener('click', function () { if (editId) cancelarEdicion(); else limpiarFormulario(); });
+    $('#g-grupo').addEventListener('change', function () { grupoSel = this.value; renderGraficas(); });
     $('#s-psi').addEventListener('input', function () { recordar('s-psi'); renderSugerencia(); });
 
     // Historial
+    $$('.segmentos button').forEach(function (b) { b.addEventListener('click', function () { modHist = b.dataset.mod; $('#h-maquina').value = ''; renderHistorial(); }); });
     $('#h-maquina').addEventListener('change', renderHistorial);
     $('#h-buscar').addEventListener('input', renderHistorial);
     $('#h-tabla').addEventListener('click', function (e) {
       var b = e.target.closest('[data-acc]');
       if (!b) return;
-      if (b.dataset.acc === 'editar') editarRegistro(b.dataset.id);
+      if (b.dataset.acc === 'editar') editarPrueba(b.dataset.id);
       if (b.dataset.acc === 'eliminar') eliminarRegistro(b.dataset.id);
     });
-    $('#h-rubbers').addEventListener('click', function (e) {
-      var b = e.target.closest('[data-rubber-l]');
-      if (b) verEquivalencias(Number(b.dataset.rubberL), Number(b.dataset.rubberA));
-    });
+    $('#h-xlsx').addEventListener('click', function () { if (!totalExportable()) return toast('No hay registros para exportar.', true); descargar(xlsxTodo(), nombreArchivo('registros-transfer', 'xlsx')); });
+    $('#h-compartir').addEventListener('click', function () { if (!totalExportable()) return toast('No hay registros para exportar.', true); compartirArchivo(xlsxTodo(), nombreArchivo('registros-transfer', 'xlsx'), 'Registros Medición Transfer'); });
     $('#h-csv').addEventListener('click', function () {
-      var l = registrosFiltrados(); if (!verificarHay(l)) return;
-      descargar(new Blob([aCSV(filasExport(l))], { type: 'text/csv;charset=utf-8' }), nombreArchivo('csv'));
-    });
-    $('#h-xlsx').addEventListener('click', function () {
-      var l = registrosFiltrados(); if (!verificarHay(l)) return;
-      descargar(xlsxRegistros(l), nombreArchivo('xlsx'));
-    });
-    $('#h-compartir').addEventListener('click', function () {
-      var l = registrosFiltrados(); if (!verificarHay(l)) return;
-      compartirArchivo(xlsxRegistros(l), nombreArchivo('xlsx'), 'Registros Medición Transfer');
+      var l = registrosFiltrados(modHist);
+      if (!l.length) return toast('No hay registros para exportar.', true);
+      descargar(new Blob([aCSV(filasExport(modHist, l))], { type: 'text/csv;charset=utf-8' }), nombreArchivo(modHist.replace('_', '-'), 'csv'));
     });
     $('#h-pdf').addEventListener('click', imprimirReporte);
     $('#h-respaldo').addEventListener('click', respaldo);
     $('#h-importar').addEventListener('change', importar);
     $('label[for="h-importar"]').addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('#h-importar').click(); } });
-    $('#h-borrar').addEventListener('click', borrarTodo);
 
-    // Ajustes
+    // Diálogos
     $('#btn-ajustes').addEventListener('click', abrirAjustes);
     $('#a-cap').addEventListener('input', estadoCapacidad);
     $('#a-cap-u').addEventListener('change', estadoCapacidad);
     $('#a-guardar').addEventListener('click', guardarAjustes);
+    $('#qr-cerrar').addEventListener('click', cerrarQR);
+    $('#dlg-qr').addEventListener('close', detenerCamara);
+    $('#form-login').addEventListener('submit', enviarLogin);
+    $('#l-cancelar').addEventListener('click', function () { cerrarDialogo($('#dlg-login')); });
 
-    // Red e instalación
-    window.addEventListener('online', estadoRed);
-    window.addEventListener('offline', estadoRed);
-    estadoRed();
+    // Base de datos, red e instalación
+    DB.alCambiar(function () {
+      renderEstadoBD();
+      if (vistaActual === 'vista-historial') renderHistorial();
+      if (vistaActual === 'vista-pruebas' && !editId) renderGraficas();
+    });
+    window.addEventListener('online', renderEstadoBD);
+    window.addEventListener('offline', renderEstadoBD);
     window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); eventoInstalar = e; });
-    if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-      navigator.serviceWorker.register('./sw.js').catch(function () { /* sin modo offline */ });
-    }
+    if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('./sw.js').catch(function () {});
 
-    actualizarUnidadEq();
-    calcFuerza();
-    calcPresion();
-    previewRegistro();
-    var hash = (location.hash || '').replace('#', '');
-    mostrarVista(hash ? 'v-' + hash : 'v-fuerza', true);
+    calcCalculo(); calcValidacion(); previewPrueba();
+    var inicial = vistaDesdeHash();
+    if (inicial !== 'vista-inicio') {
+      try { history.replaceState({ vista: 'vista-inicio' }, '', location.pathname + location.search); } catch (e) { /* nada */ }
+      mostrarVista(inicial, { sinScroll: true });
+    } else mostrarVista('vista-inicio', { reemplazar: true, sinScroll: true });
+    renderEstadoBD();
+    DB.sincronizar();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar);
