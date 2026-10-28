@@ -3,15 +3,19 @@
  * IMPORTANTE: cada vez que publiques cambios, aumenta el número de VERSION
  * para que los teléfonos descarguen la nueva versión.
  */
-var VERSION = 'v1.0.0';
+var VERSION = 'v2.0.0';
 var CACHE = 'medicion-transfer-' + VERSION;
 var ARCHIVOS = [
   './',
   './index.html',
   './css/styles.css',
+  './js/config.js',
   './js/calculos.js',
+  './js/maquinas.js',
   './js/xlsx-mini.js',
+  './js/db.js',
   './js/app.js',
+  './js/jsQR.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
