@@ -6,7 +6,7 @@
 (function () {
   'use strict';
 
-  var APP_VERSION = '2.1.0';
+  var APP_VERSION = '2.2.0';
   var C = window.Calc;
   var DB = window.DB;
   var LS_AJ = 'transfer.ajustes.v1';
@@ -1039,7 +1039,7 @@
       var gs = gruposPruebas(lista);
       graficas = Object.keys(gs).slice(0, 6).map(function (k) { return '<h2>' + esc(etiquetaGrupo(gs[k])) + '</h2>' + graficasGrupo(gs[k]); }).join('');
     }
-    $('#reporte').innerHTML = '<h1>' + esc(DB.TABLAS[modHist].nombre) + ' — Máquinas Heat Transfer</h1>' +
+    $('#reporte').innerHTML = '<img class="logo-reporte" src="img/logo-color.png" alt="Pinehurst MFG"><h1>' + esc(DB.TABLAS[modHist].nombre) + ' — Máquinas Heat Transfer</h1>' +
       '<p>Generado: ' + esc(new Date().toLocaleString('es-HN')) + ' · Máquina: ' + esc(maq || 'todas') + ' · Registros: ' + lista.length +
       ' · Capacidad de la celda: ' + esc(textoCapacidad()) + '</p>' + AVISOS_HTML + '<h2>Registros</h2>' + tablaHTML(modHist, lista, false) + graficas;
     setTimeout(function () { window.print(); }, 50);
