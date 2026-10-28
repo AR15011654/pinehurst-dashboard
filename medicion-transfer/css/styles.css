@@ -307,4 +307,5 @@ dialog::backdrop { background: rgba(5, 15, 25, .55); }
 .segmentos button[aria-selected="true"] { background: var(--primario); color: var(--primario-txt); }
 .avanzado { margin: 14px 0; }
 .avanzado summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
+.enlace { background: none; border: 0; padding: 6px 0; color: var(--primario); text-decoration: underline; cursor: pointer; font-size: .92rem; }
 .etq-pend { display: inline-block; font-size: .72rem; font-weight: 700; color: var(--alerta); background: var(--alerta-bg); border-radius: 6px; padding: 1px 6px; margin-left: 6px; }
