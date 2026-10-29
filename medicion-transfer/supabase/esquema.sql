@@ -1,6 +1,7 @@
 -- =====================================================================
 -- Medición Transfer — Base de datos (Supabase / PostgreSQL)
 -- Ejecutar UNA vez en Supabase: SQL Editor → New query → pegar → Run.
+-- Para la versión 3 (catálogo de parámetros) ejecuta después: supabase/migracion-v3-catalogo.sql
 -- Crea 3 tablas, una por módulo:
 --   calculo_presion     → módulo "Cálculo de presión"
 --   validacion_presion  → módulo "Validación de presión"
