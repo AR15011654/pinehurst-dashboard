@@ -9,8 +9,8 @@
   // Constantes de conversión (las mismas indicadas en la especificación)
   var K = {
     CM2_POR_IN2: 6.4516,     // 1 in² = 6.4516 cm²
-    LB_POR_KG: 2.20462,      // 1 kgf = 2.20462 lbf
-    N_POR_LBF: 4.44822,      // 1 lbf = 4.44822 N
+    LB_POR_KG: 2.20462262185, // 1 kgf = 2.20462262185 lbf
+    N_POR_LBF: 4.44822161526, // 1 lbf = 4.44822161526 N
     PSI_POR_KGFCM2: 14.2233, // 1 kgf/cm² = 14.2233 psi
     PSI_POR_BAR: 14.5038     // 1 bar = 14.5038 psi
   };
@@ -86,6 +86,72 @@
     var area = areaRect(largoCm, anchoCm);
     var lbf = fuerzaALbf(lectura, unidad);
     return { area: area, fuerza: fuerzaDesdeLbf(lbf), presion: presionDesdePsi(presionPsi(lbf, largoCm, anchoCm)) };
+  }
+
+
+  // ---------------------------------------------------------------
+  // Catálogo: rangos de presión y lectura objetivo del dinamómetro
+  // ---------------------------------------------------------------
+  var NUM = '(\\d+(?:[.,]\\d+)?)';
+  var RE_RANGO = new RegExp('^' + NUM + '(?:\\s*(?:-+|–|—|\\ba\\b|\\bal\\b|\\bto\\b)\\s*' + NUM + ')?\\s*' +
+    '(psi|lbs?|lbf|°\\s*[cf]|º\\s*[cf]|grados|segundos?|seg|s)?\\.?$', 'i');
+
+  /**
+   * Interpreta un valor o rango escrito a mano: 30, "20-30", "15- 20", "25-30 psi", "160--165", "3 a 4".
+   * Devuelve { min, max, unidad, texto } o null si no es un número o rango simple.
+   * Un valor único devuelve min = max. No interpreta textos con varias pasadas.
+   */
+  function parseRango(v) {
+    if (v === null || v === undefined) return null;
+    if (typeof v === 'number') return isFinite(v) && v > 0 ? { min: v, max: v, unidad: null, texto: String(v) } : null;
+    var texto = String(v);
+    var s = texto.trim().replace(/\s+/g, ' ');
+    if (!s) return null;
+    var m = s.match(RE_RANGO);
+    if (!m) return null;
+    var a = Number(m[1].replace(',', '.')), b = m[2] !== undefined ? Number(m[2].replace(',', '.')) : a;
+    if (!(a > 0) || !(b > 0)) return null;
+    var u = m[3] ? m[3].toLowerCase().replace(/[\sº]/g, '').replace('°', '°') : null;
+    if (u === '°c' || u === 'ºc') u = '°C'; else if (u === '°f' || u === 'ºf') u = '°F';
+    else if (u === 'lbs' || u === 'lb' || u === 'lbf') u = 'lbf';
+    else if (u && /^s|seg/.test(u)) u = 's';
+    return { min: Math.min(a, b), max: Math.max(a, b), invertido: a > b, unidad: u, texto: texto };
+  }
+
+  /** Regla del catálogo: se usa el valor MÁXIMO del rango aprobado; un valor único se usa tal cual. */
+  function presionObjetivo(minPsi, maxPsi) {
+    if (esPositivo(maxPsi)) return maxPsi;
+    if (esPositivo(minPsi)) return minPsi;
+    return null;
+  }
+
+  var TIPOS_PRESION = {
+    contacto_rubber: 'Presión de contacto sobre el rubber',
+    aire_manometro: 'Presión del aire del manómetro',
+    pendiente: 'Pendiente de confirmar'
+  };
+
+  /**
+   * Lectura objetivo del dinamómetro para una configuración del catálogo.
+   * conf: { presion_min_psi, presion_max_psi, tipo_presion }   rubber: { largo_cm, ancho_cm }
+   * Solo calcula si la presión del proveedor es presión de CONTACTO sobre el rubber y hay dimensiones.
+   * Devuelve { ok, motivos: [{codigo, texto}], presionObjetivo, area, fuerza }.
+   */
+  function fuerzaObjetivo(conf, rubber) {
+    conf = conf || {}; rubber = rubber || {};
+    var motivos = [];
+    var obj = presionObjetivo(Number(conf.presion_min_psi), Number(conf.presion_max_psi));
+    var tipo = conf.tipo_presion || 'pendiente';
+    var l = Number(rubber.largo_cm), a = Number(rubber.ancho_cm);
+    if (obj === null) motivos.push({ codigo: 'sin-presion', texto: 'Falta el rango de presión en el catálogo.' });
+    if (tipo === 'pendiente') motivos.push({ codigo: 'tipo-pendiente', texto: 'Pendiente de confirmar el tipo de presión.' });
+    else if (tipo === 'aire_manometro') motivos.push({ codigo: 'aire', texto: 'La presión del proveedor es del aire del manómetro: no se convierte directamente en fuerza sobre el rubber.' });
+    else if (tipo !== 'contacto_rubber') motivos.push({ codigo: 'tipo-desconocido', texto: 'Tipo de presión no reconocido.' });
+    if (!esPositivo(l) || !esPositivo(a)) motivos.push({ codigo: 'sin-dimensiones', texto: 'Faltan el largo y el ancho del rubber en el catálogo.' });
+    var res = { ok: motivos.length === 0, motivos: motivos, presionObjetivo: obj, tipo: tipo, area: null, fuerza: null };
+    if (esPositivo(l) && esPositivo(a)) res.area = areaRect(l, a);
+    if (res.ok) res.fuerza = fuerzaDesdeLbf(obj * res.area.in2);
+    return res;
   }
 
   /**
@@ -177,7 +243,8 @@
     fuerzaNecesaria: fuerzaNecesaria, presionMedida: presionMedida, presionPsi: presionPsi,
     tablaEquivalencias: tablaEquivalencias, regresionLineal: regresionLineal,
     sugerirManometro: sugerirManometro, claveGrupo: claveGrupo,
-    redondear: redondear, formatear: formatear
+    redondear: redondear, formatear: formatear,
+    parseRango: parseRango, presionObjetivo: presionObjetivo, fuerzaObjetivo: fuerzaObjetivo, TIPOS_PRESION: TIPOS_PRESION
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = Calc;

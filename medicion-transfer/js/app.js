@@ -6,7 +6,7 @@
 (function () {
   'use strict';
 
-  var APP_VERSION = '2.4.0';
+  var APP_VERSION = '3.0.0';
   var C = window.Calc;
   var DB = window.DB;
   var LS_AJ = 'transfer.ajustes.v1';
@@ -21,7 +21,8 @@
     'vista-calculo': { hash: 'calculo', titulo: 'Cálculo de presión', sub: 'Medición Transfer' },
     'vista-validacion': { hash: 'validacion', titulo: 'Validación de presión', sub: 'Medición Transfer' },
     'vista-pruebas': { hash: 'pruebas', titulo: 'Registro de pruebas', sub: 'Medición Transfer' },
-    'vista-historial': { hash: 'historial', titulo: 'Historial y reportes', sub: 'Medición Transfer' }
+    'vista-historial': { hash: 'historial', titulo: 'Historial y reportes', sub: 'Medición Transfer' },
+    'vista-catalogo': { hash: 'catalogo', titulo: 'Catálogo de parámetros', sub: 'Administrador' }
   };
   var PREFIJO_TABLA = { cp: 'calculo_presion', vp: 'validacion_presion', rp: 'registro_pruebas' };
 
@@ -63,7 +64,6 @@
   var vistaActual = 'vista-inicio';
 
   var DEFAULTS = {
-    'cp-largo': '4.5', 'cp-ancho': '1.1', 'cp-psi': '40',
     'vp-largo': '4.5', 'vp-ancho': '1.1', 'vp-pl-largo': '30', 'vp-pl-ancho': '20', 's-psi': '40'
   };
   var RECORDAR = Object.keys(DEFAULTS).concat(['vp-lectura', 'vp-unidad', 'rp-man-u', 'rp-fuerza-u', 'rp-temp-u']);
@@ -226,14 +226,14 @@
     }).join('');
     $$('[data-maquina]').forEach(function (cont) {
       var p = cont.dataset.maquina;
-      cont.innerHTML = '<div class="maq-sel" id="' + p + '-maq-box">' +
+      cont.innerHTML = '<div class="campo"><label for="' + p + '-linea">Línea donde se realiza la operación</label>' +
+        '<select id="' + p + '-linea"><option value="">Selecciona la línea…</option>' + LINEAS.map(function (l) { return '<option value="' + l + '">' + l + '</option>'; }).join('') + '</select>' +
+        '<p class="error"></p></div>' +
+        '<div class="maq-sel" id="' + p + '-maq-box">' +
         '<label for="' + p + '-maq">Máquina Heat Transfer <span class="u">serie o QR</span></label>' +
         '<div class="maq-fila"><input id="' + p + '-maq" type="text" list="lista-series" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Ej. PH59">' +
         '<button type="button" class="btn btn-primario" data-qr="' + p + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4M7 12h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Escanear QR</button></div>' +
-        '<p class="error" id="' + p + '-maq-err"></p><div class="maq-info" id="' + p + '-maq-info"></div></div>' +
-        '<div class="campo"><label for="' + p + '-linea">Línea donde se realiza la operación</label>' +
-        '<select id="' + p + '-linea"><option value="">Selecciona la línea…</option>' + LINEAS.map(function (l) { return '<option value="' + l + '">' + l + '</option>'; }).join('') + '</select>' +
-        '<p class="error"></p></div>';
+        '<p class="error" id="' + p + '-maq-err"></p><div class="maq-info" id="' + p + '-maq-info"></div></div>';
       var inp = $('#' + p + '-maq');
       var selLinea = $('#' + p + '-linea');
       if (ultimos[p + '-linea']) selLinea.value = ultimos[p + '-linea'];
@@ -420,6 +420,8 @@
     if (id === 'vista-inicio') renderInicio();
     if (id === 'vista-pruebas') renderGraficas();
     if (id === 'vista-historial') renderHistorial();
+    if (id === 'vista-calculo') renderCalculo();
+    if (id === 'vista-catalogo' && window.Admin) window.Admin.render();
     if (!opciones.sinScroll) window.scrollTo(0, 0);
   }
   function vistaDesdeHash() {
@@ -480,59 +482,323 @@
         (pend ? '<span class="pend">Por subir <b>' + pend + '</b></span>' : '');
     });
     var nMaq = Object.keys(maqs).length;
+    var verCat = DB.esAdmin() && (!DB.configurada() || !!DB.sesion());
+    $('#btn-catalogo').hidden = !verCat;
+    if (verCat) {
+      var cat = DB.catalogo();
+      var pend = cat.cat_configuraciones.filter(function (c) { return c.activo && c.estado !== 'aprobado'; }).length;
+      $('[data-stats="catalogo"]').innerHTML = '<span>Aprobadas <b>' + cat.cat_configuraciones.filter(function (c) { return c.activo && c.estado === 'aprobado'; }).length + '</b></span>' +
+        (pend ? '<span class="pend">Pendientes <b>' + pend + '</b></span>' : '');
+    }
     $('[data-stats="historial"]').innerHTML = '<span>Registros <b>' + total + '</b></span><span>Máquinas <b>' + nMaq + '</b></span>';
     $('#inicio-totales').innerHTML = '<div><b>' + totalHoy + '</b><span>Mediciones hoy</span></div>' +
       '<div><b>' + total + '</b><span>Registros guardados</span></div><div><b>' + nMaq + '</b><span>Máquinas medidas</span></div>';
   }
 
   // ======================================================
-  // 1. CÁLCULO DE PRESIÓN
+  // 1. CÁLCULO DE PRESIÓN — guiado por el catálogo
+  // Línea → Máquina → Cliente → Referencia → Tela → Rubber → parámetros y lectura objetivo
   // ======================================================
+  var cpSel = { cliente: '', acc: null, tela: null, conf: null };
   var ultimoCalculo = null;
-  function calcCalculo() {
-    var l = leer('cp-largo'), a = leer('cp-ancho'), p = leer('cp-psi');
-    if (!(l.ok && a.ok && p.ok)) {
-      ultimoCalculo = null;
-      $('#cp-resultados').innerHTML = vacio('Ingresa largo, ancho y presión deseada (números mayores que cero).');
-      $('#cp-capacidad').innerHTML = '';
-      return;
+  var SIN_TELA = '__sin_tela__';
+  var NOMBRE_DESP = { frio: 'En frío', caliente: 'En caliente', otro: 'Otra instrucción' };
+
+  function porId(t) { var m = {}; DB.catalogo()[t].forEach(function (x) { m[x.id] = x; }); return m; }
+  /** Configuraciones utilizables por el técnico: aprobadas, activas y con referencia y cliente activos. */
+  function configsUtiles() {
+    var cat = DB.catalogo(), accs = porId('cat_accesorios'), clis = porId('cat_clientes');
+    return cat.cat_configuraciones.filter(function (c) {
+      var a = accs[c.accesorio_id];
+      return c.activo && c.estado === 'aprobado' && a && a.activo && clis[a.cliente_id] && clis[a.cliente_id].activo;
+    });
+  }
+  function textoRango(min, max, u) {
+    if (!(num(min) > 0) && !(num(max) > 0)) return null;
+    if (num(min) > 0 && num(max) > 0 && num(min) !== num(max)) return f(num(min), 0) + '–' + f(num(max), 0) + (u ? ' ' + u : '');
+    return f(num(max) > 0 ? num(max) : num(min), 0) + (u ? ' ' + u : '');
+  }
+  function f0(v) { return Number.isInteger(v) ? String(v) : f(v); }
+
+  /** Toda la información de una configuración, resuelta con nombres (para mostrar y para guardar una copia). */
+  function detalleConfig(c) {
+    var accs = porId('cat_accesorios'), clis = porId('cat_clientes'), telas = porId('cat_telas'), rubs = porId('cat_rubbers'), provs = porId('cat_proveedores');
+    var a = accs[c.accesorio_id] || {}, r = rubs[c.rubber_id] || null;
+    var calc = C.fuerzaObjetivo(c, r || {});
+    return { conf: c, acc: a, cliente: (clis[a.cliente_id] || {}).nombre || '', tela: c.tela_id && telas[c.tela_id] ? telas[c.tela_id].nombre : null,
+      rubber: r, proveedor: c.proveedor_id && provs[c.proveedor_id] ? provs[c.proveedor_id].nombre : null, calc: calc };
+  }
+  function nombreRubber(r) { return r ? (r.tipo ? r.tipo + ' · ' : '') + r.nombre : '—'; }
+
+  /** Columnas de contexto que se guardan con cada registro (copia fija de los parámetros usados). */
+  function contextoRegistro(d) {
+    var c = d.conf, r = d.rubber || {};
+    var copia = {
+      configuracion: { id: c.id, version: c.version, estado: c.estado, origen: c.origen || null },
+      cliente: d.cliente, accesorio: { codigo: d.acc.codigo, descripcion: d.acc.descripcion || null, imagen: d.acc.imagen || null },
+      tela: d.tela, proveedor: d.proveedor,
+      rubber: { nombre: r.nombre || null, tipo: r.tipo || null, descripcion: r.descripcion || null, largo_cm: num(r.largo_cm), ancho_cm: num(r.ancho_cm), imagen: r.imagen || null },
+      temperatura: { texto: c.temperatura_texto, min: num(c.temperatura_min), max: num(c.temperatura_max), unidad: c.temperatura_unidad },
+      presion: { texto: c.presion_texto, min_psi: num(c.presion_min_psi), max_psi: num(c.presion_max_psi), tipo: c.tipo_presion, objetivo_psi: d.calc.presionObjetivo },
+      tiempo: c.tiempo_texto, desprendimiento: { tipo: c.desprendimiento, texto: c.desprendimiento_texto },
+      observaciones: c.observaciones, pruebas_internas: c.pruebas_internas
+    };
+    return {
+      configuracion_id: c.id, configuracion_version: c.version || null, cliente: d.cliente, accesorio_codigo: d.acc.codigo || null,
+      accesorio_referencia: d.acc.descripcion || null, tela: d.tela, proveedor: d.proveedor, rubber: d.rubber ? nombreRubber(d.rubber) : null,
+      presion_rango: c.presion_texto || textoRango(c.presion_min_psi, c.presion_max_psi, 'psi'), presion_objetivo_psi: d.calc.presionObjetivo,
+      tipo_presion: c.tipo_presion, fuerza_objetivo_lbf: d.calc.ok ? r4(d.calc.fuerza.lbf) : null,
+      fuerza_objetivo_kgf: d.calc.ok ? r4(d.calc.fuerza.kgf) : null, fuerza_objetivo_n: d.calc.ok ? r4(d.calc.fuerza.N) : null,
+      parametros: copia
+    };
+  }
+  var COLS_CTX = ['configuracion_id', 'configuracion_version', 'cliente', 'accesorio_codigo', 'accesorio_referencia', 'tela', 'proveedor', 'rubber',
+    'presion_rango', 'presion_objetivo_psi', 'tipo_presion', 'fuerza_objetivo_lbf', 'fuerza_objetivo_kgf', 'fuerza_objetivo_n', 'parametros'];
+
+  // ---------- Imágenes del catálogo ----------
+  function imgHTML(ruta, alt, cls) {
+    if (!ruta) return '<span class="img-vacia ' + (cls || '') + '">Sin imagen</span>';
+    return '<img class="' + (cls || '') + '" data-ruta="' + esc(ruta) + '" alt="' + esc(alt || '') + '" loading="lazy">';
+  }
+  function cargarImagenes(cont) {
+    $$('img[data-ruta]:not([src])', cont || document).forEach(function (img) {
+      DB.urlImagen(img.dataset.ruta).then(function (u) {
+        if (u) img.src = u;
+        else { var s = document.createElement('span'); s.className = 'img-vacia ' + img.className; s.textContent = 'Imagen no disponible sin conexión'; img.replaceWith(s); }
+      });
+    });
+  }
+
+  // ---------- Pasos ----------
+  function opcionHTML(valor, elegido, img, titulo, detalle, extra) {
+    return '<button type="button" class="opcion' + (elegido ? ' elegida' : '') + '" data-valor="' + esc(valor) + '">' +
+      (img !== undefined ? imgHTML(img, titulo, 'opc-img') : '') +
+      '<span class="opc-txt"><b>' + esc(titulo) + '</b>' + (detalle ? '<small>' + detalle + '</small>' : '') + (extra || '') + '</span></button>';
+  }
+  function mostrarPaso(id, visible, elegido) {
+    var p = $('#' + id);
+    p.hidden = !visible;
+    p.classList.toggle('resuelto', !!elegido);
+    var b = $('[data-cambiar]', p);
+    if (b) b.hidden = !elegido;
+  }
+
+  function renderCalculo() {
+    var aviso1 = $('#cp-cat-aviso');
+    var confs = configsUtiles();
+    var est = DB.catEstado();
+    var accs = porId('cat_accesorios'), clis = porId('cat_clientes');
+    if (!confs.length) {
+      var txt = est.error ? esc(est.error) :
+        (DB.configurada() && !DB.sesion() ? 'Inicia sesión para descargar el catálogo de parámetros.' :
+          (!est.ultima && DB.configurada() ? 'El catálogo aún no se ha descargado. Conéctate a internet y sincroniza.' :
+            'No hay configuraciones aprobadas en el catálogo. El administrador debe importarlas o aprobarlas.'));
+      aviso1.innerHTML = aviso('alerta', 'Sin parámetros disponibles', txt);
+    } else aviso1.innerHTML = '';
+
+    // Clientes con al menos una configuración aprobada
+    var clientes = {};
+    confs.forEach(function (c) { var a = accs[c.accesorio_id]; clientes[a.cliente_id] = clis[a.cliente_id].nombre; });
+    var ids = Object.keys(clientes).sort(function (a, b) { return clientes[a].localeCompare(clientes[b]); });
+    if (cpSel.cliente && !clientes[cpSel.cliente]) limpiarDesde('cliente');
+    var s = $('#cp-cliente');
+    s.innerHTML = '<option value="">' + (ids.length ? 'Selecciona el cliente…' : 'Sin clientes disponibles') + '</option>' +
+      ids.map(function (id) { return '<option value="' + esc(id) + '"' + (id === cpSel.cliente ? ' selected' : '') + '>' + esc(clientes[id]) + '</option>'; }).join('');
+    s.disabled = !ids.length;
+    $('#cp-paso-cliente').classList.toggle('resuelto', !!cpSel.cliente);
+
+    // Referencias del cliente
+    var delCliente = confs.filter(function (c) { return accs[c.accesorio_id].cliente_id === cpSel.cliente; });
+    var refs = {};
+    delCliente.forEach(function (c) { refs[c.accesorio_id] = accs[c.accesorio_id]; });
+    if (cpSel.acc && !refs[cpSel.acc]) limpiarDesde('ref');
+    var listaRefs = Object.keys(refs).map(function (k) { return refs[k]; }).sort(function (a, b) { return String(a.codigo).localeCompare(String(b.codigo)); });
+    mostrarPaso('cp-paso-ref', !!cpSel.cliente, !!cpSel.acc);
+    $('#cp-refs').innerHTML = listaRefs.filter(function (a) { return !cpSel.acc || a.id === cpSel.acc; }).map(function (a) {
+      return opcionHTML(a.id, a.id === cpSel.acc, a.imagen, a.codigo, a.descripcion ? esc(a.descripcion) : '<i>Sin descripción</i>');
+    }).join('') || vacio('Este cliente no tiene referencias aprobadas.');
+
+    // Telas de la referencia
+    var deRef = delCliente.filter(function (c) { return c.accesorio_id === cpSel.acc; });
+    var telas = {}, telasCat = porId('cat_telas');
+    deRef.forEach(function (c) { var k = c.tela_id || SIN_TELA; telas[k] = c.tela_id && telasCat[c.tela_id] ? telasCat[c.tela_id].nombre : 'No especificada en el catálogo'; });
+    var tk = Object.keys(telas);
+    if (cpSel.acc && tk.length === 1 && cpSel.tela !== tk[0]) { cpSel.tela = tk[0]; cpSel.conf = null; }
+    if (cpSel.tela && !telas[cpSel.tela]) limpiarDesde('tela');
+    mostrarPaso('cp-paso-tela', !!cpSel.acc, !!cpSel.tela && tk.length > 1);
+    $('#cp-telas').innerHTML = tk.filter(function (k) { return !cpSel.tela || k === cpSel.tela; }).map(function (k) {
+      return opcionHTML(k, k === cpSel.tela, undefined, telas[k], tk.length === 1 ? 'Única opción para esta referencia' : '');
+    }).join('');
+
+    // Rubbers aprobados para referencia + tela
+    var deTela = deRef.filter(function (c) { return (c.tela_id || SIN_TELA) === cpSel.tela; });
+    var rubs = porId('cat_rubbers');
+    if (cpSel.tela && deTela.length === 1 && cpSel.conf !== deTela[0].id) cpSel.conf = deTela[0].id;
+    if (cpSel.conf && !deTela.some(function (c) { return c.id === cpSel.conf; })) cpSel.conf = null;
+    mostrarPaso('cp-paso-rubber', !!cpSel.tela, !!cpSel.conf && deTela.length > 1);
+    $('#cp-rubbers').innerHTML = deTela.filter(function (c) { return !cpSel.conf || c.id === cpSel.conf; }).map(function (c) {
+      var r = rubs[c.rubber_id];
+      var dims = r && num(r.largo_cm) > 0 && num(r.ancho_cm) > 0 ? f(num(r.largo_cm)) + ' × ' + f(num(r.ancho_cm)) + ' cm' : '<span class="falta">Faltan dimensiones</span>';
+      return opcionHTML(c.id, c.id === cpSel.conf, r ? r.imagen : null, r ? nombreRubber(r) : 'Rubber no asignado',
+        (r && r.descripcion ? esc(r.descripcion) + ' · ' : '') + dims + (deTela.length === 1 ? ' · única opción aprobada' : ''));
+    }).join('');
+
+    cargarImagenes($('#vista-calculo'));
+    calcCalculo();
+  }
+
+  function limpiarDesde(nivel) {
+    if (nivel === 'cliente') { cpSel.cliente = ''; }
+    if (nivel === 'cliente' || nivel === 'ref') cpSel.acc = null;
+    if (nivel === 'cliente' || nivel === 'ref' || nivel === 'tela') cpSel.tela = null;
+    cpSel.conf = null;
+    ultimoCalculo = null;
+  }
+
+  function filaParam(etq, valor, cls) { return '<div class="param' + (cls ? ' ' + cls : '') + '"><dt>' + etq + '</dt><dd>' + valor + '</dd></div>'; }
+  function faltaTxt(t) { return '<span class="falta">' + esc(t) + '</span>'; }
+
+  function htmlParametros(d) {
+    var c = d.conf, r = d.rubber;
+    var temp = c.temperatura_texto ? esc(c.temperatura_texto) + ' ' + (c.temperatura_unidad ? esc(c.temperatura_unidad) : faltaTxt('unidad no indicada')) :
+      (textoRango(c.temperatura_min, c.temperatura_max, c.temperatura_unidad) || faltaTxt('No indicada'));
+    var rango = c.presion_texto ? esc(c.presion_texto) + (textoRango(c.presion_min_psi, c.presion_max_psi) && !/psi/i.test(c.presion_texto) ? ' psi' : '') :
+      (textoRango(c.presion_min_psi, c.presion_max_psi, 'psi') || faltaTxt('No indicado'));
+    var dims = r && num(r.largo_cm) > 0 && num(r.ancho_cm) > 0 ? f(num(r.largo_cm)) + ' × ' + f(num(r.ancho_cm)) + ' cm' : faltaTxt('Faltan largo y ancho');
+    var desp = c.desprendimiento === 'otro' ? esc(c.desprendimiento_texto || 'Otra instrucción') :
+      c.desprendimiento ? NOMBRE_DESP[c.desprendimiento] : (c.desprendimiento_texto ? esc(c.desprendimiento_texto) : faltaTxt('No indicado'));
+    var html = '<div class="img-par"><figure>' + imgHTML(d.acc.imagen, d.acc.codigo, 'img-grande') + '<figcaption>Accesorio</figcaption></figure>' +
+      '<figure>' + imgHTML(r ? r.imagen : null, 'Rubber', 'img-grande') + '<figcaption>Rubber</figcaption></figure></div>' +
+      '<dl class="params">' +
+      filaParam('Cliente', esc(d.cliente)) +
+      filaParam('Referencia', '<b>' + esc(d.acc.codigo) + '</b>' + (d.acc.descripcion ? ' · ' + esc(d.acc.descripcion) : '')) +
+      filaParam('Tela', d.tela ? esc(d.tela) : faltaTxt('No especificada')) +
+      filaParam('Proveedor', d.proveedor ? esc(d.proveedor) : faltaTxt('No indicado')) +
+      filaParam('Rubber', esc(nombreRubber(r)) + (r && r.descripcion ? ' · ' + esc(r.descripcion) : '')) +
+      filaParam('Largo × ancho', dims) +
+      filaParam('Temperatura', temp) +
+      filaParam('Rango de presión', rango) +
+      filaParam('Presión objetivo', d.calc.presionObjetivo !== null ? '<b>' + f0(d.calc.presionObjetivo) + ' psi</b> <small>(máximo del rango)</small>' : faltaTxt('No disponible'), 'destacado') +
+      filaParam('Tipo de presión', d.conf.tipo_presion === 'pendiente' ? faltaTxt('Pendiente de confirmar') : esc(C.TIPOS_PRESION[d.conf.tipo_presion] || d.conf.tipo_presion)) +
+      filaParam('Tiempo / secuencia', c.tiempo_texto ? esc(c.tiempo_texto) : faltaTxt('No indicado')) +
+      filaParam('Desprendimiento del film', desp) +
+      (c.observaciones ? filaParam('Observaciones', esc(c.observaciones)) : '') +
+      '</dl>' +
+      (c.pruebas_internas ? '<details class="ayuda-mas"><summary>Parámetros usados en pruebas internas (no son del proveedor)</summary><p class="pre">' + esc(c.pruebas_internas) + '</p></details>' : '') +
+      '<p class="version-conf">Configuración v' + esc(c.version || 1) + ' · aprobada' + (c.origen ? ' · ' + esc(c.origen) : '') + '</p>';
+    return html;
+  }
+
+  function htmlObjetivo(d) {
+    var k = d.calc;
+    if (!k.ok) {
+      var tit = k.motivos.some(function (m) { return m.codigo === 'tipo-pendiente'; }) ? 'Pendiente de confirmar el tipo de presión' :
+        k.motivos.some(function (m) { return m.codigo === 'aire'; }) ? 'Sin lectura objetivo: presión del manómetro' : 'Sin lectura objetivo: faltan datos';
+      return '<div class="objetivo bloqueado"><h3>Lectura objetivo del dinamómetro</h3>' +
+        aviso('alerta', tit, '<ul>' + k.motivos.filter(function (m) { return m.texto.replace(/\.$/, '') !== tit; }).map(function (m) { return '<li>' + esc(m.texto) + '</li>'; }).join('') + '</ul>' +
+          '<p>No hay un valor válido para ajustar. Avisa al administrador del catálogo.</p>') + '</div>';
     }
-    var r = C.fuerzaNecesaria(l.v, a.v, p.v);
-    ultimoCalculo = { l: l.v, a: a.v, p: p.v, r: r };
-    $('#cp-resultados').innerHTML =
-      grupo('Área del rubber', areaTiles(r.area)) +
-      grupo('<span class="tag tag-fuerza">Fuerza necesaria</span> (lectura objetivo del dinamómetro)', fuerzaTiles(r.fuerza, 'Fuerza')) +
-      grupo('<span class="tag tag-presion">Presión promedio deseada</span> sobre el rubber', presionTiles(r.presion, 'Presión')) + AVISO_PROMEDIO;
-    $('#cp-capacidad').innerHTML = htmlCapacidad(r.fuerza.lbf);
+    return '<div class="objetivo"><h3>Lectura objetivo del dinamómetro</h3><div class="res-grid">' + fuerzaTiles(k.fuerza, 'Fuerza') + '</div>' +
+      '<p class="objetivo-base">Para ' + f0(k.presionObjetivo) + ' psi de contacto sobre ' + f(num(d.rubber.largo_cm)) + ' × ' + f(num(d.rubber.ancho_cm)) +
+      ' cm (' + f(k.area.cm2) + ' cm² · ' + f(k.area.in2, 4) + ' in²)</p></div>';
+  }
+
+  function calcCalculo() {
+    var res = $('#cp-paso-res');
+    var c = cpSel.conf ? configsUtiles().find(function (x) { return x.id === cpSel.conf; }) : null;
+    if (!c) { ultimoCalculo = null; res.hidden = true; $('#cp-capacidad').innerHTML = ''; return; }
+    var d = detalleConfig(c);
+    ultimoCalculo = d;
+    res.hidden = false;
+    $('#cp-objetivo').innerHTML = htmlObjetivo(d);
+    $('#cp-parametros').innerHTML = htmlParametros(d);
+    $('#cp-capacidad').innerHTML = d.calc.ok ? htmlCapacidad(d.calc.fuerza.lbf) : '';
+    ['cp-guardar', 'cp-a-validacion', 'cp-a-pruebas'].forEach(function (id) { $('#' + id).disabled = false; });
+    cargarImagenes(res);
+  }
+
+  function elegirOpcion(paso, valor) {
+    if (paso === 'ref') { if (cpSel.acc !== valor) { limpiarDesde('ref'); cpSel.acc = valor; } }
+    if (paso === 'tela') { if (cpSel.tela !== valor) { limpiarDesde('tela'); cpSel.tela = valor; } }
+    if (paso === 'rubber') cpSel.conf = valor;
+    $('#cp-msg').textContent = '';
+    renderCalculo();
+    var sig = paso === 'ref' ? '#cp-paso-tela' : paso === 'tela' ? '#cp-paso-rubber' : '#cp-paso-res';
+    var el = $(sig);
+    if (el && el.hidden) el = $('#cp-paso-res');
+    if (el && !el.hidden) setTimeout(function () { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60);
   }
 
   function guardarCalculo() {
     var msg = $('#cp-msg');
     var m = exigirMaquina('cp');
-    var l = leer('cp-largo', true), a = leer('cp-ancho', true), p = leer('cp-psi', true);
-    if (!m || !(l.ok && a.ok && p.ok)) { msg.textContent = 'Completa la máquina y los datos marcados en rojo.'; msg.className = 'msg err'; return; }
-    var r = C.fuerzaNecesaria(l.v, a.v, p.v);
-    var reg = Object.assign(datosMaquina(m), {
+    var d = ultimoCalculo;
+    if (!m) { msg.textContent = 'Selecciona la máquina.'; msg.className = 'msg err'; return; }
+    if (!d) { msg.textContent = 'Completa cliente, referencia, tela y rubber.'; msg.className = 'msg err'; return; }
+    if (!d.calc.ok) { msg.textContent = 'No se guarda: esta combinación no tiene una lectura objetivo válida (' + d.calc.motivos.map(function (x) { return x.texto; }).join(' ') + ')'; msg.className = 'msg err'; return; }
+    var r = d.rubber;
+    var reg = Object.assign(datosMaquina(m), contextoRegistro(d), {
       fecha: hoyISO(), usuario_email: usuarioActual(),
-      rubber_largo_cm: l.v, rubber_ancho_cm: a.v, area_cm2: r4(r.area.cm2), area_in2: r4(r.area.in2),
-      presion_deseada_psi: p.v, fuerza_lbf: r4(r.fuerza.lbf), fuerza_kgf: r4(r.fuerza.kgf), fuerza_n: r4(r.fuerza.N),
+      rubber_largo_cm: num(r.largo_cm), rubber_ancho_cm: num(r.ancho_cm), area_cm2: r4(d.calc.area.cm2), area_in2: r4(d.calc.area.in2),
+      presion_deseada_psi: d.calc.presionObjetivo, fuerza_lbf: r4(d.calc.fuerza.lbf), fuerza_kgf: r4(d.calc.fuerza.kgf), fuerza_n: r4(d.calc.fuerza.N),
       capacidad_celda: textoCapacidad(), observaciones: $('#cp-obs').value.trim() || null
     });
-    guardarEnBD('calculo_presion', reg, msg, function () { $('#cp-obs').value = ''; elegirMaquina('cp', m); });
+    guardarEnBD('calculo_presion', reg, msg, function () { $('#cp-obs').value = ''; });
   }
 
-  function compartirCalculo() {
-    if (!ultimoCalculo) { toast('Completa los datos primero.', true); return; }
-    var u = ultimoCalculo, r = u.r;
-    compartirTexto('Cálculo de presión', [
+  function textoCalculo(d) {
+    var c = d.conf, r = d.rubber || {};
+    return [
       'CÁLCULO DE PRESIÓN — Medición Transfer',
-      'Máquina: ' + (sel.cp ? sel.cp.id + (sel.cp.linea ? ' (' + sel.cp.linea + ')' : '') : 'sin seleccionar'),
-      'Rubber: ' + f(u.l) + ' × ' + f(u.a) + ' cm (' + f(r.area.cm2) + ' cm² / ' + f(r.area.in2, 4) + ' in²)',
-      'Presión promedio deseada sobre el rubber: ' + f(u.p) + ' psi (' + f(r.presion.kgfcm2) + ' kgf/cm², ' + f(r.presion.bar) + ' bar)',
-      'Fuerza necesaria: ' + f(r.fuerza.lbf) + ' lbf = ' + f(r.fuerza.kgf) + ' kgf = ' + f(r.fuerza.N) + ' N',
-      'Capacidad de la celda: ' + textoCapacidad(),
-      'Nota: presión promedio estimada; no es la presión del aire del manómetro.'
-    ].join('\n'));
+      'Línea: ' + ($('#cp-linea').value || '—') + ' · Máquina: ' + (sel.cp ? sel.cp.id : 'sin seleccionar'),
+      'Cliente: ' + d.cliente + ' · Referencia: ' + d.acc.codigo + (d.acc.descripcion ? ' (' + d.acc.descripcion + ')' : ''),
+      'Tela: ' + (d.tela || 'no especificada') + ' · Proveedor: ' + (d.proveedor || '—'),
+      'Rubber: ' + nombreRubber(d.rubber) + (num(r.largo_cm) > 0 && num(r.ancho_cm) > 0 ? ' · ' + f(num(r.largo_cm)) + ' × ' + f(num(r.ancho_cm)) + ' cm' : ' · faltan dimensiones'),
+      'Temperatura: ' + (c.temperatura_texto || '—') + (c.temperatura_unidad ? ' ' + c.temperatura_unidad : ' (unidad no indicada)'),
+      'Rango de presión: ' + (c.presion_texto || '—') + ' · Presión objetivo: ' + (d.calc.presionObjetivo !== null ? f0(d.calc.presionObjetivo) + ' psi' : '—'),
+      'Tipo de presión: ' + (C.TIPOS_PRESION[c.tipo_presion] || c.tipo_presion),
+      'Tiempo: ' + (c.tiempo_texto || '—') + ' · Desprendimiento: ' + (c.desprendimiento ? NOMBRE_DESP[c.desprendimiento] : (c.desprendimiento_texto || '—')),
+      d.calc.ok ? 'Lectura objetivo del dinamómetro: ' + f(d.calc.fuerza.lbf) + ' lbf = ' + f(d.calc.fuerza.kgf) + ' kgf = ' + f(d.calc.fuerza.N) + ' N'
+        : 'Sin lectura objetivo: ' + d.calc.motivos.map(function (x) { return x.texto; }).join(' '),
+      'Configuración v' + (c.version || 1) + '. Válido solo si el dinamómetro mide toda la fuerza sobre el área efectiva del rubber.'
+    ].join('\n');
+  }
+  function compartirCalculo() {
+    if (!ultimoCalculo) { toast('Completa la selección primero.', true); return; }
+    compartirTexto('Cálculo de presión', textoCalculo(ultimoCalculo));
+  }
+
+  // ---------- Contexto trasladado a Validación y Registro de pruebas ----------
+  var contexto = { vp: null, rp: null };
+  function htmlContexto(p) {
+    var x = contexto[p];
+    if (!x) return '';
+    var ctx = x.ctx;
+    return '<div class="contexto"><div><b>' + esc(ctx.cliente) + ' · ' + esc(ctx.accesorio_codigo) + '</b><span>' + esc(ctx.tela || 'Tela no especificada') + ' · ' + esc(ctx.rubber || '') + '</span>' +
+      '<span>Objetivo: ' + (ctx.fuerza_objetivo_lbf !== null ? f(ctx.fuerza_objetivo_lbf) + ' lbf · ' : '') + f0(ctx.presion_objetivo_psi) + ' psi (rango ' + esc(ctx.presion_rango || '—') + ')</span></div>' +
+      '<button type="button" class="btn btn-chico" data-quitar-ctx="' + p + '">Quitar</button></div>';
+  }
+  function fijarContexto(p, d) {
+    contexto[p] = d ? { ctx: contextoRegistro(d), largo: num(d.rubber.largo_cm), ancho: num(d.rubber.ancho_cm) } : null;
+    $('#' + p + '-contexto').innerHTML = htmlContexto(p);
+    ['largo', 'ancho'].forEach(function (k) {
+      var el = $('#' + p + '-' + k);
+      if (contexto[p]) { el.value = String(contexto[p][k]); el.readOnly = true; } else el.readOnly = false;
+    });
+  }
+  function pasarDesdeCalculo(destino) {
+    var d = ultimoCalculo;
+    if (!d) { toast('Completa la selección primero.', true); return; }
+    if (!(num(d.rubber && d.rubber.largo_cm) > 0 && num(d.rubber && d.rubber.ancho_cm) > 0)) { toast('El rubber no tiene dimensiones en el catálogo.', true); return; }
+    var p = destino === 'vista-validacion' ? 'vp' : 'rp';
+    if (p === 'rp') cancelarEdicion();
+    fijarContexto(p, d);
+    if ($('#cp-linea').value) { $('#' + p + '-linea').value = $('#cp-linea').value; }
+    if (sel.cp) { $('#' + p + '-maq').value = sel.cp.id; elegirMaquina(p, sel.cp); }
+    if (p === 'rp' && d.calc.ok) { $('#s-psi').value = String(d.calc.presionObjetivo); }
+    mostrarVista(destino);
+    if (p === 'vp') { calcValidacion(); $('#vp-lectura').focus(); toast('Ingresa la lectura del dinamómetro.'); }
+    else { previewPrueba(); renderSugerencia(); $('#rp-man').focus(); toast('Ingresa el manómetro y la fuerza medida.'); }
   }
 
   // ======================================================
@@ -553,10 +819,20 @@
         grupo('Área del rubber', areaTiles(r.area)) +
         grupo('<span class="tag tag-fuerza">Fuerza medida</span> (dinamómetro)', fuerzaTiles(r.fuerza, 'Fuerza')) +
         grupo('<span class="tag tag-presion">Presión promedio estimada</span> sobre el rubber', presionTiles(r.presion, 'Presión')) +
-        htmlFormula(l.v, a.v, x.v, u, r) + AVISO_PROMEDIO;
+        htmlFormula(l.v, a.v, x.v, u, r) + htmlComparacion(r) + AVISO_PROMEDIO;
       $('#vp-capacidad').innerHTML = htmlCapacidad(r.fuerza.lbf);
     }
     calcPlancha();
+  }
+  /** Compara la medición con la lectura objetivo trasladada desde Cálculo de presión (sin juzgar tolerancias). */
+  function htmlComparacion(r) {
+    var x = contexto.vp;
+    if (!x || x.ctx.fuerza_objetivo_lbf === null) return '';
+    var obj = x.ctx.fuerza_objetivo_lbf, dif = (r.fuerza.lbf - obj) / obj * 100;
+    return grupo('Comparación con el objetivo del catálogo',
+      tile('fuerza', 'Objetivo', f(obj), 'lbf', f0(x.ctx.presion_objetivo_psi) + ' psi') +
+      tile('fuerza principal', 'Medido', f(r.fuerza.lbf), 'lbf', f(r.presion.psi) + ' psi') +
+      tile('fuerza', 'Diferencia', (dif > 0 ? '+' : '') + f(dif, 1), '%', (r.fuerza.lbf - obj >= 0 ? '+' : '') + f(r.fuerza.lbf - obj) + ' lbf'));
   }
   /** Muestra el cálculo paso a paso para poder revisarlo a mano en planta. */
   function htmlFormula(l, a, x, u, r) {
@@ -604,7 +880,7 @@
       plancha_largo_cm: d ? d.l : null, plancha_ancho_cm: d ? d.a : null, plancha_area_cm2: d ? r4(d.area.cm2) : null,
       fuerza_total_plancha: !!(d && d.total), plancha_presion_psi: d && d.presion ? r4(d.presion.psi) : null,
       capacidad_celda: textoCapacidad(), observaciones: $('#vp-obs').value.trim() || null
-    });
+    }, contexto.vp ? contexto.vp.ctx : {});
     guardarEnBD('validacion_presion', reg, msg, function () { $('#vp-obs').value = ''; elegirMaquina('vp', m); });
   }
 
@@ -625,6 +901,12 @@
   function validacionAPruebas() {
     if (!ultimaValidacion) { toast('Completa los datos primero.', true); return; }
     cancelarEdicion();
+    if (contexto.vp) {
+      contexto.rp = contexto.vp;
+      $('#rp-contexto').innerHTML = htmlContexto('rp');
+      $('#rp-largo').readOnly = true; $('#rp-ancho').readOnly = true;
+      if (contexto.vp.ctx.presion_objetivo_psi) $('#s-psi').value = String(contexto.vp.ctx.presion_objetivo_psi);
+    }
     $('#rp-largo').value = String(ultimaValidacion.l);
     $('#rp-ancho').value = String(ultimaValidacion.a);
     $('#rp-fuerza').value = String(ultimaValidacion.x);
@@ -712,15 +994,19 @@
       fuerza_lbf: r4(d.fuerza.lbf), fuerza_kgf: r4(d.fuerza.kgf), fuerza_n: r4(d.fuerza.N),
       presion_psi: r4(d.presion.psi), presion_kgfcm2: r4(d.presion.kgfcm2), presion_bar: r4(d.presion.bar)
     });
+    if (contexto.rp) Object.assign(reg, contexto.rp.ctx);
     if (editId) {
       var prev = DB.obtener('registro_pruebas', editId);
+      if (prev && !contexto.rp) COLS_CTX.forEach(function (k) { if (prev[k] !== undefined) reg[k] = prev[k]; });
       reg.id = editId;
       reg.usuario_email = prev && prev.usuario_email ? prev.usuario_email : usuarioActual();
     } else reg.usuario_email = usuarioActual();
     var eraEdicion = !!editId;
     if (!guardarEnBD('registro_pruebas', reg, msg)) return;
     grupoSel = claveDe(reg);
+    var ctxPrevio = contexto.rp;
     cancelarEdicion(true);
+    if (ctxPrevio && !eraEdicion) { contexto.rp = ctxPrevio; $('#rp-contexto').innerHTML = htmlContexto('rp'); $('#rp-largo').readOnly = true; $('#rp-ancho').readOnly = true; }
     // conservar máquina, montaje, rubber y unidades para la siguiente prueba
     elegirMaquina('rp', m);
     $('#rp-montaje').value = reg.montaje || '';
@@ -734,6 +1020,7 @@
   }
 
   function limpiarFormulario(mantenerMsg) {
+    if (contexto.rp) fijarContexto('rp', null);
     ['rp-montaje', 'rp-largo', 'rp-ancho', 'rp-man', 'rp-fuerza', 'rp-temp', 'rp-tiempo', 'rp-obs'].forEach(function (id) { $('#' + id).value = ''; });
     $('#rp-fecha').value = hoyISO();
     $$('#form-pruebas .campo').forEach(function (c) { c.classList.remove('invalido'); var e = c.querySelector('.error'); if (e) e.textContent = ''; });
@@ -903,19 +1190,25 @@
     fuerza_total_plancha: 'Fuerza total sobre plancha', plancha_presion_psi: 'Presión prom. plancha (psi)',
     montaje: 'Montaje', manometro_valor: 'Manómetro (valor)', manometro_unidad: 'Unidad manómetro', manometro_psi: 'Manómetro (psi)',
     fuerza_valor: 'Fuerza dinamómetro (valor)', fuerza_unidad: 'Unidad fuerza',
-    temperatura: 'Temperatura', temperatura_unidad: 'Unidad temperatura', tiempo_s: 'Tiempo de aplicación (s)'
+    temperatura: 'Temperatura', temperatura_unidad: 'Unidad temperatura', tiempo_s: 'Tiempo de aplicación (s)',
+    configuracion_id: 'ID configuración', configuracion_version: 'Versión configuración', cliente: 'Cliente', accesorio_codigo: 'Código accesorio',
+    accesorio_referencia: 'Referencia accesorio', tela: 'Tipo de tela', proveedor: 'Proveedor', rubber: 'Rubber / molde',
+    presion_rango: 'Rango de presión (original)', presion_objetivo_psi: 'Presión objetivo (psi)', tipo_presion: 'Tipo de presión',
+    fuerza_objetivo_lbf: 'Fuerza objetivo (lbf)', fuerza_objetivo_kgf: 'Fuerza objetivo (kgf)', fuerza_objetivo_n: 'Fuerza objetivo (N)',
+    parametros: 'Parámetros usados (copia)'
   };
   var COLS_TABLA = {
-    calculo_presion: ['fecha', 'maquina_serie', 'linea_operacion', 'rubber', 'presion_deseada_psi', 'fuerza_lbf', 'fuerza_kgf', 'fuerza_n', 'usuario_email', 'observaciones'],
+    calculo_presion: ['fecha', 'maquina_serie', 'linea_operacion', 'cliente', 'accesorio_codigo', 'tela', 'rubber', 'presion_deseada_psi', 'fuerza_lbf', 'fuerza_kgf', 'fuerza_n', 'usuario_email', 'observaciones'],
     validacion_presion: ['fecha', 'maquina_serie', 'linea_operacion', 'rubber', 'lectura', 'fuerza_lbf', 'presion_psi', 'presion_kgfcm2', 'plancha_presion_psi', 'usuario_email', 'observaciones'],
     registro_pruebas: ['fecha', 'maquina_serie', 'linea_operacion', 'montaje', 'rubber', 'manometro', 'fuerza', 'fuerza_lbf', 'presion_psi', 'temperatura', 'tiempo_s', 'usuario_email', 'observaciones']
   };
-  var ETQ_EXTRA = { rubber: 'Rubber cm', lectura: 'Lectura', manometro: 'Manómetro (aire)', fuerza: 'Fuerza leída' };
+  var ETQ_EXTRA = { rubber: 'Rubber cm', accesorio_codigo: 'Referencia', tela: 'Tela', lectura: 'Lectura', manometro: 'Manómetro (aire)', fuerza: 'Fuerza leída' };
 
   function celdaTexto(r, c) {
     switch (c) {
       case 'fecha': return fechaLegible(r.fecha);
       case 'rubber': return f(num(r.rubber_largo_cm)) + ' × ' + f(num(r.rubber_ancho_cm));
+      case 'presion_deseada_psi': return f(num(r.presion_deseada_psi)) + (r.presion_rango ? ' (rango ' + r.presion_rango + ')' : '');
       case 'lectura': return f(num(r.lectura_valor)) + ' ' + (r.lectura_unidad || '');
       case 'manometro': return f(num(r.manometro_valor)) + ' ' + (NOMBRE_PRES[r.manometro_unidad] || '');
       case 'fuerza': return f(num(r.fuerza_valor)) + ' ' + (r.fuerza_unidad || '');
@@ -928,14 +1221,14 @@
         return typeof v === 'number' ? f(v) : String(v);
     }
   }
-  var TXT_COLS = { fecha: 1, maquina_serie: 1, maquina_linea: 1, linea_operacion: 1, montaje: 1, usuario_email: 1, observaciones: 1 };
+  var TXT_COLS = { cliente: 1, accesorio_codigo: 1, tela: 1, fecha: 1, maquina_serie: 1, maquina_linea: 1, linea_operacion: 1, montaje: 1, usuario_email: 1, observaciones: 1 };
 
   function registrosFiltrados(tabla) {
     var maq = $('#h-maquina').value;
     var q = $('#h-buscar').value.trim().toLowerCase();
     return DB.listar(tabla).filter(function (r) {
       if (maq && r.maquina_serie !== maq) return false;
-      if (q && [r.maquina_serie, r.linea_operacion, r.maquina_linea, r.montaje, r.observaciones, r.usuario_email].join(' ').toLowerCase().indexOf(q) < 0) return false;
+      if (q && [r.maquina_serie, r.linea_operacion, r.maquina_linea, r.montaje, r.observaciones, r.usuario_email, r.cliente, r.accesorio_codigo, r.accesorio_referencia, r.tela].join(' ').toLowerCase().indexOf(q) < 0) return false;
       return true;
     }).sort(function (a, b) { return String(b.fecha || '').localeCompare(String(a.fecha || '')) || String(b.creado || '').localeCompare(String(a.creado || '')); });
   }
@@ -949,7 +1242,7 @@
 
   function renderHistorial() {
     renderAvisoHistorial();
-    $$('.segmentos button').forEach(function (b) { b.setAttribute('aria-selected', b.dataset.mod === modHist ? 'true' : 'false'); });
+    $$('#vista-historial .segmentos button').forEach(function (b) { b.setAttribute('aria-selected', b.dataset.mod === modHist ? 'true' : 'false'); });
     var s = $('#h-maquina'), actual = s.value, maqs = {};
     DB.listar(modHist).forEach(function (r) { maqs[r.maquina_serie] = r.maquina_linea || ''; });
     s.innerHTML = '<option value="">Todas las máquinas</option>' + Object.keys(maqs).sort().map(function (m) {
@@ -982,9 +1275,11 @@
     if (modHist === 'registro_pruebas' && r.temperatura !== null && r.temperatura !== undefined) extra.push('Temp. ' + f(num(r.temperatura), 1) + ' ' + esc(r.temperatura_unidad || ''));
     if (modHist === 'registro_pruebas' && r.tiempo_s) extra.push('Tiempo ' + f(num(r.tiempo_s), 1) + ' s');
     if (r.usuario_email) extra.push(esc(r.usuario_email));
+    var combo = r.cliente ? '<div class="reg-meta"><b>' + esc(r.cliente) + ' · ' + esc(r.accesorio_codigo || '') + '</b>' + (r.tela ? ' · ' + esc(r.tela) : '') +
+      (r.presion_rango ? ' · rango ' + esc(r.presion_rango) : '') + (r.configuracion_version ? ' · config. v' + esc(r.configuracion_version) : '') + '</div>' : '';
     var pend = r._pend && DB.configurada() ? '<span class="etq-pend">por subir</span>' : '';
     return '<article class="reg"><div class="reg-cab"><b>' + esc(r.maquina_serie) + pend + '</b><span>' + fechaLegible(r.fecha) + (r.creado ? ' ' + horaLegible(r.creado) : '') + '</span></div>' +
-      '<div class="reg-meta">' + (r.linea_operacion ? 'Línea ' + esc(r.linea_operacion) : 'Línea no registrada') + ' · Rubber ' + f(num(r.rubber_largo_cm)) + ' × ' + f(num(r.rubber_ancho_cm)) + ' cm</div>' +
+      combo + '<div class="reg-meta">' + (r.linea_operacion ? 'Línea ' + esc(r.linea_operacion) : 'Línea no registrada') + ' · Rubber ' + f(num(r.rubber_largo_cm)) + ' × ' + f(num(r.rubber_ancho_cm)) + ' cm</div>' +
       '<div class="reg-vals">' + v.map(function (x) { return '<div class="' + x[0] + '">' + x[1] + '<strong>' + x[2] + '</strong></div>'; }).join('') + '</div>' +
       '<div class="reg-meta">' + extra.join(' · ') + (r.observaciones ? '<br>' + esc(r.observaciones) : '') + '</div>' +
       '<div class="acciones">' + botonesFila(r) + '</div></article>';
@@ -1017,12 +1312,15 @@
     if (c === 'fecha') return String(v).slice(0, 10);
     if (c === 'fuerza_total_plancha') return v ? 'Sí' : 'No';
     if (c === 'manometro_unidad') return NOMBRE_PRES[v] || v;
+    if (c === 'tipo_presion') return C.TIPOS_PRESION[v] || v;
+    if (typeof v === 'object') return JSON.stringify(v);
     if (typeof v === 'number') return C.redondear(v, c === 'area_in2' ? 4 : 2);
     return v;
   }
   function filasExport(tabla, lista) {
     var cols = DB.TABLAS[tabla].columnas.filter(function (c) { return c !== 'id'; }).concat(['id']);
-    var orden = ['fecha', 'maquina_serie', 'linea_operacion', 'maquina_linea', 'maquina_estacion', 'maquina_qr', 'maquina_asset'];
+    var orden = ['fecha', 'maquina_serie', 'linea_operacion', 'cliente', 'accesorio_codigo', 'accesorio_referencia', 'tela', 'proveedor', 'rubber',
+      'presion_rango', 'presion_objetivo_psi', 'tipo_presion', 'maquina_linea', 'maquina_estacion', 'maquina_qr', 'maquina_asset'];
     cols = orden.concat(cols.filter(function (c) { return orden.indexOf(c) < 0; }));
     return [cols.map(function (c) { return ETIQUETAS[c] || c; })].concat(lista.map(function (r) {
       return cols.map(function (c) { return valorExport(c, r[c]); });
@@ -1260,7 +1558,7 @@
     }
   }
 
-  function recalcularTodo() { calcCalculo(); calcValidacion(); previewPrueba(); if (vistaActual === 'vista-pruebas') renderGraficas(); }
+  function recalcularTodo() { renderCalculo(); calcValidacion(); previewPrueba(); if (vistaActual === 'vista-pruebas') renderGraficas(); }
 
   // ======================================================
   // INICIO
@@ -1296,7 +1594,29 @@
     $$('input[data-req]').forEach(function (el) { el.addEventListener('blur', function () { leer(el.id, false); }); });
 
     // Cálculo de presión
-    ['cp-largo', 'cp-ancho', 'cp-psi'].forEach(function (id) { $('#' + id).addEventListener('input', function () { recordar(id); calcCalculo(); }); });
+    $('#cp-cliente').addEventListener('change', function () {
+      limpiarDesde('cliente'); cpSel.cliente = this.value; ultimos['cp-cliente'] = this.value; guardarLS(LS_ULT, ultimos);
+      $('#cp-msg').textContent = ''; renderCalculo();
+    });
+    [['#cp-refs', 'ref'], ['#cp-telas', 'tela'], ['#cp-rubbers', 'rubber']].forEach(function (x) {
+      $(x[0]).addEventListener('click', function (e) {
+        var b = e.target.closest('.opcion');
+        if (!b) return;
+        if (b.classList.contains('elegida')) { limpiarDesde(x[1]); renderCalculo(); return; }
+        elegirOpcion(x[1], b.dataset.valor);
+      });
+    });
+    $$('[data-cambiar]').forEach(function (b) { b.addEventListener('click', function () { limpiarDesde(b.dataset.cambiar); renderCalculo(); }); });
+    $('#cp-a-validacion').addEventListener('click', function () { pasarDesdeCalculo('vista-validacion'); });
+    $('#cp-a-pruebas').addEventListener('click', function () { pasarDesdeCalculo('vista-pruebas'); });
+    document.addEventListener('click', function (e) {
+      var q = e.target.closest('[data-quitar-ctx]');
+      if (!q) return;
+      var p = q.dataset.quitarCtx;
+      fijarContexto(p, null);
+      if (p === 'vp') calcValidacion(); else previewPrueba();
+    });
+    if (ultimos['cp-cliente']) cpSel.cliente = ultimos['cp-cliente'];
     $('#cp-guardar').addEventListener('click', guardarCalculo);
     $('#cp-compartir').addEventListener('click', compartirCalculo);
 
@@ -1320,7 +1640,7 @@
     $('#s-psi').addEventListener('input', function () { recordar('s-psi'); renderSugerencia(); });
 
     // Historial
-    $$('.segmentos button').forEach(function (b) { b.addEventListener('click', function () { modHist = b.dataset.mod; $('#h-maquina').value = ''; renderHistorial(); }); });
+    $$('#vista-historial .segmentos button').forEach(function (b) { b.addEventListener('click', function () { modHist = b.dataset.mod; $('#h-maquina').value = ''; renderHistorial(); }); });
     $('#h-maquina').addEventListener('change', renderHistorial);
     $('#h-buscar').addEventListener('input', renderHistorial);
     $('#h-tabla').addEventListener('click', function (e) {
@@ -1357,13 +1677,15 @@
       renderEstadoBD();
       if (vistaActual === 'vista-historial') renderHistorial();
       if (vistaActual === 'vista-pruebas' && !editId) renderGraficas();
+      if (vistaActual === 'vista-calculo') renderCalculo();
+      if (vistaActual === 'vista-catalogo' && window.Admin) window.Admin.alCambiarDatos();
     });
     window.addEventListener('online', renderEstadoBD);
     window.addEventListener('offline', renderEstadoBD);
     window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); eventoInstalar = e; });
     if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('./sw.js').catch(function () {});
 
-    calcCalculo(); calcValidacion(); previewPrueba();
+    renderCalculo(); calcValidacion(); previewPrueba();
     var inicial = vistaDesdeHash();
     if (inicial !== 'vista-inicio') {
       try { history.replaceState({ vista: 'vista-inicio' }, '', location.pathname + location.search); } catch (e) { /* nada */ }
@@ -1372,6 +1694,13 @@
     renderEstadoBD();
     DB.sincronizar();
   }
+
+  window.AppUI = {
+    $: $, $$: $$, esc: esc, f: f, num: num, toast: toast, aviso: aviso, vacio: vacio, fechaHora: fechaHora,
+    imgHTML: imgHTML, cargarImagenes: cargarImagenes, abrirDialogo: abrirDialogo, cerrarDialogo: cerrarDialogo,
+    mostrarVista: mostrarVista, abrirLogin: abrirLogin, accionBD: accionBD, refrescarCalculo: function () { renderCalculo(); },
+    descargar: descargar
+  };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar);
   else iniciar();

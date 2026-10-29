@@ -14,7 +14,10 @@
   var LIMITE_DESCARGA = 1000;
 
   var COMUNES = ['id', 'creado', 'modificado', 'usuario_email', 'fecha', 'maquina_serie', 'maquina_qr', 'maquina_asset',
-    'maquina_linea', 'maquina_estacion', 'linea_operacion', 'rubber_largo_cm', 'rubber_ancho_cm', 'area_cm2', 'area_in2'];
+    'maquina_linea', 'maquina_estacion', 'linea_operacion', 'rubber_largo_cm', 'rubber_ancho_cm', 'area_cm2', 'area_in2',
+    // v3: combinación del catálogo usada y copia de sus parámetros (no cambia si después se edita el catálogo)
+    'configuracion_id', 'configuracion_version', 'cliente', 'accesorio_codigo', 'accesorio_referencia', 'tela', 'proveedor', 'rubber',
+    'presion_rango', 'presion_objetivo_psi', 'tipo_presion', 'fuerza_objetivo_lbf', 'fuerza_objetivo_kgf', 'fuerza_objetivo_n', 'parametros'];
 
   var TABLAS = {
     calculo_presion: {
@@ -225,6 +228,205 @@
     return o;
   }
 
+
+  // =====================================================================
+  // CATÁLOGO DE PARÁMETROS (clientes, referencias, telas, rubbers, configuraciones)
+  // Se descarga al sincronizar y queda en el teléfono para usarlo sin señal.
+  // Solo el administrador escribe; el servidor lo impone con RLS.
+  // =====================================================================
+  var LS_CAT = 'transfer.catalogo.v1';
+  var LS_CAT_AUD = 'transfer.catalogo.auditoria.v1';
+  var CACHE_IMG = 'transfer-img-v1';
+  var SELLO = ['version', 'creado', 'creado_por', 'modificado', 'modificado_por'];
+  var CAT_TABLAS = {
+    cat_clientes: { nombre: 'Clientes', columnas: ['id', 'nombre', 'activo', 'clave_import'] },
+    cat_proveedores: { nombre: 'Proveedores', columnas: ['id', 'nombre', 'activo', 'clave_import'] },
+    cat_telas: { nombre: 'Tipos de tela', columnas: ['id', 'nombre', 'activo', 'clave_import'] },
+    cat_accesorios: { nombre: 'Referencias', columnas: ['id', 'cliente_id', 'codigo', 'descripcion', 'imagen', 'imagenes_extra', 'activo', 'clave_import'] },
+    cat_rubbers: { nombre: 'Rubbers / moldes', columnas: ['id', 'nombre', 'tipo', 'descripcion', 'largo_cm', 'ancho_cm', 'imagen', 'imagenes_extra', 'cliente_id', 'activo', 'clave_import'] },
+    cat_configuraciones: { nombre: 'Configuraciones', columnas: ['id', 'accesorio_id', 'tela_id', 'rubber_id', 'proveedor_id',
+      'temperatura_texto', 'temperatura_min', 'temperatura_max', 'temperatura_unidad', 'presion_texto', 'presion_min_psi', 'presion_max_psi',
+      'tipo_presion', 'tiempo_texto', 'desprendimiento', 'desprendimiento_texto', 'observaciones', 'pruebas_internas',
+      'fecha_texto', 'fecha', 'origen', 'estado', 'activo', 'clave_import'] }
+  };
+  var cat = leerLS(LS_CAT, null) || {};
+  Object.keys(CAT_TABLAS).forEach(function (t) { if (!Array.isArray(cat[t])) cat[t] = []; });
+  var catEstado = { ultima: cat._ultima || null, error: null };
+
+  function persistirCat() {
+    try { cat._ultima = catEstado.ultima; guardarLS(LS_CAT, cat); }
+    catch (e) { /* sin espacio: el catálogo seguirá en memoria */ }
+  }
+  function catalogo() { return cat; }
+  function filaCat(t, f) {
+    var o = {};
+    CAT_TABLAS[t].columnas.forEach(function (c) { o[c] = f[c] === undefined ? null : f[c]; });
+    if (o.activo === null) o.activo = true;
+    if ((t === 'cat_accesorios' || t === 'cat_rubbers') && !Array.isArray(o.imagenes_extra)) o.imagenes_extra = [];
+    if (t === 'cat_configuraciones') { o.estado = o.estado || 'pendiente'; o.tipo_presion = o.tipo_presion || 'pendiente'; }
+    if (!o.id) o.id = nuevoId();
+    return o;
+  }
+  function reemplazarEnCache(t, filas) {
+    filas.forEach(function (f) {
+      var i = cat[t].findIndex(function (x) { return x.id === f.id; });
+      if (i >= 0) cat[t][i] = f; else cat[t].push(f);
+    });
+    persistirCat();
+  }
+
+  async function descargarCatalogo() {
+    var nuevo = {};
+    var ts = Object.keys(CAT_TABLAS);
+    for (var i = 0; i < ts.length; i++) {
+      nuevo[ts[i]] = (await api('GET', '/rest/v1/' + ts[i] + '?select=*&order=creado.asc&limit=10000')) || [];
+    }
+    ts.forEach(function (t) { cat[t] = nuevo[t]; });
+    catEstado.ultima = new Date().toISOString();
+    catEstado.error = null;
+    persistirCat();
+    precargarImagenes();
+  }
+
+  /** Validación local equivalente a las restricciones del servidor (mensajes claros antes de enviar). */
+  function validarCat(t, o) {
+    if ((t === 'cat_clientes' || t === 'cat_proveedores' || t === 'cat_telas' || t === 'cat_rubbers') && !String(o.nombre || '').trim()) return 'El nombre es obligatorio.';
+    if (t === 'cat_clientes' || t === 'cat_proveedores') {
+      var dup = cat[t].find(function (x) { return x.id !== o.id && String(x.nombre).trim().toLowerCase() === String(o.nombre).trim().toLowerCase(); });
+      if (dup) return 'Ya existe "' + dup.nombre + '".';
+    }
+    if (t === 'cat_accesorios') {
+      if (!o.cliente_id) return 'Selecciona el cliente.';
+      if (!String(o.codigo || '').trim()) return 'El código del accesorio es obligatorio.';
+    }
+    if (t === 'cat_rubbers') {
+      if (o.largo_cm !== null && !(o.largo_cm > 0)) return 'El largo debe ser mayor que cero.';
+      if (o.ancho_cm !== null && !(o.ancho_cm > 0)) return 'El ancho debe ser mayor que cero.';
+    }
+    if (t === 'cat_configuraciones') {
+      if (!o.accesorio_id) return 'Selecciona la referencia del accesorio.';
+      if (o.presion_min_psi !== null && o.presion_max_psi !== null && o.presion_min_psi > o.presion_max_psi) return 'La presión mínima no puede ser mayor que la máxima.';
+      if (o.estado === 'aprobado' && (!o.rubber_id || !(o.presion_max_psi > 0))) return 'Para aprobar se necesitan el rubber y la presión.';
+      if (o.activo) {
+        var otra = cat[t].find(function (x) { return x.id !== o.id && x.activo && x.accesorio_id === o.accesorio_id && (x.tela_id || '') === (o.tela_id || '') && (x.rubber_id || '') === (o.rubber_id || ''); });
+        if (otra) return 'Ya existe otra configuración activa para la misma referencia, tela y rubber.';
+      }
+    }
+    return null;
+  }
+
+  function sellarLocal(t, o) {
+    var prev = cat[t].find(function (x) { return x.id === o.id; });
+    var quien = 'local';
+    if (prev) {
+      o.version = (prev.version || 1) + 1; o.creado = prev.creado; o.creado_por = prev.creado_por;
+      o.modificado = new Date().toISOString(); o.modificado_por = quien;
+    } else { o.version = 1; o.creado = new Date().toISOString(); o.creado_por = quien; o.modificado = null; o.modificado_por = null; }
+    var aud = leerLS(LS_CAT_AUD, []);
+    aud.push({ id: aud.length + 1, fecha: new Date().toISOString(), usuario_email: quien, tabla: t, registro_id: o.id,
+      accion: prev ? 'cambio' : 'alta', version: o.version, antes: prev ? JSON.parse(JSON.stringify(prev)) : null, despues: JSON.parse(JSON.stringify(o)) });
+    guardarLS(LS_CAT_AUD, aud);
+    return o;
+  }
+
+  /** Guarda (alta o cambio) filas del catálogo. Solo administrador. Requiere conexión si hay nube. */
+  async function catGuardar(t, filas) {
+    if (!CAT_TABLAS[t]) throw new Error('Tabla de catálogo desconocida: ' + t);
+    if (!esAdmin()) throw new Error('Solo el administrador puede modificar el catálogo.');
+    filas = (Array.isArray(filas) ? filas : [filas]).map(function (f) { return filaCat(t, f); });
+    for (var k = 0; k < filas.length; k++) { var e = validarCat(t, filas[k]); if (e) throw new Error(e); }
+    if (!configurada()) {
+      var sel = filas.map(function (o) { return sellarLocal(t, o); });
+      reemplazarEnCache(t, sel); avisar();
+      return sel;
+    }
+    if (!sesion) throw new Error('Inicia sesión como administrador.');
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) throw new Error('Sin conexión: el catálogo solo se modifica con internet.');
+    var guardadas = [];
+    for (var i = 0; i < filas.length; i += 200) {
+      var r = await api('POST', '/rest/v1/' + t + '?on_conflict=id', filas.slice(i, i + 200),
+        { Prefer: 'resolution=merge-duplicates,return=representation' });
+      guardadas = guardadas.concat(r || []);
+    }
+    reemplazarEnCache(t, guardadas); avisar();
+    return guardadas;
+  }
+
+  async function catAuditoria(registroId) {
+    if (!configurada()) {
+      return leerLS(LS_CAT_AUD, []).filter(function (a) { return !registroId || a.registro_id === registroId; })
+        .sort(function (a, b) { return String(b.fecha).localeCompare(String(a.fecha)) || b.id - a.id; }).slice(0, 300);
+    }
+    var q = '/rest/v1/cat_auditoria?select=*&order=fecha.desc,id.desc&limit=300' + (registroId ? '&registro_id=eq.' + encodeURIComponent(registroId) : '');
+    return (await api('GET', q)) || [];
+  }
+
+  // ---------- Imágenes del catálogo (Storage privado + caché en el teléfono) ----------
+  var urlsImg = {};
+  function claveImg(ruta) { return new Request(new URL('__img/' + ruta, root.location.href).href); }
+  async function hashHex(buf) {
+    var d = await crypto.subtle.digest('SHA-256', buf);
+    return Array.from(new Uint8Array(d)).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+  }
+  var EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
+  /** Ruta con la que se guardará una imagen: huella SHA-256 del contenido + extensión. */
+  async function rutaDeImagen(blob) { return (await hashHex(await blob.arrayBuffer())).slice(0, 40) + '.' + (EXT[blob.type] || 'bin'); }
+  /** Sube una imagen (nombre = huella del contenido, así no se duplica). Devuelve la ruta. */
+  async function subirImagen(blob) {
+    if (!EXT[blob.type]) throw new Error('Formato de imagen no admitido (usa PNG, JPG o WebP).');
+    if (blob.size > 5 * 1024 * 1024) throw new Error('La imagen supera 5 MB.');
+    var ruta = await rutaDeImagen(blob);
+    if (configurada()) {
+      if (!esAdmin()) throw new Error('Solo el administrador puede subir imágenes.');
+      var s = await sesionValida();
+      if (!s) throw new Error('Inicia sesión como administrador.');
+      var c = config();
+      var r = await fetch(c.url + '/storage/v1/object/catalogo/' + ruta, {
+        method: 'POST', headers: { apikey: c.key, Authorization: 'Bearer ' + s.access, 'Content-Type': blob.type, 'cache-control': 'max-age=31536000' }, body: blob
+      });
+      if (!r.ok) {
+        var t = await r.text().catch(function () { return ''; });
+        if (!/duplicate|already exists/i.test(t)) throw new Error('No se pudo subir la imagen (' + r.status + '): ' + t.slice(0, 160));
+      }
+    }
+    try { var cc = await caches.open(CACHE_IMG); await cc.put(claveImg(ruta), new Response(blob, { headers: { 'Content-Type': blob.type } })); } catch (e) { /* sin caché */ }
+    return ruta;
+  }
+  /** URL utilizable en <img> para una ruta del catálogo; null si no está disponible. */
+  async function urlImagen(ruta) {
+    if (!ruta) return null;
+    if (urlsImg[ruta]) return urlsImg[ruta];
+    var blob = null, cc = null;
+    try { cc = await caches.open(CACHE_IMG); var m = await cc.match(claveImg(ruta)); if (m) blob = await m.blob(); } catch (e) { /* sin caché */ }
+    if (!blob && configurada()) {
+      var s = await sesionValida();
+      if (!s) return null;
+      var c = config();
+      try {
+        var r = await fetch(c.url + '/storage/v1/object/authenticated/catalogo/' + ruta, { headers: { apikey: c.key, Authorization: 'Bearer ' + s.access } });
+        if (!r.ok) return null;
+        blob = await r.blob();
+        if (cc) await cc.put(claveImg(ruta), new Response(blob, { headers: { 'Content-Type': blob.type || 'image/png' } }));
+      } catch (e) { return null; }
+    }
+    if (!blob) return null;
+    urlsImg[ruta] = URL.createObjectURL(blob);
+    return urlsImg[ruta];
+  }
+  var precargando = false;
+  async function precargarImagenes() {
+    if (precargando) return;
+    precargando = true;
+    try {
+      var rutas = {};
+      ['cat_accesorios', 'cat_rubbers'].forEach(function (t) {
+        cat[t].forEach(function (x) { if (x.imagen) rutas[x.imagen] = 1; (x.imagenes_extra || []).forEach(function (p) { rutas[p] = 1; }); });
+      });
+      var lista = Object.keys(rutas);
+      for (var i = 0; i < lista.length; i++) await urlImagen(lista[i]);
+    } finally { precargando = false; }
+  }
+
   // ---------- Sincronización ----------
   function programarSync(ms) {
     clearTimeout(temporizador);
@@ -276,6 +478,12 @@
           .map(function (r) { r._srv = true; return r; }).concat(locales);
         persistir();
       }
+      // 4) Catálogo de parámetros (si falla, los registros ya quedaron sincronizados)
+      try { await descargarCatalogo(); }
+      catch (e) {
+        if (e.message === 'sin-sesion') throw e;
+        catEstado.error = /does not exist|42P01|404/.test(e.message) ? 'El catálogo aún no está creado en la base de datos (falta ejecutar la migración v3).' : e.message;
+      }
       estado.ultima = new Date().toISOString();
       guardarLS(LS_SYNC, estado.ultima);
       fijarEstado('ok', 'Sincronizado');
@@ -303,6 +511,9 @@
     listar: listar, obtener: obtener, guardar: guardar, eliminar: eliminar, importar: importar,
     pendientes: pendientes, sincronizar: sincronizar, programarSync: programarSync,
     estado: function () { return estado; },
+    CAT_TABLAS: CAT_TABLAS, catalogo: catalogo, catEstado: function () { return catEstado; },
+    catGuardar: catGuardar, catAuditoria: catAuditoria, validarCat: validarCat, nuevoId: nuevoId,
+    subirImagen: subirImagen, rutaDeImagen: rutaDeImagen, urlImagen: urlImagen, precargarImagenes: precargarImagenes,
     alCambiar: function (fn) { oyentes.push(fn); }
   };
 })(self);
