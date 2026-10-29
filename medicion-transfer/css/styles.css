@@ -428,3 +428,10 @@ dialog::backdrop { background: rgba(5, 15, 25, .55); }
 @media (max-width: 560px) {
   .imp-item { grid-template-columns: 1fr; }
 }
+.rango-lbf { margin: 10px 0 0; font-size: 1rem; }
+.mm-tabla { display: grid; grid-template-columns: auto 1fr 1fr; gap: 6px 10px; align-items: baseline; margin-top: 6px; }
+.mm-cab { font-weight: 800; color: var(--fuerza); text-align: center; text-transform: uppercase; font-size: .85rem; }
+.mm-cab small { display: block; text-transform: none; font-weight: 600; color: var(--texto-2); font-size: .85rem; }
+.mm-u { font-weight: 700; color: var(--texto-2); }
+.mm-v { text-align: center; font-size: 1.3rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.mm-v.mm-principal { font-size: 2rem; font-weight: 800; color: var(--fuerza); }
