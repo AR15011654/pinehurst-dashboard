@@ -248,3 +248,16 @@ begin
     execute format('alter table public.%I add column if not exists parametros jsonb', t);
   end loop;
 end $$;
+
+-- ---------- v3.1: lectura mínima del dinamómetro en cada registro ----------
+-- (la máxima ya se guarda en presion_objetivo_psi y fuerza_objetivo_*)
+do $$
+declare t text;
+begin
+  foreach t in array array['calculo_presion','validacion_presion','registro_pruebas'] loop
+    execute format('alter table public.%I add column if not exists presion_objetivo_min_psi numeric', t);
+    execute format('alter table public.%I add column if not exists fuerza_objetivo_min_lbf numeric', t);
+    execute format('alter table public.%I add column if not exists fuerza_objetivo_min_kgf numeric', t);
+    execute format('alter table public.%I add column if not exists fuerza_objetivo_min_n numeric', t);
+  end loop;
+end $$;
