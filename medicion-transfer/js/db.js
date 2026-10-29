@@ -17,7 +17,8 @@
     'maquina_linea', 'maquina_estacion', 'linea_operacion', 'rubber_largo_cm', 'rubber_ancho_cm', 'area_cm2', 'area_in2',
     // v3: combinación del catálogo usada y copia de sus parámetros (no cambia si después se edita el catálogo)
     'configuracion_id', 'configuracion_version', 'cliente', 'accesorio_codigo', 'accesorio_referencia', 'tela', 'proveedor', 'rubber',
-    'presion_rango', 'presion_objetivo_psi', 'tipo_presion', 'fuerza_objetivo_lbf', 'fuerza_objetivo_kgf', 'fuerza_objetivo_n', 'parametros'];
+    'presion_rango', 'presion_objetivo_psi', 'tipo_presion', 'fuerza_objetivo_lbf', 'fuerza_objetivo_kgf', 'fuerza_objetivo_n', 'parametros',
+    'presion_objetivo_min_psi', 'fuerza_objetivo_min_lbf', 'fuerza_objetivo_min_kgf', 'fuerza_objetivo_min_n'];
 
   var TABLAS = {
     calculo_presion: {

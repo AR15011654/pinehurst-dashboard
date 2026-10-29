@@ -135,7 +135,7 @@
    * Lectura objetivo del dinamómetro para una configuración del catálogo.
    * conf: { presion_min_psi, presion_max_psi, tipo_presion }   rubber: { largo_cm, ancho_cm }
    * Solo calcula si la presión del proveedor es presión de CONTACTO sobre el rubber y hay dimensiones.
-   * Devuelve { ok, motivos: [{codigo, texto}], presionObjetivo, area, fuerza }.
+   * Devuelve { ok, motivos: [{codigo, texto}], presionObjetivo (= máximo), presionMin, presionMax, area, fuerza (= fuerzaMax), fuerzaMin, fuerzaMax }.
    */
   function fuerzaObjetivo(conf, rubber) {
     conf = conf || {}; rubber = rubber || {};
@@ -148,9 +148,16 @@
     else if (tipo === 'aire_manometro') motivos.push({ codigo: 'aire', texto: 'La presión del proveedor es del aire del manómetro: no se convierte directamente en fuerza sobre el rubber.' });
     else if (tipo !== 'contacto_rubber') motivos.push({ codigo: 'tipo-desconocido', texto: 'Tipo de presión no reconocido.' });
     if (!esPositivo(l) || !esPositivo(a)) motivos.push({ codigo: 'sin-dimensiones', texto: 'Faltan el largo y el ancho del rubber en el catálogo.' });
-    var res = { ok: motivos.length === 0, motivos: motivos, presionObjetivo: obj, tipo: tipo, area: null, fuerza: null };
+    var pmin = esPositivo(Number(conf.presion_min_psi)) ? Number(conf.presion_min_psi) : obj;
+    if (obj !== null && pmin > obj) pmin = obj;
+    var res = { ok: motivos.length === 0, motivos: motivos, presionObjetivo: obj, presionMin: obj === null ? null : pmin, presionMax: obj,
+      tipo: tipo, area: null, fuerza: null, fuerzaMin: null, fuerzaMax: null };
     if (esPositivo(l) && esPositivo(a)) res.area = areaRect(l, a);
-    if (res.ok) res.fuerza = fuerzaDesdeLbf(obj * res.area.in2);
+    if (res.ok) {
+      res.fuerza = fuerzaDesdeLbf(obj * res.area.in2);      // máximo del rango (valor de referencia)
+      res.fuerzaMax = res.fuerza;
+      res.fuerzaMin = fuerzaDesdeLbf(pmin * res.area.in2);  // mínimo del rango
+    }
     return res;
   }
 

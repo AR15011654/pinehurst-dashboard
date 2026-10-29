@@ -29,6 +29,12 @@
   };
 
   function cat() { return DB.catalogo(); }
+  function rangoTxt(min, max, u) {
+    var a = num(min) > 0 ? num(min) : null, b = num(max) > 0 ? num(max) : null;
+    if (a === null && b === null) return null;
+    if (a === null) a = b; if (b === null) b = a;
+    return (a === b ? String(a) : a + '–' + b) + (u ? ' ' + u : '');
+  }
   function porId(t) { var m = {}; cat()[t].forEach(function (x) { m[x.id] = x; }); return m; }
   function puede() { return DB.esAdmin() && (!DB.configurada() || !!DB.sesion()); }
   function norm(s) { return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
@@ -143,8 +149,10 @@
       titulo = '<b>' + esc(nombreDe('cat_clientes', a.cliente_id)) + ' · ' + esc(a.codigo || '?') + '</b>';
       var obj = C.fuerzaObjetivo(x, r || {});
       det = esc(x.tela_id ? nombreDe('cat_telas', x.tela_id) : 'Sin tela') + ' · ' + esc(r ? r.nombre : 'Sin rubber') +
-        '<br>Presión ' + esc(x.presion_texto || '—') + (obj.presionObjetivo ? ' → objetivo ' + obj.presionObjetivo + ' psi' : '') +
-        (obj.ok ? ' · <b>' + f(obj.fuerza.lbf) + ' lbf</b>' : '') + ' · v' + esc(x.version || 1) + (x.origen ? ' · ' + esc(x.origen) : '');
+        '<br>Presión ' + esc(rangoTxt(x.presion_min_psi, x.presion_max_psi, 'psi') || x.presion_texto || '—') +
+        (obj.ok ? ' · <b>' + (obj.presionMin === obj.presionMax ? f(obj.fuerzaMax.lbf) : f(obj.fuerzaMin.lbf) + '–' + f(obj.fuerzaMax.lbf)) + ' lbf</b>' : '') +
+        ' · Temp. ' + esc(rangoTxt(x.temperatura_min, x.temperatura_max, x.temperatura_unidad || '(sin unidad)') || x.temperatura_texto || '—') +
+        ' · v' + esc(x.version || 1) + (x.origen ? ' · ' + esc(x.origen) : '');
       chips += x.estado === 'aprobado' ? chip('Aprobado', 'chip-ok') : chip('Pendiente de validar', 'chip-pend');
       faltantes(x).forEach(function (m) { chips += chip('Falta ' + m, 'chip-falta'); });
     } else if (t === 'cat_accesorios') {
@@ -340,7 +348,9 @@
     if (!(x.presion_max_psi > 0)) faltaAprobar.push('presión');
     var html = '';
     if (x.estado === 'aprobado' && faltaAprobar.length) html += U.aviso('peligro', 'No se puede aprobar todavía', 'Falta: ' + faltaAprobar.join(', ') + '. Guárdala como pendiente de validar.');
-    if (k.ok) html += U.aviso('ok', 'Lectura objetivo para el técnico', f(k.fuerza.lbf) + ' lbf · ' + f(k.fuerza.kgf) + ' kgf · ' + f(k.fuerza.N) + ' N (' + k.presionObjetivo + ' psi = máximo del rango)');
+    if (k.ok) html += U.aviso('ok', 'Lectura del dinamómetro para el técnico',
+      (k.presionMin === k.presionMax ? '' : 'Mínima (' + k.presionMin + ' psi): ' + f(k.fuerzaMin.lbf) + ' lbf · ' + f(k.fuerzaMin.kgf) + ' kgf · ' + f(k.fuerzaMin.N) + ' N<br>') +
+      (k.presionMin === k.presionMax ? 'Valor único (' : 'Máxima (') + k.presionMax + ' psi): ' + f(k.fuerzaMax.lbf) + ' lbf · ' + f(k.fuerzaMax.kgf) + ' kgf · ' + f(k.fuerzaMax.N) + ' N');
     else html += U.aviso('info', 'El técnico no verá una lectura objetivo', '<ul>' + k.motivos.map(function (m) { return '<li>' + esc(m.texto) + '</li>'; }).join('') + '</ul>' +
       (x.estado === 'aprobado' && !faltaAprobar.length ? 'Puede aprobarse: verá los parámetros como instrucciones, sin fuerza objetivo.' : ''));
     out.innerHTML = html;
@@ -453,12 +463,27 @@
     p.innerHTML = '<div class="card"><h3>Importar "Parámetros de trims" (.xlsx)</h3>' +
       '<p class="ayuda">Se lee el archivo en este dispositivo y se muestra una vista previa. No se guarda nada hasta que confirmes. ' +
       'Las configuraciones nuevas entran como <b>pendientes de validar</b> y con el tipo de presión <b>pendiente de confirmar</b>. Importar de nuevo el mismo archivo no duplica registros.</p>' +
+      '<div class="campo"><label for="imp-unidad">Unidad de las temperaturas que no indican unidad</label><select id="imp-unidad">' +
+      [['°C', '°C (grados Celsius)'], ['°F', '°F (grados Fahrenheit)'], ['', 'Dejar pendiente']].map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === unidadTemp ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') +
+      '</select></div>' +
       '<label class="btn btn-primario btn-grande">Elegir archivo Excel<input type="file" id="imp-archivo" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></label>' +
       '<p class="msg" id="imp-msg">' + (imp && imp.error ? esc(imp.error) : '') + '</p></div>';
     if (imp && imp.error) $('#imp-msg').className = 'msg err';
+    $('#imp-unidad').addEventListener('change', function () { unidadTemp = this.value; });
     $('#imp-archivo').addEventListener('change', function () { var fl = this.files[0]; this.value = ''; if (fl) leerArchivo(fl); });
   }
 
+  var unidadTemp = '°C';
+  /** Asigna la unidad elegida a las temperaturas del Excel que no la indican (el archivo no trae unidad). */
+  function aplicarUnidad(ext) {
+    if (!unidadTemp) return;
+    ext.filas.forEach(function (r) {
+      if (!r.temperatura_texto || r.temperatura_unidad) return;
+      r.temperatura_unidad = unidadTemp;
+      r.avisos = r.avisos.filter(function (a) { return !/no indica unidad/.test(a.texto); });
+      r.avisos.push({ nivel: 'info', texto: 'El Excel no indica unidad de temperatura: se asignó ' + unidadTemp + ' (elegido al importar).' });
+    });
+  }
   var MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp' };
   async function leerArchivo(file) {
     var msg = $('#imp-msg');
@@ -470,6 +495,8 @@
       var libro = await ImportarExcel.leerLibro(await file.arrayBuffer());
       paso('Interpretando las hojas…');
       var ext = ImportarExcel.extraer(libro);
+      aplicarUnidad(ext);
+      imp.unidad = unidadTemp;
       imp.ext = ext; imp.rutas = {}; imp.blobs = {}; imp.urls = {}; imp.fallidas = [];
       for (var i = 0; i < ext.medios.length; i++) {
         var m = ext.medios[i];
@@ -551,12 +578,13 @@
         return '<article class="imp-item"><div class="cat-imgs">' + thumbMedia(r.imagenesRef[0]) + thumbMedia(r.imagenesRub[0]) + '</div><div class="cat-txt">' +
           '<div><b>' + esc(r.codigo) + '</b> ' + est + '</div>' +
           '<div class="reg-meta">' + esc(it.telaNombre || 'Sin tela') + (r.referencia ? ' · ' + esc(r.referencia) : '') + (r.proveedor ? ' · ' + esc(r.proveedor) : '') + '</div>' +
-          '<div class="reg-meta">Presión ' + esc(r.presion_texto || '—') + (r.presion_max_psi ? ' → objetivo ' + r.presion_max_psi + ' psi' : '') + ' · ' + esc(it.fila.origen || '') + '</div>' +
+          '<div class="reg-meta">Presión ' + esc(rangoTxt(r.presion_min_psi, r.presion_max_psi, 'psi') || r.presion_texto || '—') + ' · Temp. ' +
+          esc(rangoTxt(r.temperatura_min, r.temperatura_max, r.temperatura_unidad || '(sin unidad)') || r.temperatura_texto || '—') + ' · ' + esc(it.fila.origen || '') + '</div>' +
           '<details class="det-imp"><summary>Ver detalle' + (avisos.length ? ' y ' + avisos.length + ' aviso' + (avisos.length === 1 ? '' : 's') : '') +
           (avisos.some(function (x) { return x.nivel === 'error'; }) ? ' (hay errores)' : '') + '</summary>' +
           '<dl class="params params-mini">' +
-          '<div class="param"><dt>Presión</dt><dd>' + esc(r.presion_texto || '—') + (r.presion_max_psi ? ' → ' + r.presion_min_psi + '–' + r.presion_max_psi + ' psi (objetivo ' + r.presion_max_psi + ')' : '') + '</dd></div>' +
-          '<div class="param"><dt>Temperatura</dt><dd>' + esc(r.temperatura_texto || '—') + ' ' + esc(r.temperatura_unidad || '(sin unidad)') + '</dd></div>' +
+          '<div class="param"><dt>Presión</dt><dd>' + (r.presion_max_psi ? 'mín ' + r.presion_min_psi + ' · máx ' + r.presion_max_psi + ' psi' : '—') + ' <small>(texto: ' + esc(r.presion_texto || '—') + ')</small></dd></div>' +
+          '<div class="param"><dt>Temperatura</dt><dd>' + (r.temperatura_max ? 'mín ' + r.temperatura_min + ' · máx ' + r.temperatura_max + ' ' + esc(r.temperatura_unidad || '(sin unidad)') : '—') + ' <small>(texto: ' + esc(r.temperatura_texto || '—') + ')</small></dd></div>' +
           '<div class="param"><dt>Tiempo</dt><dd>' + esc(r.tiempo_texto || '—') + '</dd></div>' +
           '<div class="param"><dt>Desprendimiento</dt><dd>' + esc(r.desprendimiento ? NOMBRE_DESP[r.desprendimiento] : '—') + (r.desprendimiento_texto ? ' <small>("' + esc(r.desprendimiento_texto) + '")</small>' : '') + '</dd></div>' +
           (r.observaciones ? '<div class="param"><dt>Observaciones</dt><dd>' + esc(r.observaciones) + '</dd></div>' : '') +

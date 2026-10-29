@@ -6,7 +6,7 @@
 (function () {
   'use strict';
 
-  var APP_VERSION = '3.0.0';
+  var APP_VERSION = '3.1.0';
   var C = window.Calc;
   var DB = window.DB;
   var LS_AJ = 'transfer.ajustes.v1';
@@ -519,6 +519,21 @@
     return f(num(max) > 0 ? num(max) : num(min), 0) + (u ? ' ' + u : '');
   }
   function f0(v) { return Number.isInteger(v) ? String(v) : f(v); }
+  /** "Mín 20 · Máx 30 psi" o "30 psi (valor único)"; null si no hay números. */
+  function minMaxHTML(min, max, u) {
+    var a = num(min) > 0 ? num(min) : null, b = num(max) > 0 ? num(max) : null;
+    if (a === null && b === null) return null;
+    if (a === null) a = b; if (b === null) b = a;
+    var uu = u ? ' ' + esc(u) : '';
+    if (a === b) return '<b>' + f0(a) + '</b>' + uu + ' <small>(valor único)</small>';
+    return 'Mín <b>' + f0(a) + '</b> · Máx <b>' + f0(b) + '</b>' + uu;
+  }
+  function minMaxTxt(min, max, u) {
+    var a = num(min) > 0 ? num(min) : null, b = num(max) > 0 ? num(max) : null;
+    if (a === null && b === null) return '—';
+    if (a === null) a = b; if (b === null) b = a;
+    return (a === b ? f0(a) : 'mín ' + f0(a) + ' · máx ' + f0(b)) + (u ? ' ' + u : '');
+  }
 
   /** Toda la información de una configuración, resuelta con nombres (para mostrar y para guardar una copia). */
   function detalleConfig(c) {
@@ -539,7 +554,9 @@
       tela: d.tela, proveedor: d.proveedor,
       rubber: { nombre: r.nombre || null, tipo: r.tipo || null, descripcion: r.descripcion || null, largo_cm: num(r.largo_cm), ancho_cm: num(r.ancho_cm), imagen: r.imagen || null },
       temperatura: { texto: c.temperatura_texto, min: num(c.temperatura_min), max: num(c.temperatura_max), unidad: c.temperatura_unidad },
-      presion: { texto: c.presion_texto, min_psi: num(c.presion_min_psi), max_psi: num(c.presion_max_psi), tipo: c.tipo_presion, objetivo_psi: d.calc.presionObjetivo },
+      presion: { texto: c.presion_texto, min_psi: num(c.presion_min_psi), max_psi: num(c.presion_max_psi), tipo: c.tipo_presion, objetivo_min_psi: d.calc.presionMin, objetivo_max_psi: d.calc.presionMax },
+      lectura_dinamometro: d.calc.ok ? { min: { lbf: r4(d.calc.fuerzaMin.lbf), kgf: r4(d.calc.fuerzaMin.kgf), n: r4(d.calc.fuerzaMin.N) },
+        max: { lbf: r4(d.calc.fuerzaMax.lbf), kgf: r4(d.calc.fuerzaMax.kgf), n: r4(d.calc.fuerzaMax.N) } } : null,
       tiempo: c.tiempo_texto, desprendimiento: { tipo: c.desprendimiento, texto: c.desprendimiento_texto },
       observaciones: c.observaciones, pruebas_internas: c.pruebas_internas
     };
@@ -549,11 +566,14 @@
       presion_rango: c.presion_texto || textoRango(c.presion_min_psi, c.presion_max_psi, 'psi'), presion_objetivo_psi: d.calc.presionObjetivo,
       tipo_presion: c.tipo_presion, fuerza_objetivo_lbf: d.calc.ok ? r4(d.calc.fuerza.lbf) : null,
       fuerza_objetivo_kgf: d.calc.ok ? r4(d.calc.fuerza.kgf) : null, fuerza_objetivo_n: d.calc.ok ? r4(d.calc.fuerza.N) : null,
+      presion_objetivo_min_psi: d.calc.presionMin, fuerza_objetivo_min_lbf: d.calc.ok ? r4(d.calc.fuerzaMin.lbf) : null,
+      fuerza_objetivo_min_kgf: d.calc.ok ? r4(d.calc.fuerzaMin.kgf) : null, fuerza_objetivo_min_n: d.calc.ok ? r4(d.calc.fuerzaMin.N) : null,
       parametros: copia
     };
   }
   var COLS_CTX = ['configuracion_id', 'configuracion_version', 'cliente', 'accesorio_codigo', 'accesorio_referencia', 'tela', 'proveedor', 'rubber',
-    'presion_rango', 'presion_objetivo_psi', 'tipo_presion', 'fuerza_objetivo_lbf', 'fuerza_objetivo_kgf', 'fuerza_objetivo_n', 'parametros'];
+    'presion_rango', 'presion_objetivo_psi', 'tipo_presion', 'fuerza_objetivo_lbf', 'fuerza_objetivo_kgf', 'fuerza_objetivo_n', 'parametros',
+    'presion_objetivo_min_psi', 'fuerza_objetivo_min_lbf', 'fuerza_objetivo_min_kgf', 'fuerza_objetivo_min_n'];
 
   // ---------- Imágenes del catálogo ----------
   function imgHTML(ruta, alt, cls) {
@@ -660,10 +680,14 @@
 
   function htmlParametros(d) {
     var c = d.conf, r = d.rubber;
-    var temp = c.temperatura_texto ? esc(c.temperatura_texto) + ' ' + (c.temperatura_unidad ? esc(c.temperatura_unidad) : faltaTxt('unidad no indicada')) :
-      (textoRango(c.temperatura_min, c.temperatura_max, c.temperatura_unidad) || faltaTxt('No indicada'));
-    var rango = c.presion_texto ? esc(c.presion_texto) + (textoRango(c.presion_min_psi, c.presion_max_psi) && !/psi/i.test(c.presion_texto) ? ' psi' : '') :
-      (textoRango(c.presion_min_psi, c.presion_max_psi, 'psi') || faltaTxt('No indicado'));
+    var tmm = minMaxHTML(c.temperatura_min, c.temperatura_max, c.temperatura_unidad);
+    var temp = tmm ? tmm + (c.temperatura_unidad ? '' : ' ' + faltaTxt('unidad no indicada')) :
+      (c.temperatura_texto ? esc(c.temperatura_texto) : faltaTxt('No indicada'));
+    var pmm = minMaxHTML(c.presion_min_psi, c.presion_max_psi, 'psi');
+    var rango = pmm || (c.presion_texto ? esc(c.presion_texto) : faltaTxt('No indicado'));
+    var orig = [];
+    if (c.temperatura_texto) orig.push('temperatura "' + esc(c.temperatura_texto) + '"');
+    if (c.presion_texto) orig.push('presión "' + esc(c.presion_texto) + '"');
     var dims = r && num(r.largo_cm) > 0 && num(r.ancho_cm) > 0 ? f(num(r.largo_cm)) + ' × ' + f(num(r.ancho_cm)) + ' cm' : faltaTxt('Faltan largo y ancho');
     var desp = c.desprendimiento === 'otro' ? esc(c.desprendimiento_texto || 'Otra instrucción') :
       c.desprendimiento ? NOMBRE_DESP[c.desprendimiento] : (c.desprendimiento_texto ? esc(c.desprendimiento_texto) : faltaTxt('No indicado'));
@@ -677,12 +701,12 @@
       filaParam('Rubber', esc(nombreRubber(r)) + (r && r.descripcion ? ' · ' + esc(r.descripcion) : '')) +
       filaParam('Largo × ancho', dims) +
       filaParam('Temperatura', temp) +
-      filaParam('Rango de presión', rango) +
-      filaParam('Presión objetivo', d.calc.presionObjetivo !== null ? '<b>' + f0(d.calc.presionObjetivo) + ' psi</b> <small>(máximo del rango)</small>' : faltaTxt('No disponible'), 'destacado') +
+      filaParam('Presión', rango, 'destacado') +
       filaParam('Tipo de presión', d.conf.tipo_presion === 'pendiente' ? faltaTxt('Pendiente de confirmar') : esc(C.TIPOS_PRESION[d.conf.tipo_presion] || d.conf.tipo_presion)) +
       filaParam('Tiempo / secuencia', c.tiempo_texto ? esc(c.tiempo_texto) : faltaTxt('No indicado')) +
       filaParam('Desprendimiento del film', desp) +
       (c.observaciones ? filaParam('Observaciones', esc(c.observaciones)) : '') +
+      (orig.length ? filaParam('Texto original', '<small>' + orig.join(' · ') + '</small>') : '') +
       '</dl>' +
       (c.pruebas_internas ? '<details class="ayuda-mas"><summary>Parámetros usados en pruebas internas (no son del proveedor)</summary><p class="pre">' + esc(c.pruebas_internas) + '</p></details>' : '') +
       '<p class="version-conf">Configuración v' + esc(c.version || 1) + ' · aprobada' + (c.origen ? ' · ' + esc(c.origen) : '') + '</p>';
@@ -698,9 +722,17 @@
         aviso('alerta', tit, '<ul>' + k.motivos.filter(function (m) { return m.texto.replace(/\.$/, '') !== tit; }).map(function (m) { return '<li>' + esc(m.texto) + '</li>'; }).join('') + '</ul>' +
           '<p>No hay un valor válido para ajustar. Avisa al administrador del catálogo.</p>') + '</div>';
     }
-    return '<div class="objetivo"><h3>Lectura objetivo del dinamómetro</h3><div class="res-grid">' + fuerzaTiles(k.fuerza, 'Fuerza') + '</div>' +
-      '<p class="objetivo-base">Para ' + f0(k.presionObjetivo) + ' psi de contacto sobre ' + f(num(d.rubber.largo_cm)) + ' × ' + f(num(d.rubber.ancho_cm)) +
-      ' cm (' + f(k.area.cm2) + ' cm² · ' + f(k.area.in2, 4) + ' in²)</p></div>';
+    var base = '<p class="objetivo-base">Presión de contacto sobre ' + f(num(d.rubber.largo_cm)) + ' × ' + f(num(d.rubber.ancho_cm)) +
+      ' cm (' + f(k.area.cm2) + ' cm² · ' + f(k.area.in2, 4) + ' in²)</p>';
+    if (k.presionMin === k.presionMax) {
+      return '<div class="objetivo"><h3>Lectura objetivo del dinamómetro</h3>' +
+        grupo('Para ' + f0(k.presionMax) + ' psi (valor único)', fuerzaTiles(k.fuerzaMax, 'Fuerza')) + base + '</div>';
+    }
+    var fila = function (u, a, b, cls) { return '<div class="mm-u">' + u + '</div><div class="mm-v ' + (cls || '') + '">' + a + '</div><div class="mm-v ' + (cls || '') + '">' + b + '</div>'; };
+    return '<div class="objetivo"><h3>Lectura del dinamómetro</h3><div class="mm-tabla">' +
+      '<div></div><div class="mm-cab">Mínima<small>' + f0(k.presionMin) + ' psi</small></div><div class="mm-cab">Máxima<small>' + f0(k.presionMax) + ' psi</small></div>' +
+      fila('lbf', f(k.fuerzaMin.lbf), f(k.fuerzaMax.lbf), 'mm-principal') + fila('kgf', f(k.fuerzaMin.kgf), f(k.fuerzaMax.kgf)) + fila('N', f(k.fuerzaMin.N), f(k.fuerzaMax.N)) +
+      '</div>' + base + '</div>';
   }
 
   function calcCalculo() {
@@ -754,11 +786,12 @@
       'Cliente: ' + d.cliente + ' · Referencia: ' + d.acc.codigo + (d.acc.descripcion ? ' (' + d.acc.descripcion + ')' : ''),
       'Tela: ' + (d.tela || 'no especificada') + ' · Proveedor: ' + (d.proveedor || '—'),
       'Rubber: ' + nombreRubber(d.rubber) + (num(r.largo_cm) > 0 && num(r.ancho_cm) > 0 ? ' · ' + f(num(r.largo_cm)) + ' × ' + f(num(r.ancho_cm)) + ' cm' : ' · faltan dimensiones'),
-      'Temperatura: ' + (c.temperatura_texto || '—') + (c.temperatura_unidad ? ' ' + c.temperatura_unidad : ' (unidad no indicada)'),
-      'Rango de presión: ' + (c.presion_texto || '—') + ' · Presión objetivo: ' + (d.calc.presionObjetivo !== null ? f0(d.calc.presionObjetivo) + ' psi' : '—'),
+      'Temperatura: ' + minMaxTxt(c.temperatura_min, c.temperatura_max, c.temperatura_unidad || '(unidad no indicada)') + (c.temperatura_texto ? ' [original: ' + c.temperatura_texto + ']' : ''),
+      'Presión: ' + minMaxTxt(c.presion_min_psi, c.presion_max_psi, 'psi') + (c.presion_texto ? ' [original: ' + c.presion_texto + ']' : ''),
       'Tipo de presión: ' + (C.TIPOS_PRESION[c.tipo_presion] || c.tipo_presion),
       'Tiempo: ' + (c.tiempo_texto || '—') + ' · Desprendimiento: ' + (c.desprendimiento ? NOMBRE_DESP[c.desprendimiento] : (c.desprendimiento_texto || '—')),
-      d.calc.ok ? 'Lectura objetivo del dinamómetro: ' + f(d.calc.fuerza.lbf) + ' lbf = ' + f(d.calc.fuerza.kgf) + ' kgf = ' + f(d.calc.fuerza.N) + ' N'
+      d.calc.ok ? 'Lectura del dinamómetro: mínima ' + f(d.calc.fuerzaMin.lbf) + ' lbf (' + f(d.calc.fuerzaMin.kgf) + ' kgf, ' + f(d.calc.fuerzaMin.N) + ' N) · máxima ' +
+          f(d.calc.fuerzaMax.lbf) + ' lbf (' + f(d.calc.fuerzaMax.kgf) + ' kgf, ' + f(d.calc.fuerzaMax.N) + ' N)'
         : 'Sin lectura objetivo: ' + d.calc.motivos.map(function (x) { return x.texto; }).join(' '),
       'Configuración v' + (c.version || 1) + '. Válido solo si el dinamómetro mide toda la fuerza sobre el área efectiva del rubber.'
     ].join('\n');
@@ -775,7 +808,8 @@
     if (!x) return '';
     var ctx = x.ctx;
     return '<div class="contexto"><div><b>' + esc(ctx.cliente) + ' · ' + esc(ctx.accesorio_codigo) + '</b><span>' + esc(ctx.tela || 'Tela no especificada') + ' · ' + esc(ctx.rubber || '') + '</span>' +
-      '<span>Objetivo: ' + (ctx.fuerza_objetivo_lbf !== null ? f(ctx.fuerza_objetivo_lbf) + ' lbf · ' : '') + f0(ctx.presion_objetivo_psi) + ' psi (rango ' + esc(ctx.presion_rango || '—') + ')</span></div>' +
+      '<span>Rango: ' + (ctx.fuerza_objetivo_lbf !== null ? f(ctx.fuerza_objetivo_min_lbf) + ' – ' + f(ctx.fuerza_objetivo_lbf) + ' lbf · ' : '') +
+      minMaxTxt(ctx.presion_objetivo_min_psi, ctx.presion_objetivo_psi, 'psi') + '</span></div>' +
       '<button type="button" class="btn btn-chico" data-quitar-ctx="' + p + '">Quitar</button></div>';
   }
   function fijarContexto(p, d) {
@@ -828,11 +862,15 @@
   function htmlComparacion(r) {
     var x = contexto.vp;
     if (!x || x.ctx.fuerza_objetivo_lbf === null) return '';
-    var obj = x.ctx.fuerza_objetivo_lbf, dif = (r.fuerza.lbf - obj) / obj * 100;
-    return grupo('Comparación con el objetivo del catálogo',
-      tile('fuerza', 'Objetivo', f(obj), 'lbf', f0(x.ctx.presion_objetivo_psi) + ' psi') +
-      tile('fuerza principal', 'Medido', f(r.fuerza.lbf), 'lbf', f(r.presion.psi) + ' psi') +
-      tile('fuerza', 'Diferencia', (dif > 0 ? '+' : '') + f(dif, 1), '%', (r.fuerza.lbf - obj >= 0 ? '+' : '') + f(r.fuerza.lbf - obj) + ' lbf'));
+    var mn = x.ctx.fuerza_objetivo_min_lbf !== null && x.ctx.fuerza_objetivo_min_lbf !== undefined ? x.ctx.fuerza_objetivo_min_lbf : x.ctx.fuerza_objetivo_lbf;
+    var mx = x.ctx.fuerza_objetivo_lbf, v = r.fuerza.lbf;
+    var est = v < mn ? aviso('alerta', 'Por debajo del mínimo', 'Faltan ' + f(mn - v) + ' lbf para llegar a la lectura mínima.') :
+      v > mx ? aviso('alerta', 'Por encima del máximo', 'Sobran ' + f(v - mx) + ' lbf respecto a la lectura máxima.') :
+      aviso('ok', 'Dentro del rango del catálogo', 'La lectura está entre la mínima y la máxima.');
+    return grupo('Comparación con el rango del catálogo',
+      tile('fuerza', 'Mínima', f(mn), 'lbf', minMaxTxt(x.ctx.presion_objetivo_min_psi, x.ctx.presion_objetivo_min_psi, 'psi')) +
+      tile('fuerza principal', 'Medido', f(v), 'lbf', f(r.presion.psi) + ' psi') +
+      tile('fuerza', 'Máxima', f(mx), 'lbf', minMaxTxt(x.ctx.presion_objetivo_psi, x.ctx.presion_objetivo_psi, 'psi'))) + est;
   }
   /** Muestra el cálculo paso a paso para poder revisarlo a mano en planta. */
   function htmlFormula(l, a, x, u, r) {
@@ -1182,7 +1220,7 @@
     maquina_serie: 'Máquina (serie)', maquina_qr: 'QR', maquina_asset: 'Asset ID', maquina_linea: 'Línea en inventario', maquina_estacion: 'Estación',
     linea_operacion: 'Línea de operación',
     rubber_largo_cm: 'Largo rubber (cm)', rubber_ancho_cm: 'Ancho rubber (cm)', area_cm2: 'Área rubber (cm²)', area_in2: 'Área rubber (in²)',
-    presion_deseada_psi: 'Presión deseada (psi)', fuerza_lbf: 'Fuerza (lbf)', fuerza_kgf: 'Fuerza (kgf)', fuerza_n: 'Fuerza (N)',
+    presion_deseada_psi: 'Presión (psi)', fuerza_lbf: 'Fuerza (lbf)', fuerza_kgf: 'Fuerza (kgf)', fuerza_n: 'Fuerza (N)',
     capacidad_celda: 'Capacidad celda', observaciones: 'Observaciones',
     lectura_valor: 'Lectura dinamómetro', lectura_unidad: 'Unidad lectura',
     presion_psi: 'Presión prom. rubber (psi)', presion_kgfcm2: 'Presión prom. rubber (kgf/cm²)', presion_bar: 'Presión prom. rubber (bar)',
@@ -1193,9 +1231,10 @@
     temperatura: 'Temperatura', temperatura_unidad: 'Unidad temperatura', tiempo_s: 'Tiempo de aplicación (s)',
     configuracion_id: 'ID configuración', configuracion_version: 'Versión configuración', cliente: 'Cliente', accesorio_codigo: 'Código accesorio',
     accesorio_referencia: 'Referencia accesorio', tela: 'Tipo de tela', proveedor: 'Proveedor', rubber: 'Rubber / molde',
-    presion_rango: 'Rango de presión (original)', presion_objetivo_psi: 'Presión objetivo (psi)', tipo_presion: 'Tipo de presión',
-    fuerza_objetivo_lbf: 'Fuerza objetivo (lbf)', fuerza_objetivo_kgf: 'Fuerza objetivo (kgf)', fuerza_objetivo_n: 'Fuerza objetivo (N)',
-    parametros: 'Parámetros usados (copia)'
+    presion_rango: 'Rango de presión (original)', presion_objetivo_psi: 'Presión máxima (psi)', tipo_presion: 'Tipo de presión',
+    fuerza_objetivo_lbf: 'Fuerza máxima (lbf)', fuerza_objetivo_kgf: 'Fuerza máxima (kgf)', fuerza_objetivo_n: 'Fuerza máxima (N)',
+    parametros: 'Parámetros usados (copia)', presion_objetivo_min_psi: 'Presión mínima (psi)',
+    fuerza_objetivo_min_lbf: 'Fuerza mínima (lbf)', fuerza_objetivo_min_kgf: 'Fuerza mínima (kgf)', fuerza_objetivo_min_n: 'Fuerza mínima (N)'
   };
   var COLS_TABLA = {
     calculo_presion: ['fecha', 'maquina_serie', 'linea_operacion', 'cliente', 'accesorio_codigo', 'tela', 'rubber', 'presion_deseada_psi', 'fuerza_lbf', 'fuerza_kgf', 'fuerza_n', 'usuario_email', 'observaciones'],
@@ -1208,7 +1247,8 @@
     switch (c) {
       case 'fecha': return fechaLegible(r.fecha);
       case 'rubber': return f(num(r.rubber_largo_cm)) + ' × ' + f(num(r.rubber_ancho_cm));
-      case 'presion_deseada_psi': return f(num(r.presion_deseada_psi)) + (r.presion_rango ? ' (rango ' + r.presion_rango + ')' : '');
+      case 'presion_deseada_psi': return (num(r.presion_objetivo_min_psi) > 0 && num(r.presion_objetivo_min_psi) !== num(r.presion_deseada_psi) ? f(num(r.presion_objetivo_min_psi)) + ' – ' : '') + f(num(r.presion_deseada_psi));
+      case 'fuerza_lbf': return (r.presion_deseada_psi !== undefined && num(r.fuerza_objetivo_min_lbf) > 0 && num(r.fuerza_objetivo_min_lbf) !== num(r.fuerza_lbf) ? f(num(r.fuerza_objetivo_min_lbf)) + ' – ' : '') + f(num(r.fuerza_lbf));
       case 'lectura': return f(num(r.lectura_valor)) + ' ' + (r.lectura_unidad || '');
       case 'manometro': return f(num(r.manometro_valor)) + ' ' + (NOMBRE_PRES[r.manometro_unidad] || '');
       case 'fuerza': return f(num(r.fuerza_valor)) + ' ' + (r.fuerza_unidad || '');
@@ -1266,7 +1306,12 @@
   }
   function tarjeta(r) {
     var v;
-    if (modHist === 'calculo_presion') v = [['tag-presion', 'Presión deseada', f(num(r.presion_deseada_psi)) + ' psi'], ['tag-fuerza', 'Fuerza', f(num(r.fuerza_lbf)) + ' lbf'], ['tag-fuerza', 'Fuerza', f(num(r.fuerza_kgf)) + ' kgf']];
+    if (modHist === 'calculo_presion') {
+      var hayMin = r.fuerza_objetivo_min_lbf !== null && r.fuerza_objetivo_min_lbf !== undefined && num(r.fuerza_objetivo_min_lbf) !== num(r.fuerza_lbf);
+      v = hayMin ? [['tag-presion', 'Presión', f0(num(r.presion_objetivo_min_psi)) + '–' + f0(num(r.presion_deseada_psi)) + ' psi'],
+        ['tag-fuerza', 'Fuerza mín.', f(num(r.fuerza_objetivo_min_lbf)) + ' lbf'], ['tag-fuerza', 'Fuerza máx.', f(num(r.fuerza_lbf)) + ' lbf']] :
+        [['tag-presion', 'Presión deseada', f(num(r.presion_deseada_psi)) + ' psi'], ['tag-fuerza', 'Fuerza', f(num(r.fuerza_lbf)) + ' lbf'], ['tag-fuerza', 'Fuerza', f(num(r.fuerza_kgf)) + ' kgf']];
+    }
     else if (modHist === 'validacion_presion') v = [['tag-fuerza', 'Lectura', f(num(r.lectura_valor)) + ' ' + esc(r.lectura_unidad)], ['tag-fuerza', 'Fuerza', f(num(r.fuerza_lbf)) + ' lbf'], ['tag-presion', 'Pres. rubber', f(num(r.presion_psi)) + ' psi']];
     else v = [['tag-aire', 'Manómetro', f(num(r.manometro_valor)) + ' ' + NOMBRE_PRES[r.manometro_unidad]], ['tag-fuerza', 'Fuerza', f(num(r.fuerza_valor)) + ' ' + esc(r.fuerza_unidad)], ['tag-presion', 'Pres. rubber', f(derivadosPrueba(r).presion.psi) + ' psi']];
     var extra = [];
@@ -1320,7 +1365,7 @@
   function filasExport(tabla, lista) {
     var cols = DB.TABLAS[tabla].columnas.filter(function (c) { return c !== 'id'; }).concat(['id']);
     var orden = ['fecha', 'maquina_serie', 'linea_operacion', 'cliente', 'accesorio_codigo', 'accesorio_referencia', 'tela', 'proveedor', 'rubber',
-      'presion_rango', 'presion_objetivo_psi', 'tipo_presion', 'maquina_linea', 'maquina_estacion', 'maquina_qr', 'maquina_asset'];
+      'presion_rango', 'presion_objetivo_min_psi', 'presion_objetivo_psi', 'fuerza_objetivo_min_lbf', 'fuerza_objetivo_lbf', 'tipo_presion', 'maquina_linea', 'maquina_estacion', 'maquina_qr', 'maquina_asset'];
     cols = orden.concat(cols.filter(function (c) { return orden.indexOf(c) < 0; }));
     return [cols.map(function (c) { return ETIQUETAS[c] || c; })].concat(lista.map(function (r) {
       return cols.map(function (c) { return valorExport(c, r[c]); });
