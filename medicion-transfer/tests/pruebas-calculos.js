@@ -120,6 +120,23 @@ o = C.fuerzaObjetivo(contacto(20, 30), { largo_cm: 4, ancho_cm: 2 });
 igual('Rango 20-30 usa 30 psi', o.presionObjetivo, 30);
 cerca('Rango 20-30 en 4 × 2 → lbf', o.fuerza.lbf, 37.20, 0.005);
 
+console.log('\n9b) Lectura mínima y máxima del dinamómetro');
+o = C.fuerzaObjetivo(contacto(20, 30), { largo_cm: 4, ancho_cm: 2 });
+cerca('20-30 psi en 4 × 2 → mínima lbf', o.fuerzaMin.lbf, 24.80, 0.005);
+cerca('20-30 psi en 4 × 2 → mínima kgf', o.fuerzaMin.kgf, 11.25, 0.005);
+cerca('20-30 psi en 4 × 2 → mínima N', o.fuerzaMin.N, 110.32, 0.005);
+cerca('20-30 psi en 4 × 2 → máxima lbf', o.fuerzaMax.lbf, 37.20, 0.005);
+igual('Presión mínima / máxima', o.presionMin + ' / ' + o.presionMax, '20 / 30');
+o = C.fuerzaObjetivo(contacto(30, 30), { largo_cm: 4.5, ancho_cm: 1.1 });
+igual('Valor único: mínima = máxima', C.formatear(o.fuerzaMin.lbf) + ' = ' + C.formatear(o.fuerzaMax.lbf), '23.02 = 23.02');
+o = C.fuerzaObjetivo({ presion_max_psi: 40, tipo_presion: 'contacto_rubber' }, { largo_cm: 4.5, ancho_cm: 1.1 });
+cerca('Solo máximo 40 → mínima = 30.69 lbf', o.fuerzaMin.lbf, 30.69, 0.005);
+o = C.fuerzaObjetivo({ presion_min_psi: 20, presion_max_psi: 30, tipo_presion: 'pendiente' }, { largo_cm: 4, ancho_cm: 2 });
+igual('Bloqueado → sin mínima ni máxima', [o.fuerzaMin, o.fuerzaMax].join(','), ',');
+const tr = C.parseRango('155-160');
+igual('Temperatura 155-160 → mín 155 / máx 160', tr.min + ' / ' + tr.max, '155 / 160');
+igual('Temperatura 160--165 → mín 160 / máx 165', C.parseRango('160--165').min + ' / ' + C.parseRango('160--165').max, '160 / 165');
+
 console.log('\n10) Bloqueos del cálculo');
 const motivos = (x) => x.motivos.map(m => m.codigo).join(',');
 o = C.fuerzaObjetivo(contacto(20, 30), { largo_cm: null, ancho_cm: 2 });
