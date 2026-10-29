@@ -3,7 +3,7 @@
  * IMPORTANTE: cada vez que publiques cambios, aumenta el número de VERSION
  * para que los teléfonos descarguen la nueva versión.
  */
-var VERSION = 'v3.0.1';
+var VERSION = 'v3.1.0';
 var CACHE = 'medicion-transfer-' + VERSION;
 var ARCHIVOS = [
   './',

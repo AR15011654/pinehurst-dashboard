@@ -18,8 +18,8 @@ Aplicación web para calcular, validar y registrar la **fuerza** y la **presión
 |---|---|
 | Cálculo de presión guiado | El técnico ya no escribe largo, ancho ni presión. Elige: **Línea (L1–L50) → Máquina (serie o QR) → Cliente → Referencia** (código, descripción e imagen) **→ Tipo de tela** (se elige sola si hay una) **→ Rubber o molde** (imagen, descripción y medidas; se elige solo si hay uno aprobado). Al cambiar cliente, referencia o tela se limpian los pasos siguientes. |
 | Parámetros | Tabla compacta: cliente, código y referencia, tela, proveedor, imágenes del accesorio y del rubber, tipo y medidas del rubber, temperatura y unidad, rango de presión **original**, presión objetivo, tipo de presión, tiempo o secuencia **tal cual**, desprendimiento del film y observaciones. Los parámetros de pruebas internas aparecen aparte. |
-| Presión objetivo | Se usa el **máximo** del rango aprobado (20–30 → 30 psi; 50–60 → 60 psi; valor único 30 → 30 psi). Se muestran el rango y el valor usado. |
-| Lectura objetivo del dinamómetro | Solo si el catálogo dice **presión de contacto sobre el rubber** y el rubber tiene largo y ancho. Si es presión del **aire del manómetro** o está **pendiente de confirmar**, no se muestra ninguna fuerza. |
+| Presión y temperatura | Se muestran **mínimo y máximo** tomados del Excel (20–30 psi; 155–160 °C) y el texto original. Las temperaturas son **°C**. |
+| Lectura del dinamómetro (v3.1) | **Mínima** (con la presión mínima) y **máxima** (con la presión máxima), en lbf, kgf y N. Un valor único da una sola lectura. Solo si el catálogo dice **presión de contacto sobre el rubber** y el rubber tiene largo y ancho; si es presión del **aire del manómetro** o está **pendiente de confirmar**, no se muestra ninguna fuerza. Validación indica si la medición queda por debajo, dentro o por encima del rango. |
 | Traslado | "Pasar a validación" y "Pasar a registro de pruebas" llevan la línea, la máquina, el rubber y el objetivo. Validación compara lo medido con el objetivo. |
 | Catálogo (administrador) | Clientes, proveedores, telas, referencias con imágenes, rubbers con imágenes y medidas, y parámetros por **referencia + tela + rubber**. Estados *Pendiente de validar* / *Aprobado*. Desactivar en lugar de borrar. Buscador, formularios y vista previa de imágenes. |
 | Importar Excel | Lee "Parametros de Trims" en el navegador, muestra **vista previa** con avisos y se confirma. Reimportar no duplica y muestra los cambios antes de sobrescribir. |
@@ -42,7 +42,7 @@ Aplicación web para calcular, validar y registrar la **fuerza** y la **presión
 
 ### Lo que el Excel no trae (se completa en la app)
 - Medidas del rubber: las columnas "Largo Ruber" y "Ancho Ruber" están vacías en todas las hojas.
-- Unidad de temperatura: no se indica (°C o °F).
+- Unidad de temperatura: el Excel no la indica; se confirmó que es °C (al importar se elige la unidad, °C por defecto).
 - Qué representa la presión del proveedor.
 - Tela en Adidas y Oakley (sus hojas no tienen esa columna).
 - Rubber en Adidas 80031326 y Long Walk LWGPL001-SIL.
@@ -188,7 +188,7 @@ La app está en `https://ar15011654.github.io/pinehurst-dashboard/medicion-trans
 4. **Registro de pruebas:** máquina, montaje, rubber, manómetro y fuerza; guarda varias pruebas con distintos ajustes del manómetro. Gráfica por máquina + rubber + montaje y **ESTIMACIÓN** del ajuste del manómetro (requiere ≥ 2 ajustes distintos de la misma máquina y montaje; si no, muestra *"No es posible determinar el ajuste del manómetro sin mediciones de esta máquina y este montaje"*).
 5. **Historial y reportes:** pestañas Cálculo / Validación / Pruebas, filtro por máquina, Excel, CSV, PDF, compartir y respaldo.
 
-## 7. Fórmulas (verificadas: 77 pruebas automáticas)
+## 7. Fórmulas (verificadas: 87 pruebas automáticas)
 
 | Cálculo | Fórmula |
 |---|---|
@@ -196,11 +196,11 @@ La app está en `https://ar15011654.github.io/pinehurst-dashboard/medicion-trans
 | Área (in²) | cm² ÷ 6.4516 |
 | Fuerza (lbf) | psi × in² |
 | kgf / N | lbf ÷ 2.20462262185 / lbf × 4.44822161526 |
-| Presión objetivo (catálogo) | máximo del rango aprobado; un valor único se usa tal cual |
+| Lectura mínima / máxima (catálogo) | presión mínima y máxima del rango aprobado × área (in²); un valor único da una sola lectura |
 | Presión (psi) | lbf ÷ in² |
 | kgf/cm² / bar | psi ÷ 14.2233 / psi ÷ 14.5038 |
 
-Ejemplos verificados: rubber 4.5 × 1.1 cm a 40 psi → **30.69 lbf**; rubber 4 × 2 cm a 20 psi → **24.80 lbf = 11.25 kgf = 110.32 N**; 30 lbf sobre 4.5 × 1.1 cm → **39.10 psi**.
+Ejemplos verificados: rubber 4 × 2 cm a 20–30 psi → mínima **24.80 lbf**, máxima **37.20 lbf**; rubber 4.5 × 1.1 cm a 40 psi → **30.69 lbf**; rubber 4 × 2 cm a 20 psi → **24.80 lbf = 11.25 kgf = 110.32 N**; 30 lbf sobre 4.5 × 1.1 cm → **39.10 psi**.
 
 Que el cálculo sea correcto no valida la medición física: el resultado solo representa la presión real si el dinamómetro mide toda la fuerza que pasa por el área efectiva del rubber.
 
