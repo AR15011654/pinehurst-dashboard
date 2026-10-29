@@ -3,7 +3,7 @@
  * IMPORTANTE: cada vez que publiques cambios, aumenta el número de VERSION
  * para que los teléfonos descarguen la nueva versión.
  */
-var VERSION = 'v3.0.0';
+var VERSION = 'v3.0.1';
 var CACHE = 'medicion-transfer-' + VERSION;
 var ARCHIVOS = [
   './',
@@ -28,7 +28,8 @@ var ARCHIVOS = [
 ];
 
 self.addEventListener('install', function (e) {
-  e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(ARCHIVOS); }).then(function () { return self.skipWaiting(); }));
+  // cache: 'reload' evita copiar archivos viejos de la caché HTTP del navegador al instalar una versión nueva
+  e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(ARCHIVOS.map(function (u) { return new Request(u, { cache: 'reload' }); })); }).then(function () { return self.skipWaiting(); }));
 });
 
 self.addEventListener('activate', function (e) {
@@ -47,7 +48,7 @@ self.addEventListener('fetch', function (e) {
   e.respondWith(
     caches.open(CACHE).then(function (cache) {
       return cache.match(req, { ignoreSearch: true }).then(function (enCache) {
-        var red = fetch(req).then(function (resp) {
+        var red = fetch(req.url, { cache: 'no-cache' }).then(function (resp) {
           if (resp && resp.ok) cache.put(req, resp.clone());
           return resp;
         }).catch(function () {
