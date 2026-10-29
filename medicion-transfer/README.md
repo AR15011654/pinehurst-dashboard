@@ -1,4 +1,4 @@
-# Medición Transfer v2 — Máquinas Heat Transfer
+# Medición Transfer v3 — Máquinas Heat Transfer
 
 Aplicación web para calcular, validar y registrar la **fuerza** y la **presión promedio** en el pegado de logos con máquinas Heat Transfer. Funciona en celular (Android y iPhone) y computadora, se instala en la pantalla de inicio y trabaja **sin conexión**. Los registros se guardan en una **base de datos en la nube (Supabase)**, compartida por todos los teléfonos.
 
@@ -10,6 +10,43 @@ Aplicación web para calcular, validar y registrar la **fuerza** y la **presión
 > No existe una conversión directa entre 1 y 3: depende de cada máquina y montaje, y solo se obtiene midiendo.
 
 ---
+
+## 0. Versión 3: catálogo de parámetros de trims
+
+### Qué cambió
+| Cambio | Detalle |
+|---|---|
+| Cálculo de presión guiado | El técnico ya no escribe largo, ancho ni presión. Elige: **Línea (L1–L50) → Máquina (serie o QR) → Cliente → Referencia** (código, descripción e imagen) **→ Tipo de tela** (se elige sola si hay una) **→ Rubber o molde** (imagen, descripción y medidas; se elige solo si hay uno aprobado). Al cambiar cliente, referencia o tela se limpian los pasos siguientes. |
+| Parámetros | Tabla compacta: cliente, código y referencia, tela, proveedor, imágenes del accesorio y del rubber, tipo y medidas del rubber, temperatura y unidad, rango de presión **original**, presión objetivo, tipo de presión, tiempo o secuencia **tal cual**, desprendimiento del film y observaciones. Los parámetros de pruebas internas aparecen aparte. |
+| Presión objetivo | Se usa el **máximo** del rango aprobado (20–30 → 30 psi; 50–60 → 60 psi; valor único 30 → 30 psi). Se muestran el rango y el valor usado. |
+| Lectura objetivo del dinamómetro | Solo si el catálogo dice **presión de contacto sobre el rubber** y el rubber tiene largo y ancho. Si es presión del **aire del manómetro** o está **pendiente de confirmar**, no se muestra ninguna fuerza. |
+| Traslado | "Pasar a validación" y "Pasar a registro de pruebas" llevan la línea, la máquina, el rubber y el objetivo. Validación compara lo medido con el objetivo. |
+| Catálogo (administrador) | Clientes, proveedores, telas, referencias con imágenes, rubbers con imágenes y medidas, y parámetros por **referencia + tela + rubber**. Estados *Pendiente de validar* / *Aprobado*. Desactivar en lugar de borrar. Buscador, formularios y vista previa de imágenes. |
+| Importar Excel | Lee "Parametros de Trims" en el navegador, muestra **vista previa** con avisos y se confirma. Reimportar no duplica y muestra los cambios antes de sobrescribir. |
+| Trazabilidad | Cada cambio del catálogo guarda usuario, fecha, valores anteriores y nuevos, y sube la versión. Cada registro guarda la versión y una **copia** de los parámetros usados: editar el catálogo después no altera los registros. |
+| Permisos en el servidor | La cuenta general solo **lee configuraciones aprobadas** y registra mediciones. Solo el administrador escribe en el catálogo y sube imágenes (RLS de Supabase; imágenes en un bucket **privado**). Nadie puede borrar filas del catálogo. |
+
+### Instalar la versión 3 (una sola vez)
+1. Supabase → **SQL Editor** → pega `supabase/migracion-v3-catalogo.sql` → **Run**. Solo agrega tablas y columnas; no cambia los registros existentes.
+2. (Opcional) Pega `supabase/pruebas-permisos.sql` → **Run**: deben salir 14 filas sin "MAL" ni "ERROR". La prueba deshace todo al terminar.
+3. Sube los archivos de la app a GitHub (sección 5). `sw.js` ya tiene `VERSION = 'v3.0.0'`.
+
+### Importar y completar el catálogo (administrador)
+1. Inicia sesión con tu usuario de administrador (Ajustes → Cerrar sesión → *Entrar con otro usuario*).
+2. Pantalla principal → **Catálogo de parámetros** → pestaña **Importar Excel** → elige el archivo.
+3. Revisa la vista previa: filas leídas, hojas excluidas, telas unificadas, imágenes recuperadas o sin asociar, fechas dudosas y datos faltantes. Pulsa **Importar**.
+4. Todo entra como **Pendiente de validar** y con tipo de presión **Pendiente de confirmar**. Para cada combinación:
+   - Pestaña **Rubbers**: escribe **largo y ancho** (cm) del área efectiva y, si quieres, el tipo y un mejor nombre.
+   - Pestaña **Parámetros**: indica **qué representa la presión** (contacto sobre el rubber o aire del manómetro), la **unidad de temperatura**, y cambia el estado a **Aprobado**. El formulario muestra la lectura objetivo que verá el técnico o por qué no la habrá.
+5. Si importas una versión nueva del Excel, solo se crean las combinaciones nuevas; las que cambiaron aparecen con "Actual / Excel" y una casilla para aplicar. Los datos que completaste en la app (medidas, tipo de presión, estado) no se borran.
+
+### Lo que el Excel no trae (se completa en la app)
+- Medidas del rubber: las columnas "Largo Ruber" y "Ancho Ruber" están vacías en todas las hojas.
+- Unidad de temperatura: no se indica (°C o °F).
+- Qué representa la presión del proveedor.
+- Tela en Adidas y Oakley (sus hojas no tienen esa columna).
+- Rubber en Adidas 80031326 y Long Walk LWGPL001-SIL.
+- Fechas de Milwaukee escritas como "10/23/205" y "10/24/205": se conserva el texto y la fecha queda vacía.
 
 ## 1. Qué cambió en la versión 2
 
@@ -39,11 +76,15 @@ medicion-transfer/
 │   ├── maquinas.js            ← inventario Heat Transfer (generado)
 │   ├── db.js                  ← base de datos local + sincronización con Supabase
 │   ├── app.js                 ← pantallas
+│   ├── importar-excel.js      ← lectura del Excel "Parametros de Trims" (v3)
+│   ├── admin.js               ← catálogo de parámetros, solo administrador (v3)
 │   ├── xlsx-mini.js           ← exportar Excel sin internet
 │   ├── jsQR.js                ← lector de QR (Apache 2.0, ver jsQR-LICENSE.txt)
 │   └── jsQR-LICENSE.txt
 ├── supabase/
-│   └── esquema.sql            ← ★ script que crea las tablas de la base de datos
+│   ├── esquema.sql            ← ★ script que crea las tablas de la base de datos
+│   ├── migracion-v3-catalogo.sql ← ★ catálogo, historial, permisos e imágenes (v3)
+│   └── pruebas-permisos.sql   ← verificación de permisos (deshace todo al terminar)
 ├── herramientas/
 │   └── generar-maquinas.py    ← actualiza js/maquinas.js desde el Excel de inventario
 ├── icons/                     ← íconos de la app
@@ -147,18 +188,21 @@ La app está en `https://ar15011654.github.io/pinehurst-dashboard/medicion-trans
 4. **Registro de pruebas:** máquina, montaje, rubber, manómetro y fuerza; guarda varias pruebas con distintos ajustes del manómetro. Gráfica por máquina + rubber + montaje y **ESTIMACIÓN** del ajuste del manómetro (requiere ≥ 2 ajustes distintos de la misma máquina y montaje; si no, muestra *"No es posible determinar el ajuste del manómetro sin mediciones de esta máquina y este montaje"*).
 5. **Historial y reportes:** pestañas Cálculo / Validación / Pruebas, filtro por máquina, Excel, CSV, PDF, compartir y respaldo.
 
-## 7. Fórmulas (verificadas: 37 pruebas automáticas)
+## 7. Fórmulas (verificadas: 77 pruebas automáticas)
 
 | Cálculo | Fórmula |
 |---|---|
 | Área (cm²) | largo × ancho |
 | Área (in²) | cm² ÷ 6.4516 |
 | Fuerza (lbf) | psi × in² |
-| kgf / N | lbf ÷ 2.20462 / lbf × 4.44822 |
+| kgf / N | lbf ÷ 2.20462262185 / lbf × 4.44822161526 |
+| Presión objetivo (catálogo) | máximo del rango aprobado; un valor único se usa tal cual |
 | Presión (psi) | lbf ÷ in² |
 | kgf/cm² / bar | psi ÷ 14.2233 / psi ÷ 14.5038 |
 
-Ejemplo: rubber 4.5 × 1.1 cm (4.95 cm² = 0.7673 in²) a 40 psi → **30.69 lbf = 13.92 kgf = 136.52 N**.
+Ejemplos verificados: rubber 4.5 × 1.1 cm a 40 psi → **30.69 lbf**; rubber 4 × 2 cm a 20 psi → **24.80 lbf = 11.25 kgf = 110.32 N**; 30 lbf sobre 4.5 × 1.1 cm → **39.10 psi**.
+
+Que el cálculo sea correcto no valida la medición física: el resultado solo representa la presión real si el dinamómetro mide toda la fuerza que pasa por el área efectiva del rubber.
 
 ## 8. Sin conexión
 

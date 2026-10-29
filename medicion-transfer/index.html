@@ -47,7 +47,7 @@
       <div class="modulos">
         <button type="button" class="modulo m-calculo" data-ir="vista-calculo">
           <span class="m-icono"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v14m-5-5 5 5 5-5M5 21h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-          <span class="m-texto"><b>Cálculo de presión</b><small>Fuerza necesaria para una presión deseada sobre el rubber</small></span>
+          <span class="m-texto"><b>Cálculo de presión</b><small>Parámetros aprobados y lectura objetivo del dinamómetro</small></span>
           <span class="m-stats" data-stats="calculo_presion"></span>
         </button>
         <button type="button" class="modulo m-validacion" data-ir="vista-validacion">
@@ -65,38 +65,62 @@
           <span class="m-texto"><b>Historial y reportes</b><small>Consultar, exportar a Excel o PDF y compartir</small></span>
           <span class="m-stats" data-stats="historial"></span>
         </button>
+        <button type="button" class="modulo m-catalogo" data-ir="vista-catalogo" id="btn-catalogo" hidden>
+          <span class="m-icono"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10M18 16l2 2 3-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="m-texto"><b>Catálogo de parámetros</b><small>Administrador: clientes, referencias, rubbers, parámetros e importación</small></span>
+          <span class="m-stats" data-stats="catalogo"></span>
+        </button>
       </div>
     </section>
 
-    <!-- ================= 1. CÁLCULO DE PRESIÓN ================= -->
+    <!-- ================= 1. CÁLCULO DE PRESIÓN (guiado por el catálogo) ================= -->
     <section id="vista-calculo" class="vista" hidden aria-labelledby="t-calculo">
       <h2 id="t-calculo">Cálculo de presión</h2>
-      <p class="ayuda">Ingresa el tamaño del rubber y la <span class="tag tag-presion">presión deseada sobre el rubber</span>. Se calcula la <span class="tag tag-fuerza">fuerza</span> que debería indicar el dinamómetro.</p>
+      <p class="ayuda">Elige la combinación. Se muestran los parámetros aprobados y la <span class="tag tag-fuerza">lectura objetivo del dinamómetro</span>.</p>
+      <div id="cp-cat-aviso"></div>
 
       <div class="card">
         <div data-maquina="cp"></div>
-        <div class="fila-2">
-          <div class="campo">
-            <label for="cp-largo">Largo del rubber <span class="u">cm</span></label>
-            <input id="cp-largo" type="text" inputmode="decimal" autocomplete="off" data-req="pos" placeholder="Ej. 4.5">
-            <p class="error"></p>
-          </div>
-          <div class="campo">
-            <label for="cp-ancho">Ancho del rubber <span class="u">cm</span></label>
-            <input id="cp-ancho" type="text" inputmode="decimal" autocomplete="off" data-req="pos" placeholder="Ej. 1.1">
-            <p class="error"></p>
-          </div>
-        </div>
+      </div>
+
+      <div class="card paso" id="cp-paso-cliente">
         <div class="campo">
-          <label for="cp-psi">Presión deseada sobre el rubber <span class="u">psi</span></label>
-          <input id="cp-psi" type="text" inputmode="decimal" autocomplete="off" data-req="pos" placeholder="Ej. 40">
-          <p class="error"></p>
+          <label for="cp-cliente">Cliente</label>
+          <select id="cp-cliente"></select>
         </div>
       </div>
 
-      <div class="card resultados" aria-live="polite">
-        <h3>Resultados</h3>
-        <div id="cp-resultados"></div>
+      <div class="card paso" id="cp-paso-ref" hidden>
+        <div class="paso-cab"><h3>Referencia del accesorio</h3><button type="button" class="enlace" data-cambiar="ref" hidden>Cambiar</button></div>
+        <div id="cp-refs" class="opciones"></div>
+      </div>
+
+      <div class="card paso" id="cp-paso-tela" hidden>
+        <div class="paso-cab"><h3>Tipo de tela</h3><button type="button" class="enlace" data-cambiar="tela" hidden>Cambiar</button></div>
+        <div id="cp-telas" class="opciones"></div>
+      </div>
+
+      <div class="card paso" id="cp-paso-rubber" hidden>
+        <div class="paso-cab"><h3>Rubber o molde</h3><button type="button" class="enlace" data-cambiar="rubber" hidden>Cambiar</button></div>
+        <div id="cp-rubbers" class="opciones"></div>
+      </div>
+
+      <div class="card resultados" id="cp-paso-res" hidden aria-live="polite">
+        <div id="cp-objetivo"></div>
+        <h3>Parámetros</h3>
+        <div id="cp-parametros"></div>
+        <details class="ayuda-mas">
+          <summary>¿Cómo se calcula y cuándo es válido?</summary>
+          <ul>
+            <li>Se usa el valor <b>máximo</b> del rango de presión aprobado (20–30 psi → 30 psi). Un valor único se usa tal cual.</li>
+            <li>Solo se calcula si el catálogo indica que es <b>presión de contacto sobre el rubber</b>. Si es presión del aire del manómetro o está pendiente de confirmar, no hay lectura objetivo.</li>
+            <li>Área (cm²) = largo × ancho · Área (in²) = cm² ÷ 6.4516</li>
+            <li>Fuerza (lbf) = presión objetivo (psi) × área (in²) · kgf = lbf ÷ 2.20462262185 · N = lbf × 4.44822161526</li>
+            <li>Es válido solo si el dinamómetro mide <b>toda</b> la fuerza que pasa por el área efectiva del rubber.</li>
+            <li>La temperatura y el tiempo son instrucciones de aplicación; no intervienen en el cálculo.</li>
+            <li>Un cálculo correcto no valida la medición física: compruébala en Validación de presión.</li>
+          </ul>
+        </details>
         <div id="cp-capacidad"></div>
         <div class="campo">
           <label for="cp-obs">Observaciones <span class="opcional">(opcional)</span></label>
@@ -104,12 +128,12 @@
         </div>
         <div class="acciones">
           <button type="button" class="btn btn-primario btn-grande" id="cp-guardar">Guardar registro</button>
-          <button type="button" class="btn" id="cp-compartir">Compartir resultado</button>
+          <button type="button" class="btn" id="cp-a-validacion">Pasar a validación</button>
+          <button type="button" class="btn" id="cp-a-pruebas">Pasar a registro de pruebas</button>
+          <button type="button" class="btn" id="cp-compartir">Compartir</button>
         </div>
         <p id="cp-msg" class="msg" role="status"></p>
       </div>
-
-      <div class="avisos" data-avisos></div>
     </section>
 
     <!-- ================= 2. VALIDACIÓN DE PRESIÓN ================= -->
@@ -117,6 +141,7 @@
       <h2 id="t-validacion">Validación de presión</h2>
       <p class="ayuda">Ingresa la <span class="tag tag-fuerza">fuerza estable del dinamómetro</span> para estimar la <span class="tag tag-presion">presión promedio sobre el rubber</span>. Esto no es la presión del aire del manómetro.</p>
 
+      <div id="vp-contexto"></div>
       <div class="card">
         <div data-maquina="vp"></div>
         <div class="fila-2">
@@ -199,6 +224,7 @@
 
       <form class="card" id="form-pruebas" novalidate>
         <h3 id="rp-titulo">Nueva prueba</h3>
+        <div id="rp-contexto"></div>
         <div data-maquina="rp"></div>
         <div class="fila-2">
           <div class="campo">
@@ -357,6 +383,24 @@
         </div>
       </div>
     </section>
+    <!-- ================= 5. CATÁLOGO (solo administrador) ================= -->
+    <section id="vista-catalogo" class="vista" hidden aria-labelledby="t-catalogo">
+      <h2 id="t-catalogo">Catálogo de parámetros</h2>
+      <div id="ad-estado"></div>
+      <div id="ad-contenido">
+        <div class="segmentos segmentos-scroll" role="tablist" aria-label="Sección del catálogo" id="ad-tabs">
+          <button type="button" role="tab" data-tab="cat_configuraciones">Parámetros</button>
+          <button type="button" role="tab" data-tab="cat_accesorios">Referencias</button>
+          <button type="button" role="tab" data-tab="cat_rubbers">Rubbers</button>
+          <button type="button" role="tab" data-tab="cat_clientes">Clientes</button>
+          <button type="button" role="tab" data-tab="cat_proveedores">Proveedores</button>
+          <button type="button" role="tab" data-tab="cat_telas">Telas</button>
+          <button type="button" role="tab" data-tab="importar">Importar Excel</button>
+          <button type="button" role="tab" data-tab="historial">Cambios</button>
+        </div>
+        <div id="ad-panel"></div>
+      </div>
+    </section>
   </main>
 
   <datalist id="lista-series"></datalist>
@@ -463,6 +507,23 @@
     </form>
   </dialog>
 
+  <!-- Formulario del catálogo (administrador) -->
+  <dialog id="dlg-cat" aria-labelledby="t-cat">
+    <form class="dlg-cuerpo" id="form-cat" novalidate>
+      <h2 id="t-cat">Editar</h2>
+      <div id="cat-campos"></div>
+      <p id="cat-msg" class="msg" role="status"></p>
+      <div class="acciones">
+        <button type="submit" class="btn btn-primario btn-grande" id="cat-guardar">Guardar</button>
+        <button type="button" class="btn" id="cat-cancelar">Cancelar</button>
+      </div>
+      <details class="ayuda-mas" id="cat-historial-box" hidden>
+        <summary>Historial de cambios de este elemento</summary>
+        <div id="cat-historial"></div>
+      </details>
+    </form>
+  </dialog>
+
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <noscript><p class="aviso aviso-peligro">Esta aplicación necesita JavaScript activado.</p></noscript>
@@ -473,5 +534,7 @@
   <script src="js/xlsx-mini.js"></script>
   <script src="js/db.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/importar-excel.js"></script>
+  <script src="js/admin.js"></script>
 </body>
 </html>
