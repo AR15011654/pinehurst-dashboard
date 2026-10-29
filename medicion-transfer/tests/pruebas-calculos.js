@@ -78,6 +78,16 @@ igual('Dentro del rango', s.extrapola, false);
 s = C.sugerirManometro([{ manPsi: 40, fuerzaLbf: 22 }, { manPsi: 60, fuerzaLbf: 32 }], 60);
 igual('Fuera del rango → marcado', s.extrapola, true);
 
+console.log('\n7b) Fórmula de presión psi = lbf × 6.4516 ÷ (largo × ancho) — rubber 4.5 × 1.1 cm, 30 lbf');
+const formula = (lbf, l, a) => lbf * 6.4516 / (l * a);
+cerca('Fórmula directa', formula(30, 4.5, 1.1), 39.10, 0.005);
+cerca('presionPsi()', C.presionPsi(30, 4.5, 1.1), 39.10, 0.005);
+cerca('30 lbf', C.presionMedida(4.5, 1.1, 30, 'lbf').presion.psi, 39.10, 0.005);
+cerca('30 lbf en kgf', C.presionMedida(4.5, 1.1, 30 / 2.20462, 'kgf').presion.psi, 39.10, 0.005);
+cerca('30 lbf en N', C.presionMedida(4.5, 1.1, 30 * 4.44822, 'N').presion.psi, 39.10, 0.005);
+cerca('Igual a lbf ÷ área in²', C.presionPsi(30, 4.5, 1.1), 30 / C.areaRect(4.5, 1.1).in2, 1e-9);
+igual('Muestra 39.10', C.formatear(C.presionMedida(4.5, 1.1, 30, 'lbf').presion.psi), '39.10');
+
 console.log('\n7) Validación de números');
 igual('"4,5" → 4.5', C.parseNumero('4,5'), 4.5);
 igual('"abc" → NaN', Number.isNaN(C.parseNumero('abc')), true);
