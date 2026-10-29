@@ -72,11 +72,20 @@
     return { area: area, presion: presionDesdePsi(psiDeseada), fuerza: fuerzaDesdeLbf(psiDeseada * area.in2) };
   }
 
-  /** Función 2: presión promedio estimada a partir de la lectura del dinamómetro. */
+  /**
+   * Presión promedio en psi a partir de la fuerza en lbf y las medidas en cm.
+   * Única fórmula de presión de la app:  psi = lbf × 6.4516 ÷ (largo × ancho)
+   * (equivale a lbf ÷ área en in², porque área in² = largo × ancho ÷ 6.4516).
+   */
+  function presionPsi(lbf, largoCm, anchoCm) {
+    return lbf * K.CM2_POR_IN2 / (largoCm * anchoCm);
+  }
+
+  /** Función 2: presión promedio estimada a partir de la lectura del dinamómetro (lbf, kgf o N). */
   function presionMedida(largoCm, anchoCm, lectura, unidad) {
     var area = areaRect(largoCm, anchoCm);
     var lbf = fuerzaALbf(lectura, unidad);
-    return { area: area, fuerza: fuerzaDesdeLbf(lbf), presion: presionDesdePsi(lbf / area.in2) };
+    return { area: area, fuerza: fuerzaDesdeLbf(lbf), presion: presionDesdePsi(presionPsi(lbf, largoCm, anchoCm)) };
   }
 
   /**
@@ -165,7 +174,7 @@
     parseNumero: parseNumero, esPositivo: esPositivo, areaRect: areaRect,
     fuerzaALbf: fuerzaALbf, fuerzaDesdeLbf: fuerzaDesdeLbf,
     presionAPsi: presionAPsi, presionDesdePsi: presionDesdePsi,
-    fuerzaNecesaria: fuerzaNecesaria, presionMedida: presionMedida,
+    fuerzaNecesaria: fuerzaNecesaria, presionMedida: presionMedida, presionPsi: presionPsi,
     tablaEquivalencias: tablaEquivalencias, regresionLineal: regresionLineal,
     sugerirManometro: sugerirManometro, claveGrupo: claveGrupo,
     redondear: redondear, formatear: formatear

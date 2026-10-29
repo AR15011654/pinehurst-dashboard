@@ -6,7 +6,7 @@
 (function () {
   'use strict';
 
-  var APP_VERSION = '2.3.0';
+  var APP_VERSION = '2.4.0';
   var C = window.Calc;
   var DB = window.DB;
   var LS_AJ = 'transfer.ajustes.v1';
@@ -552,17 +552,25 @@
       $('#vp-resultados').innerHTML =
         grupo('Área del rubber', areaTiles(r.area)) +
         grupo('<span class="tag tag-fuerza">Fuerza medida</span> (dinamómetro)', fuerzaTiles(r.fuerza, 'Fuerza')) +
-        grupo('<span class="tag tag-presion">Presión promedio estimada</span> sobre el rubber', presionTiles(r.presion, 'Presión')) + AVISO_PROMEDIO;
+        grupo('<span class="tag tag-presion">Presión promedio estimada</span> sobre el rubber', presionTiles(r.presion, 'Presión')) +
+        htmlFormula(l.v, a.v, x.v, u, r) + AVISO_PROMEDIO;
       $('#vp-capacidad').innerHTML = htmlCapacidad(r.fuerza.lbf);
     }
     calcPlancha();
+  }
+  /** Muestra el cálculo paso a paso para poder revisarlo a mano en planta. */
+  function htmlFormula(l, a, x, u, r) {
+    var conv = u === 'lbf' ? '' :
+      '<div>' + (u === 'kgf' ? f(x) + ' kgf × 2.20462' : f(x) + ' N ÷ 4.44822') + ' = ' + f(r.fuerza.lbf) + ' lbf</div>';
+    return '<div class="formula"><span class="formula-tit">Cálculo</span>' + conv +
+      '<div>psi = ' + f(r.fuerza.lbf) + ' lbf × 6.4516 ÷ (' + f(l) + ' × ' + f(a) + ' cm) = <b>' + f(r.presion.psi) + ' psi</b></div></div>';
   }
   function datosPlancha() {
     var l = leer('vp-pl-largo'), a = leer('vp-pl-ancho');
     if (!(l.ok && a.ok) || l.vacio || a.vacio) return null;
     var area = C.areaRect(l.v, a.v);
     var total = $('#vp-pl-total').checked;
-    var pr = total && ultimaValidacion ? C.presionDesdePsi(ultimaValidacion.r.fuerza.lbf / area.in2) : null;
+    var pr = total && ultimaValidacion ? C.presionDesdePsi(C.presionPsi(ultimaValidacion.r.fuerza.lbf, l.v, a.v)) : null;
     return { l: l.v, a: a.v, area: area, total: total, presion: pr };
   }
   function calcPlancha() {
@@ -653,9 +661,9 @@
   // 3. REGISTRO DE PRUEBAS
   // ======================================================
   function derivadosPrueba(r) {
-    var area = C.areaRect(num(r.rubber_largo_cm), num(r.rubber_ancho_cm));
-    var lbf = C.fuerzaALbf(num(r.fuerza_valor), r.fuerza_unidad);
-    return { area: area, fuerza: C.fuerzaDesdeLbf(lbf), presion: C.presionDesdePsi(lbf / area.in2), manPsi: C.presionAPsi(num(r.manometro_valor), r.manometro_unidad) };
+    // Misma función que Validación de presión: psi = lbf × 6.4516 ÷ (largo × ancho)
+    var m = C.presionMedida(num(r.rubber_largo_cm), num(r.rubber_ancho_cm), num(r.fuerza_valor), r.fuerza_unidad);
+    return { area: m.area, fuerza: m.fuerza, presion: m.presion, manPsi: C.presionAPsi(num(r.manometro_valor), r.manometro_unidad) };
   }
   function claveDe(r) { return C.claveGrupo({ maquina: r.maquina_serie, largo: num(r.rubber_largo_cm), ancho: num(r.rubber_ancho_cm), montaje: r.montaje }); }
 
