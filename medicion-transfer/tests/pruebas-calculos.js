@@ -88,6 +88,58 @@ cerca('30 lbf en N', C.presionMedida(4.5, 1.1, 30 * 4.44822, 'N').presion.psi, 3
 cerca('Igual a lbf ÷ área in²', C.presionPsi(30, 4.5, 1.1), 30 / C.areaRect(4.5, 1.1).in2, 1e-9);
 igual('Muestra 39.10', C.formatear(C.presionMedida(4.5, 1.1, 30, 'lbf').presion.psi), '39.10');
 
+
+console.log('\n8) Catálogo — lectura objetivo del dinamómetro (presión de contacto sobre el rubber)');
+const contacto = (min, max) => ({ presion_min_psi: min, presion_max_psi: max, tipo_presion: 'contacto_rubber' });
+let o = C.fuerzaObjetivo(contacto(40, 40), { largo_cm: 4.5, ancho_cm: 1.1 });
+igual('4.5 × 1.1 cm, 40 psi → calcula', o.ok, true);
+cerca('4.5 × 1.1 cm, 40 psi → lbf', o.fuerza.lbf, 30.69, 0.005);
+o = C.fuerzaObjetivo(contacto(20, 20), { largo_cm: 4, ancho_cm: 2 });
+cerca('4 × 2 cm, 20 psi → lbf', o.fuerza.lbf, 24.80, 0.005);
+cerca('4 × 2 cm, 20 psi → kgf', o.fuerza.kgf, 11.25, 0.005);
+cerca('4 × 2 cm, 20 psi → N', o.fuerza.N, 110.32, 0.005);
+igual('Muestra 24.80 / 11.25 / 110.32', [C.formatear(o.fuerza.lbf), C.formatear(o.fuerza.kgf), C.formatear(o.fuerza.N)].join(' / '), '24.80 / 11.25 / 110.32');
+cerca('Cálculo inverso existente 30 lbf → psi', C.presionMedida(4.5, 1.1, 30, 'lbf').presion.psi, 39.10, 0.005);
+cerca('Ida y vuelta: objetivo 40 psi → lbf → psi', C.presionPsi(C.fuerzaObjetivo(contacto(40, 40), { largo_cm: 4.5, ancho_cm: 1.1 }).fuerza.lbf, 4.5, 1.1), 40, 1e-9);
+
+console.log('\n9) Regla del máximo del rango');
+igual('20-30 → 30', C.presionObjetivo(20, 30), 30);
+igual('50-60 → 60', C.presionObjetivo(50, 60), 60);
+igual('Valor único 30 → 30', C.presionObjetivo(30, 30), 30);
+igual('Solo mínimo 30 → 30', C.presionObjetivo(30, null), 30);
+igual('Sin presión → null', C.presionObjetivo(null, null), null);
+const r1 = C.parseRango('20-30'), r2 = C.parseRango('15- 20'), r3 = C.parseRango('25-30 psi'), r4 = C.parseRango(30);
+igual('"20-30" → 20..30', r1.min + '..' + r1.max, '20..30');
+igual('"15- 20" → 15..20', r2.min + '..' + r2.max, '15..20');
+igual('"25-30 psi" → 25..30 psi', r3.min + '..' + r3.max + ' ' + r3.unidad, '25..30 psi');
+igual('30 → 30..30', r4.min + '..' + r4.max, '30..30');
+igual('"160--165" → 160..165', C.parseRango('160--165').max, 165);
+igual('Conserva texto original', r3.texto, '25-30 psi');
+igual('Texto con varias pasadas no se convierte', C.parseRango('7 Segundos lado frontal. 7 segundos lado inferior.'), null);
+o = C.fuerzaObjetivo(contacto(20, 30), { largo_cm: 4, ancho_cm: 2 });
+igual('Rango 20-30 usa 30 psi', o.presionObjetivo, 30);
+cerca('Rango 20-30 en 4 × 2 → lbf', o.fuerza.lbf, 37.20, 0.005);
+
+console.log('\n10) Bloqueos del cálculo');
+const motivos = (x) => x.motivos.map(m => m.codigo).join(',');
+o = C.fuerzaObjetivo(contacto(20, 30), { largo_cm: null, ancho_cm: 2 });
+igual('Sin largo → no calcula', o.ok, false);
+igual('Sin largo → motivo', motivos(o), 'sin-dimensiones');
+igual('Sin largo → sin fuerza', o.fuerza, null);
+o = C.fuerzaObjetivo({ presion_min_psi: 20, presion_max_psi: 30, tipo_presion: 'pendiente' }, { largo_cm: 4, ancho_cm: 2 });
+igual('Tipo pendiente → no calcula', o.ok, false);
+igual('Tipo pendiente → mensaje', o.motivos[0].texto, 'Pendiente de confirmar el tipo de presión.');
+igual('Tipo pendiente → sin fuerza', o.fuerza, null);
+o = C.fuerzaObjetivo({ presion_min_psi: 20, presion_max_psi: 30 }, { largo_cm: 4, ancho_cm: 2 });
+igual('Tipo vacío = pendiente', motivos(o), 'tipo-pendiente');
+o = C.fuerzaObjetivo({ presion_min_psi: 60, presion_max_psi: 60, tipo_presion: 'aire_manometro' }, { largo_cm: 4, ancho_cm: 2 });
+igual('Aire del manómetro → no convierte', motivos(o), 'aire');
+igual('Aire del manómetro → sin fuerza', o.fuerza, null);
+o = C.fuerzaObjetivo({ tipo_presion: 'contacto_rubber' }, { largo_cm: 4, ancho_cm: 2 });
+igual('Sin presión → no calcula', motivos(o), 'sin-presion');
+o = C.fuerzaObjetivo({ tipo_presion: 'pendiente' }, {});
+igual('Varios faltantes se informan juntos', motivos(o), 'sin-presion,tipo-pendiente,sin-dimensiones');
+
 console.log('\n7) Validación de números');
 igual('"4,5" → 4.5', C.parseNumero('4,5'), 4.5);
 igual('"abc" → NaN', Number.isNaN(C.parseNumero('abc')), true);
