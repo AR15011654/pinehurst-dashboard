@@ -228,6 +228,22 @@
     return norm(reg.maquina) + '|' + Number(reg.largo).toFixed(2) + 'x' + Number(reg.ancho).toFixed(2) + '|' + norm(reg.montaje);
   }
 
+  /**
+   * Fuerza teórica del pistón (apartado informativo, no se guarda en los registros).
+   * F (lbf) = Pn × π × D² ÷ (4 × 645.16)
+   * Pn: presión neumática del manómetro (psi) · D: diámetro del pistón (mm, 65 por defecto)
+   * 645.16 = mm² por in². Supone presión sobre toda el área del pistón y cámara opuesta descargada;
+   * no incluye el peso de la plancha ni las pérdidas por fricción.
+   */
+  var PISTON_DIAMETRO_MM = 65;
+  var PI_PISTON = 3.14159265;
+  function fuerzaTeoricaPiston(pnPsi, diametroMm) {
+    var d = diametroMm === undefined ? PISTON_DIAMETRO_MM : diametroMm;
+    var areaMm2 = PI_PISTON * d * d / 4;
+    var areaIn2 = areaMm2 / 645.16;
+    return { diametroMm: d, areaMm2: areaMm2, areaIn2: areaIn2, pnPsi: pnPsi, lbf: pnPsi * PI_PISTON * d * d / (4 * 645.16) };
+  }
+
   /** Redondeo numérico (solo para mostrar o exportar). */
   function redondear(v, d) {
     d = d === undefined ? 2 : d;
@@ -251,7 +267,8 @@
     tablaEquivalencias: tablaEquivalencias, regresionLineal: regresionLineal,
     sugerirManometro: sugerirManometro, claveGrupo: claveGrupo,
     redondear: redondear, formatear: formatear,
-    parseRango: parseRango, presionObjetivo: presionObjetivo, fuerzaObjetivo: fuerzaObjetivo, TIPOS_PRESION: TIPOS_PRESION
+    parseRango: parseRango, presionObjetivo: presionObjetivo, fuerzaObjetivo: fuerzaObjetivo, TIPOS_PRESION: TIPOS_PRESION,
+    fuerzaTeoricaPiston: fuerzaTeoricaPiston, PISTON_DIAMETRO_MM: PISTON_DIAMETRO_MM
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = Calc;

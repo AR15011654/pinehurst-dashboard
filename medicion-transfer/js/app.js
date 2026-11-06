@@ -6,7 +6,7 @@
 (function () {
   'use strict';
 
-  var APP_VERSION = '3.1.0';
+  var APP_VERSION = '3.2.0';
   var C = window.Calc;
   var DB = window.DB;
   var LS_AJ = 'transfer.ajustes.v1';
@@ -990,6 +990,7 @@
   function previewPrueba() {
     var l = leer('rp-largo'), a = leer('rp-ancho'), fz = leer('rp-fuerza'), m = leer('rp-man');
     var out = $('#rp-preview');
+    previewPiston();
     if (!(l.ok && a.ok && fz.ok)) { out.innerHTML = vacio('La presión promedio sobre el rubber se calcula al ingresar rubber y fuerza.'); return; }
     var r = C.presionMedida(l.v, a.v, fz.v, $('#rp-fuerza-u').value);
     var html = '<div class="res-grid">';
@@ -997,6 +998,19 @@
     html += tile('fuerza', 'Fuerza medida', f(r.fuerza.lbf), 'lbf') +
       tile('presion', 'Presión prom. rubber', f(r.presion.psi), 'psi', f(r.presion.kgfcm2) + ' kgf/cm² · ' + f(r.presion.bar) + ' bar') + '</div>';
     out.innerHTML = html + htmlCapacidad(r.fuerza.lbf);
+  }
+
+  // Fuerza teórica del pistón (solo se muestra; no se guarda en los registros)
+  function previewPiston() {
+    var out = $('#rp-piston');
+    if (!out) return;
+    var el = $('#rp-man'), n = C.parseNumero(el.value.trim());
+    if (!(n > 0)) { out.innerHTML = vacio('Ingresa la presión del manómetro para ver la fuerza teórica del pistón.'); return; }
+    var u = $('#rp-man-u').value, pn = C.presionAPsi(n, u);
+    var r = C.fuerzaTeoricaPiston(pn);
+    var det = 'Pn = ' + f(pn) + ' psi' + (u !== 'psi' ? ' (' + f(n) + ' ' + NOMBRE_PRES[u] + ')' : '') +
+      ' · Área = ' + f(r.areaMm2) + ' mm² (' + f(r.areaIn2, 3) + ' in²)';
+    out.innerHTML = '<div class="res-grid">' + tile('fuerza', 'Fuerza neumática teórica', f(r.lbf), 'lbf', esc(det)) + '</div>';
   }
 
   function guardarPrueba(ev) {
@@ -1679,6 +1693,8 @@
     ['rp-largo', 'rp-ancho', 'rp-man', 'rp-fuerza'].forEach(function (id) { $('#' + id).addEventListener('input', previewPrueba); });
     ['rp-man-u', 'rp-fuerza-u', 'rp-temp-u'].forEach(function (id) { $('#' + id).addEventListener('change', function () { recordar(id); previewPrueba(); }); });
     ['rp-largo', 'rp-ancho', 'rp-montaje'].forEach(function (id) { $('#' + id).addEventListener('change', function () { alCambiarMaquina('rp'); }); });
+    $('#rp-man').addEventListener('input', previewPiston);
+    $('#rp-man-u').addEventListener('change', previewPiston);
     $('#rp-cancelar').addEventListener('click', function () { cancelarEdicion(); });
     $('#rp-limpiar').addEventListener('click', function () { if (editId) cancelarEdicion(); else limpiarFormulario(); });
     $('#g-grupo').addEventListener('change', function () { grupoSel = this.value; renderGraficas(); });
